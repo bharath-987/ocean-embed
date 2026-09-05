@@ -1,0 +1,11 @@
+{
+  "name": "ocean-embed",
+  "version": "1.0.0",
+  "description": "Satellite-derived ocean temperature depth profiles for the north Indian Ocean.",
+  "scripts": {
+    "dev": "serve . --listen 5500"
+  },
+  "devDependencies": {
+    "serve": "^14.2.3"
+  }
+}

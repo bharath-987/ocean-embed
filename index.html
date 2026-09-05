@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OceanEmbed — Satellite-derived ocean temperature profiles</title>
+  <meta name="description" content="Pick any point in the North Indian Ocean and any day, and OceanEmbed reconstructs the temperature profile from the surface to 1000 metres, from satellite data alone." />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="home-page">
+
+  <!-- Minimal Navigation -->
+  <header class="home-nav">
+    <div class="home-nav__logo">
+      Ocean<em>Embed</em>
+    </div>
+  </header>
+
+  <!-- Main Hero Section -->
+  <main class="home-hero" role="main">
+    <div class="home-container">
+      <div class="home-hero__content">
+        <p class="home-eyebrow">North Indian Ocean &middot; 2021&ndash;2023</p>
+
+        <h1 class="home-title">Ocean<em>Embed</em></h1>
+
+        <p class="home-description">
+          Pick any point in the North Indian Ocean and any day, and OceanEmbed reconstructs the temperature profile from the surface to 1000 metres, from satellite data alone.
+        </p>
+
+        <div class="home-cta-wrap">
+          <a href="explore.html" class="home-btn-primary" id="cta-start">Start Now</a>
+        </div>
+
+        <!-- 3-Step Overview Row -->
+        <div class="home-steps" role="list" aria-label="How OceanEmbed works">
+          <div class="home-step" role="listitem">
+            <span class="home-step__num">01</span>
+            <div class="home-step__text">
+              <strong class="home-step__title">Pick a point</strong>
+              <span class="home-step__desc">Select coordinates across the basin</span>
+            </div>
+          </div>
+          <div class="home-step__divider" aria-hidden="true"></div>
+          <div class="home-step" role="listitem">
+            <span class="home-step__num">02</span>
+            <div class="home-step__text">
+              <strong class="home-step__title">Choose a date</strong>
+              <span class="home-step__desc">Daily observations from 2021 to 2023</span>
+            </div>
+          </div>
+          <div class="home-step__divider" aria-hidden="true"></div>
+          <div class="home-step" role="listitem">
+            <span class="home-step__num">03</span>
+            <div class="home-step__text">
+              <strong class="home-step__title">Read the depth profile</strong>
+              <span class="home-step__desc">Instant reconstruction to 1000&thinsp;m</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Subtle downward arrow indicator -->
+      <a href="#home-details" class="home-scroll-indicator" aria-label="Scroll to explore details">
+        <svg class="home-scroll-indicator__icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <polyline points="19 12 12 19 5 12"></polyline>
+        </svg>
+      </a>
+    </div>
+  </main>
+
+  <!-- Minimal Details Section -->
+  <section class="home-details" id="home-details" aria-label="About the technology">
+    <div class="home-container">
+      <div class="home-details__header">
+        <span class="home-eyebrow">Satellite Remote Sensing</span>
+        <h2 class="home-details__title">Orbit-to-depth reconstruction</h2>
+        <p class="home-details__lead">
+          Combining sea surface temperature, salinity, altimetry, and surface winds into deep vertical temperature profiles without requiring in-situ buoys.
+        </p>
+      </div>
+
+      <div class="home-details__grid">
+        <div class="home-feature">
+          <span class="home-feature__index">A</span>
+          <h3 class="home-feature__title">Satellite-only inputs</h3>
+          <p class="home-feature__desc">
+            No physical sensor drops needed. Sea surface temperature (SST), sea surface height (SSH), and sea surface salinity (SSS) feed the model directly.
+          </p>
+        </div>
+
+        <div class="home-feature">
+          <span class="home-feature__index">B</span>
+          <h3 class="home-feature__title">Full-depth profile</h3>
+          <p class="home-feature__desc">
+            Standard oceanographic depth layers from surface down to 1000 metres, resolving both mixed layer dynamics and thermocline structure.
+          </p>
+        </div>
+
+        <div class="home-feature">
+          <span class="home-feature__index">C</span>
+          <h3 class="home-feature__title">Continuous basin coverage</h3>
+          <p class="home-feature__desc">
+            Full North Indian Ocean study region covering the Arabian Sea and Bay of Bengal with 3 years of daily historical data.
+          </p>
+        </div>
+      </div>
+
+      <div class="home-footer-cta">
+        <h3 class="home-footer-cta__title">Ready to query the water column?</h3>
+        <a href="explore.html" class="home-btn-primary">Launch Interactive Map</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Minimal Footer -->
+  <footer class="home-footer">
+    <div class="home-container home-footer__inner">
+      <p class="home-footer__copy">
+        OceanEmbed &middot; North Indian Ocean 2021&ndash;2023 &middot; Subsurface Temperature Reconstruction
+      </p>
+    </div>
+  </footer>
+
+</body>
+</html>

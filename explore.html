@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OceanEmbed — Explore depth profiles</title>
+  <meta name="description" content="Interactive map to explore satellite-derived ocean temperature depth profiles in the north Indian Ocean." />
+
+  <!-- MapLibre GL -->
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <div class="explore-layout">
+
+    <!-- ====================================================
+         LEFT — map panel
+         ==================================================== -->
+    <section class="map-panel" aria-label="Map">
+
+      <header class="map-panel__header">
+        <div class="map-panel__brand-search">
+          <div class="map-panel__logo">
+            <a href="index.html">Ocean<span style="color:var(--teal)">Embed</span></a>
+          </div>
+          <div class="map-search-wrap">
+            <svg class="map-search__icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input
+              type="text"
+              id="map-search-input"
+              class="map-search__input"
+              placeholder="Search location or coordinates (e.g. 15N 65E)..."
+              autocomplete="off"
+              spellcheck="false"
+              aria-label="Search location or coordinates"
+            />
+            <button type="button" id="map-search-clear" class="map-search__clear" aria-label="Clear search" style="display:none;">&times;</button>
+            <div id="map-search-results" class="map-search__dropdown" style="display:none;" role="listbox"></div>
+          </div>
+        </div>
+      </header>
+
+      <div class="map-wrap">
+        <div id="map"></div>
+        <!-- SVG overlay for outside-bounds dimming -->
+        <svg class="map-dim-overlay" id="dim-overlay" xmlns="http://www.w3.org/2000/svg"></svg>
+      </div>
+
+      <footer class="map-footer">
+        <div class="slider-row">
+          <span class="slider-label-left">1 jan 2021</span>
+          <input
+            type="range"
+            id="date-slider"
+            min="0"
+            max="1094"
+            value="547"
+            aria-label="Select date"
+          />
+          <span class="slider-label-right">31 dec 2023</span>
+        </div>
+        <div class="date-display" id="date-display">15 jun 2022</div>
+        <div class="cast-row">
+          <button class="btn-cast" id="btn-cast" disabled aria-label="Take a cast at selected coordinates and date">
+            Take a cast
+          </button>
+        </div>
+      </footer>
+
+    </section>
+
+    <!-- ====================================================
+         RIGHT — result panel
+         ==================================================== -->
+    <section class="result-panel" aria-label="Depth profile results" aria-live="polite">
+
+      <div class="result-panel__inner" id="result-inner">
+
+        <!-- Idle state -->
+        <div class="result-idle" id="result-idle">
+          <svg class="result-idle__icon" width="56" height="56" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <circle cx="28" cy="28" r="26" stroke="#2DD4BF" stroke-width="1.5" stroke-dasharray="4 3"/>
+            <path d="M28 10 L28 46 M10 28 L46 28" stroke="#2DD4BF" stroke-width="1" opacity="0.4"/>
+            <circle cx="28" cy="28" r="4" fill="#2DD4BF" opacity="0.5"/>
+          </svg>
+          <p class="result-idle__text">
+            Pick a location inside the study boundary, pick a date, then press <strong style="color:var(--coral)">Take a cast</strong>.
+          </p>
+        </div>
+
+        <!-- Loading state (hidden initially) -->
+        <div id="result-loading" style="display:none;">
+          <div class="sonar-wrap">
+            <div class="sonar" aria-label="Loading profile…">
+              <div class="sonar__ring"></div>
+              <div class="sonar__ring"></div>
+              <div class="sonar__ring"></div>
+              <div class="sonar__ring"></div>
+            </div>
+          </div>
+          <p style="text-align:center;font-size:12px;color:var(--muted);">Reconstructing 0–1000 m temperature profile…</p>
+        </div>
+
+        <!-- Result content (hidden initially) -->
+        <div id="result-content" style="display:none;">
+
+          <!-- Merged Selected location + Date panel -->
+          <div class="result-header-card">
+            <div class="result-location-block">
+              <span class="result-card-label">Selected location</span>
+              <div class="result-coords-title" id="result-coords-val">--</div>
+              <div class="result-region-subtitle" id="result-region-val">--</div>
+            </div>
+            <div class="result-date-block">
+              <span class="result-card-label">Observation date</span>
+              <div class="result-date-badge" id="result-date-val">--</div>
+            </div>
+          </div>
+
+          <!-- Compact Surface Inputs (SST, SSS, SSH/SLA, Surface Current U/V, Wind U/V) -->
+          <div class="surface-inputs-section">
+            <div class="section-title-sub">Satellite surface inputs</div>
+            <div class="surface-inputs-grid" id="surface-inputs-grid">
+              <!-- Rendered dynamically -->
+            </div>
+          </div>
+
+          <!-- Depth Profile Chart (Primary Result, 15 standard depths) -->
+          <div class="chart-section">
+            <div class="chart-header">
+              <h3 class="chart-section__title">Temperature vs depth</h3>
+              <span class="chart-depth-tag">0 – 1000 m</span>
+            </div>
+            <div class="chart-wrap">
+              <canvas id="profile-chart" aria-label="Depth profile chart showing temperature from 0 to 1000 m"></canvas>
+            </div>
+          </div>
+
+          <!-- Summary headline -->
+          <div class="result-summary" id="result-summary"></div>
+
+          <!-- Validation Section (ARGO reference validation, RMSE, Correlation, Bias) -->
+          <div class="validation-section" id="validation-section">
+            <div class="validation-header">
+              <div class="validation-title">Independent validation</div>
+              <span class="validation-badge">Argo float reference</span>
+            </div>
+            <p class="validation-note">
+              Argo profiles serve as an independent in-situ benchmark and are never used as model inputs.
+            </p>
+            <div class="validation-metrics-grid" id="validation-metrics-grid">
+              <!-- Rendered dynamically (3 small numbers in a row) -->
+            </div>
+            <div class="validation-argo-ref" id="validation-argo-ref">
+              <!-- Rendered dynamically (one line for nearest Argo profile's lat/lon, distance, date) -->
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </section>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
