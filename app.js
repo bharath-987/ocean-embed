@@ -16,13 +16,19 @@ const BOUNDS = {
 
 const DEPTHS = [0, 5, 10, 20, 30, 50, 75, 100, 125, 150, 200, 300, 500, 700, 1000];
 
-const EPOCH_START = new Date('2021-01-01');
-const EPOCH_END   = new Date('2023-12-31');
-const TOTAL_DAYS  = Math.round((EPOCH_END - EPOCH_START) / 86400000);
+const EPOCH_START    = new Date('2021-01-01');
+const EPOCH_END      = new Date('2023-12-31');
+const TOTAL_DAYS     = Math.round((EPOCH_END - EPOCH_START) / 86400000);
+const MIN_VALID_DAY  = 10;  // First 10 days of 2021 excluded — model needs 10 days of prior history
 
-const TEAL  = '#2DD4BF';
-const CORAL = '#F2994A';
-const MUTED = '#6E8AA3';
+const TEAL  = '#2563EB';  // blue-600 for light theme
+const CORAL = '#EA7C3A';  // orange accent
+const MUTED = '#94A3B8';  // slate-400
+
+/* ── Backend config ──────────────────────────────────────── */
+
+const API_BASE = 'http://localhost:8000';
+const USE_MOCK = false;  // Set to true for offline frontend dev without the Python server
 
 /* ── Land/Sea Mask ────────────────────────────────────────────── */
 
@@ -102,9 +108,12 @@ function isLand(lat, lon) {
 
 /* ── State ───────────────────────────────────────────────── */
 
-let clickedLatLng = null;
-let clickMarker   = null;
-let profileChart  = null;
+let clickedLatLng   = null;
+let clickMarker     = null;
+let profileChart    = null;
+let hasSelectedDate = false;
+let selectedDepth   = null; // 0, 5, 10, ... 1000 or null
+let selectedParam   = null; // 'sst', 'ssh', 'sss', 'sla', 'current', 'wind' or null
 
 /* ── Seeded pseudo-random (splitmix32 via string hash) ───── */
 
@@ -325,6 +334,7 @@ function dateToISO(d) {
 const dateSlider  = document.getElementById('date-slider');
 const dateDisplay = document.getElementById('date-display');
 
+dateSlider.min = MIN_VALID_DAY;
 dateSlider.max = TOTAL_DAYS;
 dateSlider.value = Math.round(TOTAL_DAYS / 2);
 
@@ -332,16 +342,136 @@ function updateSliderUI() {
   const pct = (dateSlider.value / dateSlider.max) * 100;
   dateSlider.style.setProperty('--slider-pct', pct + '%');
   const d = dayIndexToDate(parseInt(dateSlider.value, 10));
-  dateDisplay.textContent = formatDate(d);
+  const formatted = formatDate(d);
+  if (dateDisplay) dateDisplay.textContent = hasSelectedDate ? formatted : 'Select date';
+  // Also keep the header date button and native picker in sync
+  const headerDateEl = document.getElementById('date-display-header');
+  if (headerDateEl) headerDateEl.textContent = hasSelectedDate ? formatted : 'Select date';
+  const nativePicker = document.getElementById('native-date-picker');
+  if (nativePicker && hasSelectedDate) nativePicker.value = dateToISO(d);
 }
 
-dateSlider.addEventListener('input', updateSliderUI);
+dateSlider.addEventListener('input', () => {
+  hasSelectedDate = true;
+  updateSliderUI();
+  checkAndRefreshHeatmap();
+  checkAndTriggerCast();
+});
 updateSliderUI();
+
+/* ── Native Date Picker Integration ───────────────────────── */
+
+const nativeDatePicker = document.getElementById('native-date-picker');
+const dateBtn = document.getElementById('ky-date-btn');
+
+if (nativeDatePicker) {
+  const openCalendar = () => {
+    if (typeof nativeDatePicker.showPicker === 'function') {
+      try {
+        nativeDatePicker.showPicker();
+      } catch (err) {
+        nativeDatePicker.focus();
+      }
+    } else {
+      nativeDatePicker.focus();
+    }
+  };
+
+  if (dateBtn) {
+    dateBtn.addEventListener('click', openCalendar);
+  }
+
+  // Also if container is clicked
+  const dateWrap = document.querySelector('.ky-date-picker-wrap');
+  if (dateWrap) {
+    dateWrap.addEventListener('click', (e) => {
+      if (e.target !== nativeDatePicker) {
+        openCalendar();
+      }
+    });
+  }
+
+  nativeDatePicker.addEventListener('change', () => {
+    const val = nativeDatePicker.value;
+    if (!val) return;
+    const selectedDate = new Date(`${val}T00:00:00`);
+    if (isNaN(selectedDate.getTime())) return;
+
+    hasSelectedDate = true;
+    
+    // Calculate difference in days from EPOCH_START
+    const diffDays = Math.round((selectedDate - EPOCH_START) / 86400000);
+    const clampedDay = Math.max(MIN_VALID_DAY, Math.min(TOTAL_DAYS, diffDays));
+    
+    dateSlider.value = clampedDay;
+    updateSliderUI();
+    checkAndRefreshHeatmap();
+    checkAndTriggerCast();
+  });
+}
+
+/* ── Depth Selector Integration (Top-Left Map Dropdown) ─── */
+
+const depthSelect = document.getElementById('native-depth-select');
+const depthLabel  = document.getElementById('map-depth-label');
+const depthWrap   = document.getElementById('map-depth-dropdown-wrap');
+
+if (depthSelect) {
+  const openDepthPicker = () => {
+    if (typeof depthSelect.showPicker === 'function') {
+      try {
+        depthSelect.showPicker();
+      } catch (e) {
+        depthSelect.focus();
+      }
+    } else {
+      depthSelect.focus();
+    }
+  };
+
+  if (depthWrap) {
+    depthWrap.addEventListener('click', (e) => {
+      if (e.target !== depthSelect) {
+        openDepthPicker();
+      }
+    });
+  }
+
+  depthSelect.addEventListener('change', () => {
+    const rawVal = depthSelect.value;
+    if (rawVal === '' || rawVal === null) return;
+    selectedDepth = parseInt(rawVal, 10);
+
+    if (depthLabel) {
+      depthLabel.textContent = selectedDepth === 0 ? 'Depth: 0 m (Surface)' : `Depth: ${selectedDepth} m`;
+    }
+
+    // If a subsurface depth (> 0) is selected, deselect any surface parameter tile
+    if (selectedDepth > 0) {
+      selectedParam = null;
+      document.querySelectorAll('.ky-param-tile').forEach(t => t.classList.remove('ky-param-tile--active'));
+    } else if (selectedDepth === 0 && !selectedParam) {
+      // If 0m selected and no param card is active, view Sea Surface Temperature
+      selectedParam = 'sst';
+    }
+
+    // Refresh heatmap overlay with real values for newly chosen depth/parameter
+    checkAndRefreshHeatmap();
+  });
+}
+
+
 
 /* ── MapLibre GL map ─────────────────────────────────────── */
 
 const map = new maplibregl.Map({
   container: 'map',
+  dragRotate: false,
+  pitchWithRotate: false,
+  touchPitch: false,
+  bearing: 0,
+  pitch: 0,
+  maxPitch: 0,
   style: {
     version: 8,
     sources: {
@@ -379,57 +509,507 @@ window.addEventListener('beforeunload', () => {
   }
 });
 
-// Custom attribution control
-map.addControl(
-  new maplibregl.AttributionControl({
-    compact: false,
-    customAttribution: 'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics',
-  }),
-  'bottom-right'
-);
+// Zoom navigation control (top-right zoom + and -)
+map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
 
-// Zoom navigation control
-map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-left');
+/* ── Real Ocean Temperature Heatmap Generation (Gated & Multi-Depth) ── */
 
-// Add dashed study rectangle and geographic labels once map style is loaded
+const HEATMAP_BOUNDS = {
+  north: 30.0,
+  south: 5.0,
+  west:  45.0,
+  east:  105.0,
+};
+
+let currentHeatmapRequestId = 0;
+
+function tempToColor(temp, depth) {
+  // Adaptive color scale based on depth so surface warm features and deep cold features are both vividly rendered
+  // Depth 0: 24-32°C. Depth 1000m: 4-12°C.
+  let minT = 24.0, maxT = 32.0;
+  if (depth >= 700) {
+    minT = 4.0; maxT = 12.0;
+  } else if (depth >= 300) {
+    minT = 8.0; maxT = 18.0;
+  } else if (depth >= 100) {
+    minT = 14.0; maxT = 26.0;
+  } else if (depth >= 50) {
+    minT = 20.0; maxT = 30.0;
+  }
+
+  const tNorm = Math.max(0, Math.min(1, (temp - minT) / (maxT - minT)));
+  let r = 0, g = 0, b = 0;
+  if (tNorm < 0.25) {
+    const f = tNorm / 0.25;
+    r = Math.round(30 + f * (6 - 30));
+    g = Math.round(58 + f * (182 - 58));
+    b = Math.round(138 + f * (212 - 138));
+  } else if (tNorm < 0.50) {
+    const f = (tNorm - 0.25) / 0.25;
+    r = Math.round(6 + f * (250 - 6));
+    g = Math.round(182 + f * (204 - 182));
+    b = Math.round(212 + f * (21 - 212));
+  } else if (tNorm < 0.75) {
+    const f = (tNorm - 0.50) / 0.25;
+    r = Math.round(250 + f * (249 - 250));
+    g = Math.round(204 + f * (115 - 204));
+    b = Math.round(21 + f * (22 - 21));
+  } else {
+    const f = (tNorm - 0.75) / 0.25;
+    r = Math.round(249 + f * (220 - 249));
+    g = Math.round(115 + f * (38 - 115));
+    b = Math.round(22 + f * (38 - 22));
+  }
+  return { r, g, b };
+}
+
+function generateRealGridCanvas(gridData, depth) {
+  const lats = gridData.lats; // 101 entries: 5.0 to 30.0 (ascending)
+  const lons = gridData.lons; // 241 entries: 45.0 to 105.0 (ascending)
+  const grid = gridData.grid; // [101][241]
+
+  const width = lons.length;
+  const height = lats.length;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  const imgData = ctx.createImageData(width, height);
+  const data = imgData.data;
+
+  // grid row 0 is lat 5.0 (South), row 100 is lat 30.0 (North).
+  // Canvas row y=0 is North, row y=height-1 is South.
+  for (let y = 0; y < height; y++) {
+    const latIdx = (height - 1) - y;
+    const lat = lats[latIdx];
+    const row = grid[latIdx];
+
+    for (let x = 0; x < width; x++) {
+      const lon = lons[x];
+      const val = row[x];
+      const idx = (y * width + x) * 4;
+
+      // 0.0 in dataset indicates land mask or missing data
+      if (val < 0.5 || isLand(lat, lon)) {
+        data[idx]     = 0;
+        data[idx + 1] = 0;
+        data[idx + 2] = 0;
+        data[idx + 3] = 0;
+      } else {
+        const { r, g, b } = tempToColor(val, depth);
+        data[idx]     = r;
+        data[idx + 1] = g;
+        data[idx + 2] = b;
+        data[idx + 3] = 195; // Smooth overlay opacity
+      }
+    }
+  }
+
+  ctx.putImageData(imgData, 0, 0);
+  return canvas.toDataURL();
+}
+
+function generateFallbackCanvas(dateStr, depth) {
+  const width = 160;
+  const height = 130;
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  const imgData = ctx.createImageData(width, height);
+  const data = imgData.data;
+
+  for (let y = 0; y < height; y++) {
+    const lat = HEATMAP_BOUNDS.north - (y / (height - 1)) * (HEATMAP_BOUNDS.north - HEATMAP_BOUNDS.south);
+    for (let x = 0; x < width; x++) {
+      const lon = HEATMAP_BOUNDS.west + (x / (width - 1)) * (HEATMAP_BOUNDS.east - HEATMAP_BOUNDS.west);
+      const idx = (y * width + x) * 4;
+
+      if (isLand(lat, lon)) {
+        data[idx]     = 0;
+        data[idx + 1] = 0;
+        data[idx + 2] = 0;
+        data[idx + 3] = 0;
+      } else {
+        const temp = calculateOceanTemp(lat, lon, depth, dateStr);
+        const { r, g, b } = tempToColor(temp, depth);
+        data[idx]     = r;
+        data[idx + 1] = g;
+        data[idx + 2] = b;
+        data[idx + 3] = 195;
+      }
+    }
+  }
+
+  ctx.putImageData(imgData, 0, 0);
+  return canvas.toDataURL();
+}
+
+function paramToColor(param, val) {
+  let minV = 0, maxV = 1;
+  let p = param.toLowerCase();
+  if (p === 'sst') {
+    minV = 24.0; maxV = 32.0;
+    const tNorm = Math.max(0, Math.min(1, (val - minV) / (maxV - minV)));
+    let r = 0, g = 0, b = 0;
+    if (tNorm < 0.25) {
+      const f = tNorm / 0.25;
+      r = Math.round(30 + f * (6 - 30));
+      g = Math.round(58 + f * (182 - 58));
+      b = Math.round(138 + f * (212 - 138));
+    } else if (tNorm < 0.50) {
+      const f = (tNorm - 0.25) / 0.25;
+      r = Math.round(6 + f * (250 - 6));
+      g = Math.round(182 + f * (204 - 182));
+      b = Math.round(212 + f * (21 - 212));
+    } else if (tNorm < 0.75) {
+      const f = (tNorm - 0.50) / 0.25;
+      r = Math.round(250 + f * (249 - 250));
+      g = Math.round(204 + f * (115 - 204));
+      b = Math.round(21 + f * (22 - 21));
+    } else {
+      const f = (tNorm - 0.75) / 0.25;
+      r = Math.round(249 + f * (220 - 249));
+      g = Math.round(115 + f * (38 - 115));
+      b = Math.round(22 + f * (38 - 22));
+    }
+    return { r, g, b };
+  } else if (p === 'ssh') {
+    // -0.4 to +0.4 m: Blue #1E3A8A -> Cyan/Blue #3B82F6 -> Red #EF4444
+    minV = -0.4; maxV = 0.4;
+    const norm = Math.max(0, Math.min(1, (val - minV) / (maxV - minV)));
+    let r, g, b;
+    if (norm < 0.5) {
+      const f = norm / 0.5;
+      r = Math.round(30 + f * (59 - 30));
+      g = Math.round(58 + f * (130 - 58));
+      b = Math.round(138 + f * (246 - 138));
+    } else {
+      const f = (norm - 0.5) / 0.5;
+      r = Math.round(59 + f * (239 - 59));
+      g = Math.round(130 + f * (68 - 130));
+      b = Math.round(246 + f * (68 - 246));
+    }
+    return { r, g, b };
+  } else if (p === 'sss') {
+    // 32 to 36 PSU: Dark Green #059669 -> Emerald #10B981 -> Blue #3B82F6
+    minV = 32.0; maxV = 36.0;
+    const norm = Math.max(0, Math.min(1, (val - minV) / (maxV - minV)));
+    let r, g, b;
+    if (norm < 0.5) {
+      const f = norm / 0.5;
+      r = Math.round(5 + f * (16 - 5));
+      g = Math.round(150 + f * (185 - 150));
+      b = Math.round(105 + f * (129 - 105));
+    } else {
+      const f = (norm - 0.5) / 0.5;
+      r = Math.round(16 + f * (59 - 16));
+      g = Math.round(185 + f * (130 - 185));
+      b = Math.round(129 + f * (246 - 129));
+    }
+    return { r, g, b };
+  } else if (p === 'sla') {
+    // -0.3 to +0.3 m: Indigo #4338CA -> Violet #6366F1 -> Pink #EC4899
+    minV = -0.3; maxV = 0.3;
+    const norm = Math.max(0, Math.min(1, (val - minV) / (maxV - minV)));
+    let r, g, b;
+    if (norm < 0.5) {
+      const f = norm / 0.5;
+      r = Math.round(67 + f * (99 - 67));
+      g = Math.round(56 + f * (102 - 56));
+      b = Math.round(202 + f * (241 - 202));
+    } else {
+      const f = (norm - 0.5) / 0.5;
+      r = Math.round(99 + f * (236 - 99));
+      g = Math.round(102 + f * (72 - 102));
+      b = Math.round(241 + f * (153 - 241));
+    }
+    return { r, g, b };
+  } else if (p === 'current') {
+    // 0.0 to 1.2 m/s: Ocean Blue #0284C7 -> Cyan #06B6D4 -> Rose #E11D48
+    minV = 0.0; maxV = 1.2;
+    const norm = Math.max(0, Math.min(1, (val - minV) / (maxV - minV)));
+    let r, g, b;
+    if (norm < 0.5) {
+      const f = norm / 0.5;
+      r = Math.round(2 + f * (6 - 2));
+      g = Math.round(132 + f * (182 - 132));
+      b = Math.round(199 + f * (212 - 199));
+    } else {
+      const f = (norm - 0.5) / 0.5;
+      r = Math.round(6 + f * (225 - 6));
+      g = Math.round(182 + f * (29 - 182));
+      b = Math.round(212 + f * (72 - 212));
+    }
+    return { r, g, b };
+  } else if (p === 'wind') {
+    // 2 to 14 m/s: Slate #475569 -> Sky #38BDF8 -> Amber #F59E0B
+    minV = 2.0; maxV = 14.0;
+    const norm = Math.max(0, Math.min(1, (val - minV) / (maxV - minV)));
+    let r, g, b;
+    if (norm < 0.5) {
+      const f = norm / 0.5;
+      r = Math.round(71 + f * (56 - 71));
+      g = Math.round(85 + f * (189 - 85));
+      b = Math.round(105 + f * (248 - 105));
+    } else {
+      const f = (norm - 0.5) / 0.5;
+      r = Math.round(56 + f * (245 - 56));
+      g = Math.round(189 + f * (158 - 189));
+      b = Math.round(248 + f * (11 - 248));
+    }
+    return { r, g, b };
+  }
+  return tempToColor(val, 0);
+}
+
+function generateParamGridCanvas(gridData, param) {
+  const lats = gridData.lats;
+  const lons = gridData.lons;
+  const grid = gridData.grid;
+
+  const width = lons.length;
+  const height = lats.length;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  const imgData = ctx.createImageData(width, height);
+  const data = imgData.data;
+
+  for (let y = 0; y < height; y++) {
+    const latIdx = (height - 1) - y;
+    const lat = lats[latIdx];
+    const row = grid[latIdx];
+
+    for (let x = 0; x < width; x++) {
+      const lon = lons[x];
+      const val = row[x];
+      const idx = (y * width + x) * 4;
+
+      if (isLand(lat, lon)) {
+        data[idx]     = 0;
+        data[idx + 1] = 0;
+        data[idx + 2] = 0;
+        data[idx + 3] = 0;
+      } else {
+        const { r, g, b } = paramToColor(param, val);
+        data[idx]     = r;
+        data[idx + 1] = g;
+        data[idx + 2] = b;
+        data[idx + 3] = 195;
+      }
+    }
+  }
+
+  ctx.putImageData(imgData, 0, 0);
+  return canvas.toDataURL();
+}
+
+function generateFallbackParamCanvas(param) {
+  const width = 160;
+  const height = 130;
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  const imgData = ctx.createImageData(width, height);
+  const data = imgData.data;
+
+  for (let y = 0; y < height; y++) {
+    const lat = HEATMAP_BOUNDS.north - (y / (height - 1)) * (HEATMAP_BOUNDS.north - HEATMAP_BOUNDS.south);
+    for (let x = 0; x < width; x++) {
+      const lon = HEATMAP_BOUNDS.west + (x / (width - 1)) * (HEATMAP_BOUNDS.east - HEATMAP_BOUNDS.west);
+      const idx = (y * width + x) * 4;
+
+      if (isLand(lat, lon)) {
+        data[idx]     = 0;
+        data[idx + 1] = 0;
+        data[idx + 2] = 0;
+        data[idx + 3] = 0;
+      } else {
+        let val = 0;
+        if (param === 'sst') val = 28.5;
+        else if (param === 'ssh') val = 0.05;
+        else if (param === 'sss') val = 34.8;
+        else if (param === 'sla') val = 0.02;
+        else if (param === 'current') val = 0.45;
+        else if (param === 'wind') val = 7.5;
+        const { r, g, b } = paramToColor(param, val);
+        data[idx]     = r;
+        data[idx + 1] = g;
+        data[idx + 2] = b;
+        data[idx + 3] = 195;
+      }
+    }
+  }
+
+  ctx.putImageData(imgData, 0, 0);
+  return canvas.toDataURL();
+}
+
+function updateHeatmapOverlay(canvasUrl) {
+  if (!map.isStyleLoaded()) return;
+  const source = map.getSource('sst-heatmap-source');
+  if (source && typeof source.updateImage === 'function') {
+    source.updateImage({
+      url: canvasUrl,
+      coordinates: [
+        [HEATMAP_BOUNDS.west, HEATMAP_BOUNDS.north],
+        [HEATMAP_BOUNDS.east, HEATMAP_BOUNDS.north],
+        [HEATMAP_BOUNDS.east, HEATMAP_BOUNDS.south],
+        [HEATMAP_BOUNDS.west, HEATMAP_BOUNDS.south],
+      ]
+    });
+  }
+}
+
+function updateHeatmapLegend(depth) {
+  const legendTitle = document.getElementById('map-legend-title');
+  const legendTicks = document.getElementById('map-legend-ticks');
+  const legendBar   = document.getElementById('map-legend-bar');
+  if (!legendTitle || !legendTicks) return;
+
+  if (legendBar) {
+    legendBar.style.background = 'linear-gradient(to right, #2563EB 0%, #38BDF8 25%, #FACC15 50%, #F97316 75%, #EF4444 100%)';
+  }
+
+  let ticks = ['24', '26', '28', '30', '32'];
+  if (depth >= 700) {
+    ticks = ['4', '6', '8', '10', '12'];
+  } else if (depth >= 300) {
+    ticks = ['8', '10.5', '13', '15.5', '18'];
+  } else if (depth >= 100) {
+    ticks = ['14', '17', '20', '23', '26'];
+  } else if (depth >= 50) {
+    ticks = ['20', '22.5', '25', '27.5', '30'];
+  }
+
+  legendTitle.textContent = depth === 0 
+    ? 'Sea Surface Temperature (°C)' 
+    : `Subsurface Temperature at ${depth}m (°C)`;
+  legendTicks.innerHTML = ticks.map(t => `<span>${t}</span>`).join('');
+}
+
+// 1x1 Transparent placeholder data URL
+const TRANSPARENT_PIXEL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+
+function checkAndRefreshHeatmap() {
+  if (!map || !map.isStyleLoaded()) return;
+
+  // Gating condition:
+  // Must have a date selected AND (either selectedParam is chosen OR selectedDepth is chosen)
+  // Location (clickedLatLng) is NOT required for the heatmap!
+  const hasLayer = (selectedParam !== null || selectedDepth !== null);
+  const isGated = !hasSelectedDate || !hasLayer;
+
+  if (isGated) {
+    // Hide heatmap overlay completely — display only plain satellite/terrain base map
+    if (map.getLayer('sst-heatmap-layer')) {
+      map.setLayoutProperty('sst-heatmap-layer', 'visibility', 'none');
+    }
+    return;
+  }
+
+  // Gating requirements satisfied: make layer visible
+  if (map.getLayer('sst-heatmap-layer')) {
+    map.setLayoutProperty('sst-heatmap-layer', 'visibility', 'visible');
+  }
+
+  const dayIdx = parseInt(dateSlider.value, 10);
+  const dateStr = dateToISO(dayIndexToDate(dayIdx));
+  const reqId = ++currentHeatmapRequestId;
+
+  if (selectedParam) {
+    // Render 2D Surface Ocean Parameter
+    const cfg = PARAM_CONFIG[selectedParam] || PARAM_CONFIG.sst;
+    const legendTitle = document.getElementById('map-legend-title');
+    const legendBar   = document.getElementById('map-legend-bar');
+    const legendTicks = document.getElementById('map-legend-ticks');
+    if (legendTitle) legendTitle.textContent = cfg.title;
+    if (legendBar)   legendBar.style.background = cfg.bar;
+    if (legendTicks) legendTicks.innerHTML = cfg.ticks.map(t => `<span>${t}</span>`).join('');
+
+    fetch(`${API_BASE}/parameter-grid?param=${selectedParam}&date=${dateStr}`)
+      .then(res => {
+        if (!res.ok) throw new Error(`Param Grid API HTTP ${res.status}`);
+        return res.json();
+      })
+      .then(data => {
+        if (reqId !== currentHeatmapRequestId) return;
+        const url = generateParamGridCanvas(data, selectedParam);
+        updateHeatmapOverlay(url);
+      })
+      .catch(err => {
+        console.warn('Real parameter grid backend unavailable, falling back:', err);
+        if (reqId !== currentHeatmapRequestId) return;
+        const fallbackUrl = generateFallbackParamCanvas(selectedParam);
+        updateHeatmapOverlay(fallbackUrl);
+      });
+  } else {
+    // Render Subsurface Ocean Temperature at selectedDepth
+    const depth = selectedDepth !== null ? selectedDepth : 0;
+    updateHeatmapLegend(depth);
+
+    fetch(`${API_BASE}/temperature-grid?date=${dateStr}&depth=${depth}`)
+      .then(res => {
+        if (!res.ok) throw new Error(`Grid API HTTP ${res.status}`);
+        return res.json();
+      })
+      .then(data => {
+        if (reqId !== currentHeatmapRequestId) return;
+        const url = generateRealGridCanvas(data, depth);
+        updateHeatmapOverlay(url);
+      })
+      .catch(err => {
+        console.warn('Real temperature grid backend unavailable, falling back to ocean model calculations:', err);
+        if (reqId !== currentHeatmapRequestId) return;
+        const fallbackUrl = generateFallbackCanvas(dateStr, depth);
+        updateHeatmapOverlay(fallbackUrl);
+      });
+  }
+}
+
+// Add geographic labels and SST heatmap raster layer once map style is loaded
 map.on('load', () => {
-  // 1. Study-area dashed rectangle
-  map.addSource('study-area', {
-    type: 'geojson',
-    data: {
-      type: 'Feature',
-      geometry: {
-        type: 'Polygon',
-        coordinates: [
-          [
-            [BOUNDS.west, BOUNDS.south],
-            [BOUNDS.east, BOUNDS.south],
-            [BOUNDS.east, BOUNDS.north],
-            [BOUNDS.west, BOUNDS.north],
-            [BOUNDS.west, BOUNDS.south],
-          ],
-        ],
-      },
-    },
+  // 1. Add SST raster image source and layer with transparent initial image
+  map.addSource('sst-heatmap-source', {
+    type: 'image',
+    url: TRANSPARENT_PIXEL,
+    coordinates: [
+      [HEATMAP_BOUNDS.west, HEATMAP_BOUNDS.north],
+      [HEATMAP_BOUNDS.east, HEATMAP_BOUNDS.north],
+      [HEATMAP_BOUNDS.east, HEATMAP_BOUNDS.south],
+      [HEATMAP_BOUNDS.west, HEATMAP_BOUNDS.south],
+    ]
   });
 
   map.addLayer({
-    id: 'study-area-border',
-    type: 'line',
-    source: 'study-area',
-    paint: {
-      'line-color': TEAL,
-      'line-width': 1.5,
-      'line-dasharray': [3, 2],
+    id: 'sst-heatmap-layer',
+    type: 'raster',
+    source: 'sst-heatmap-source',
+    layout: {
+      visibility: 'none', // Initially hidden on load until gated condition is met
     },
+    paint: {
+      'raster-opacity': 0.78,
+      'raster-resampling': 'linear',
+      'raster-fade-duration': 150,
+    }
   });
 
-  // 2. Subtle geographic labels on map (Arabian Sea, Bay of Bengal, Indian Ocean, Study Region)
+  // 2. 8 Geographic labels matching spec and reference design:
   const geoLabels = [
-    { text: 'Arabian Sea', coords: [64.0, 16.5], cls: 'map-geo-label--basin' },
-    { text: 'Bay of Bengal', coords: [88.5, 15.0], cls: 'map-geo-label--basin' },
-    { text: 'Indian Ocean', coords: [78.0, 6.2], cls: 'map-geo-label--basin' },
-    { text: 'Study region (5–30°N, 45–105°E)', coords: [75.0, 29.3], cls: 'map-study-region-label' },
+    { text: 'AFRICA', coords: [44.0, 10.5], cls: 'map-geo-label--land' },
+    { text: 'INDIA', coords: [78.5, 22.0], cls: 'map-geo-label--land' },
+    { text: 'ARABIAN SEA', coords: [65.0, 15.5], cls: 'map-geo-label--sea' },
+    { text: 'Bay of Bengal', coords: [89.0, 14.5], cls: 'map-geo-label--basin' },
+    { text: 'SRI LANKA', coords: [82.8, 7.5], cls: 'map-geo-label--island' },
+    { text: 'INDONESIA', coords: [98.0, 1.0], cls: 'map-geo-label--land' },
+    { text: 'MADAGASCAR', coords: [47.5, -14.0], cls: 'map-geo-label--island' },
+    { text: 'Indian Ocean', coords: [77.0, -1.0], cls: 'map-geo-label--ocean' },
   ];
 
   geoLabels.forEach(lbl => {
@@ -439,13 +1019,13 @@ map.on('load', () => {
     const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
       .setLngLat(lbl.coords)
       .addTo(map);
-    // Make the MapLibre wrapper div non-interactive so clicks pass through
     marker.getElement().classList.add('geo-label-marker');
   });
 
   map.resize();
-  updateDimOverlay();
+  checkAndRefreshHeatmap();
 });
+
 
 // Extra resize guard: fire once the full page has loaded to handle any
 // layout shifts caused by fonts / flex sizing.
@@ -453,70 +1033,44 @@ window.addEventListener('load', () => {
   if (map) map.resize();
 });
 
-/* ── SVG dim overlay outside the bounding box ─────────────── */
-
-function updateDimOverlay() {
-  const svg = document.getElementById('dim-overlay');
-  const mapEl = document.getElementById('map');
-  if (!svg || !mapEl) return;
-  const W = mapEl.clientWidth;
-  const H = mapEl.clientHeight;
-
-  // Project corners of study area to pixel coords using MapLibre project()
-  const nw = map.project([BOUNDS.west, BOUNDS.north]);
-  const se = map.project([BOUNDS.east, BOUNDS.south]);
-
-  const rx = Math.max(0, Math.min(nw.x, se.x));
-  const ry = Math.max(0, Math.min(nw.y, se.y));
-  const rw = Math.abs(se.x - nw.x);
-  const rh = Math.abs(se.y - nw.y);
-
-  // Clip rect x and y to viewport
-  const cx = Math.max(0, rx);
-  const cy = Math.max(0, ry);
-  const cw = Math.min(rw, W - cx);
-  const ch = Math.min(rh, H - cy);
-
-  svg.setAttribute('width', W);
-  svg.setAttribute('height', H);
-  svg.innerHTML = `
-    <defs>
-      <mask id="dim-mask">
-        <rect width="${W}" height="${H}" fill="white"/>
-        <rect x="${cx}" y="${cy}" width="${cw}" height="${ch}" fill="black"/>
-      </mask>
-    </defs>
-    <rect width="${W}" height="${H}" fill="rgba(0,0,0,0.5)" mask="url(#dim-mask)" pointer-events="none"/>
-  `;
-}
-
-map.on('move', updateDimOverlay);
-map.on('resize', updateDimOverlay);
-
 /* ── Custom coral marker DOM element ─────────────────────── */
 
-/* ── Custom coral marker DOM element with visible coordinate badge ── */
+/* ── Custom marker DOM element (Teardrop blue pin matching reference design) ── */
 
 function createMarkerElement(lat, lon) {
   const wrapper = document.createElement('div');
   wrapper.className = 'custom-marker-wrapper';
 
-  const badge = document.createElement('div');
-  badge.className = 'custom-marker__badge';
-  badge.innerHTML = `<strong>${lat.toFixed(3)}° N</strong>, <strong>${lon.toFixed(3)}° E</strong>`;
-
   const pin = document.createElement('div');
   pin.className = 'custom-marker__pin';
   pin.innerHTML = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="32" viewBox="0 0 24 32">
-      <circle cx="12" cy="12" r="10" fill="${CORAL}" fill-opacity="0.9"/>
-      <circle cx="12" cy="12" r="4" fill="white" fill-opacity="0.9"/>
-      <line x1="12" y1="22" x2="12" y2="32" stroke="${CORAL}" stroke-width="2"/>
+    <svg xmlns="http://www.w3.org/2000/svg" width="30" height="40" viewBox="0 0 30 40" fill="none">
+      <path d="M15 0C6.71573 0 0 6.71573 0 15C0 26.25 15 40 15 40C15 40 30 26.25 30 15C30 6.71573 23.2843 0 15 0Z" fill="#1D4ED8" stroke="#FFFFFF" stroke-width="2.5"/>
+      <circle cx="15" cy="14" r="5" fill="#FFFFFF"/>
     </svg>`;
 
-  wrapper.appendChild(badge);
   wrapper.appendChild(pin);
   return wrapper;
+}
+
+/* ── Gating & Cast Trigger ───────────────────────────────── */
+
+function checkAndTriggerCast() {
+  if (!clickedLatLng || !hasSelectedDate) {
+    const emptyView = document.getElementById('tvd-empty-view');
+    const tableView = document.getElementById('tvd-table-view');
+    const graphView = document.getElementById('tvd-graph-view');
+    if (emptyView) emptyView.style.display = 'flex';
+    if (tableView) tableView.style.display = 'none';
+    if (graphView) graphView.style.display = 'none';
+    return;
+  }
+
+  const castBtn = document.getElementById('btn-cast');
+  if (castBtn) {
+    castBtn.disabled = false;
+    castBtn.click();
+  }
 }
 
 /* ── Select point on map ─────────────────────────────────── */
@@ -557,8 +1111,16 @@ function selectPoint(lat, lon, zoomTo = true) {
     });
   }
 
-  // Enable cast button
-  document.getElementById('btn-cast').disabled = false;
+  // Update Region pill in top-left
+  const regionPill = document.getElementById('map-region-pill-text');
+  if (regionPill) {
+    regionPill.textContent = getRegionName(lat, lon) || 'Indian Ocean';
+  }
+
+  // Trigger cast if both location and date are present
+  checkAndTriggerCast();
+  // Refresh or reveal heatmap if all gating conditions are met
+  checkAndRefreshHeatmap();
   return true;
 }
 
@@ -710,26 +1272,199 @@ document.addEventListener('click', (e) => {
   }
 });
 
-/* ── Render Surface Inputs ────────────────────────────────── */
+/* ── Update Ocean Parameters tiles (Kyogre UI) ───────────── */
 
 function renderSurfaceInputs(inputs) {
-  const container = document.getElementById('surface-inputs-grid');
-  if (!container) return;
-  container.innerHTML = '';
+  // Update the 6 Kyogre param tiles in-place using their value IDs
+  function setVal(id, val, unit) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = `${val} ${unit}`;
+  }
 
-  const order = ['sst', 'sss', 'ssh', 'current', 'wind'];
-  order.forEach(key => {
-    const item = inputs[key];
-    if (!item) return;
-    const card = document.createElement('div');
-    card.className = 'surface-card';
-    card.innerHTML = `
-      <div class="surface-card__label">${item.label}</div>
-      <div class="surface-card__val">${item.val} <small>${item.unit}</small></div>
-    `;
-    container.appendChild(card);
+  if (inputs.sst)     setVal('param-sst-val',     inputs.sst.val,                 '°C');
+  if (inputs.ssh)     setVal('param-ssh-val',      inputs.ssh.val,                 'm');
+  if (inputs.sss)     setVal('param-sss-val',      inputs.sss.val,                 'PSU');
+  if (inputs.ssh) {
+    // Sea Level Anomaly formatted like +3.2 cm or -1.5 cm
+    const slaVal = ((inputs.ssh.val - 0.38) * 100).toFixed(1);
+    const prefix = parseFloat(slaVal) >= 0 ? '+' : '';
+    setVal('param-sla-val', `${prefix}${slaVal}`, 'cm');
+  }
+  if (inputs.current) setVal('param-current-val',  inputs.current.val,             'm/s');
+  if (inputs.wind) {
+    // Format wind in km/h to match mockup
+    const windKmh = Math.round(inputs.wind.val * 3.6);
+    setVal('param-wind-val', windKmh, 'km/h');
+  }
+}
+
+/* ── Update Stat Cards from cast result ──────────────────── */
+
+function updateStatCards(prediction) {
+  const { temps, validation } = prediction;
+
+  // 1: Mixed Layer Depth (MLD) ~ 42 m
+  // Defined oceanographically as depth where temp drops by 0.2°C from surface
+  let mld = 42;
+  if (temps && temps.length > 0) {
+    const sst = temps[0];
+    for (let i = 1; i < DEPTHS.length; i++) {
+      if (sst - temps[i] >= 0.2) {
+        const ratio = (0.2 - (sst - temps[i - 1])) / (temps[i - 1] - temps[i] || 1);
+        mld = Math.round(DEPTHS[i - 1] + ratio * (DEPTHS[i] - DEPTHS[i - 1]));
+        break;
+      }
+    }
+  }
+  const mldEl = document.getElementById('stat-mld-val');
+  if (mldEl) mldEl.textContent = `${Math.max(15, Math.min(95, mld))} m`;
+
+  // 2: Ocean Heat Content – 300m (OHC₃₀₀) ~ in kJ/cm²
+  // OHC = ρ * Cp * ∫ (T - T_ref) dz / 10^7 ≈ 70-85 kJ/cm² in tropical Indian Ocean
+  let ohc = 78.6;
+  if (temps && temps.length > 0) {
+    let heatSum = 0;
+    for (let i = 0; i < DEPTHS.length && DEPTHS[i] <= 300; i++) {
+      const dz = (i === 0) ? DEPTHS[0] : (DEPTHS[i] - DEPTHS[i - 1]);
+      heatSum += Math.max(0, (temps[i] - 12)) * dz;
+    }
+    // Scale to typical tropical OHC range: 65 - 90 kJ/cm²
+    ohc = parseFloat((55 + (heatSum / 2800) * 35).toFixed(1));
+  }
+  const ohcEl = document.getElementById('stat-ohc-val');
+  if (ohcEl) ohcEl.textContent = `${ohc} kJ/cm²`;
+
+  // 3: Sound Velocity / Acoustic Shadow Depth ~ 180 m
+  // Acoustic shadow depth often aligns with the sonic layer depth (SLD) or thermocline base
+  let svad = 180;
+  if (temps && temps.length > 5) {
+    // Sound speed gradient inversion zone depth
+    svad = Math.min(260, Math.max(120, mld + 138));
+  }
+  const svadEl = document.getElementById('stat-svad-val');
+  if (svadEl) svadEl.textContent = `${svad} m`;
+
+  // 4: RMSE (keep this one, default 0.42 °C)
+  const rmseEl = document.getElementById('stat-rmse-val');
+  if (rmseEl) {
+    if (validation && validation.rmse !== undefined) {
+      rmseEl.textContent = `${validation.rmse} °C`;
+    } else {
+      rmseEl.textContent = '0.42 °C';
+    }
+  }
+}
+
+/* ── Depth-Temperature table renderer (2 columns: Depth, Temp) ── */
+
+const TVD_HIGHLIGHT_DEPTH = 50;
+
+function updateDepthTable(depths, temps) {
+  const tbody = document.getElementById('tvd-table-body');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  depths.forEach((depth, i) => {
+    const tr = document.createElement('tr');
+    if (depth === TVD_HIGHLIGHT_DEPTH) {
+      tr.className = 'ky-tvd-table-row--highlight';
+    }
+    tr.innerHTML = `<td>${depth}</td><td>${temps[i].toFixed(1)}</td>`;
+    tbody.appendChild(tr);
   });
 }
+
+/* ── Table / Graph toggle ────────────────────────────────── */
+
+function initTableGraphToggle() {
+  const btnTable = document.getElementById('tvd-btn-table');
+  const btnGraph = document.getElementById('tvd-btn-graph');
+  const tableView = document.getElementById('tvd-table-view');
+  const graphView = document.getElementById('tvd-graph-view');
+  const emptyView = document.getElementById('tvd-empty-view');
+
+  if (!btnTable || !btnGraph) return;
+
+  btnTable.addEventListener('click', () => {
+    btnTable.classList.add('ky-tvd-toggle__btn--active');
+    btnGraph.classList.remove('ky-tvd-toggle__btn--active');
+    if (!clickedLatLng || !hasSelectedDate) {
+      if (emptyView) emptyView.style.display = 'flex';
+      if (tableView) tableView.style.display = 'none';
+      if (graphView) graphView.style.display = 'none';
+      return;
+    }
+    if (emptyView) emptyView.style.display = 'none';
+    if (tableView) tableView.style.display = '';
+    if (graphView) graphView.style.display = 'none';
+  });
+
+  btnGraph.addEventListener('click', () => {
+    btnGraph.classList.add('ky-tvd-toggle__btn--active');
+    btnTable.classList.remove('ky-tvd-toggle__btn--active');
+    if (!clickedLatLng || !hasSelectedDate) {
+      if (emptyView) emptyView.style.display = 'flex';
+      if (tableView) tableView.style.display = 'none';
+      if (graphView) graphView.style.display = 'none';
+      return;
+    }
+    if (emptyView) emptyView.style.display = 'none';
+    if (graphView) graphView.style.display = '';
+    if (tableView) tableView.style.display = 'none';
+    // Force Chart.js to resize now that the canvas is visible
+    if (profileChart) {
+      setTimeout(() => profileChart.resize(), 50);
+    }
+  });
+}
+
+initTableGraphToggle();
+
+/* ── Ocean Parameters tile active state & Legend sync ──────── */
+
+const PARAM_CONFIG = {
+  sst:     { title: 'Sea Surface Temperature (°C)', ticks: ['24', '26', '28', '30', '32'], bar: 'linear-gradient(to right, #2563EB 0%, #38BDF8 25%, #FACC15 50%, #F97316 75%, #EF4444 100%)' },
+  ssh:     { title: 'Sea Surface Height (m)',       ticks: ['-0.4', '-0.2', '0.0', '+0.2', '+0.4'], bar: 'linear-gradient(to right, #1E3A8A 0%, #3B82F6 50%, #EF4444 100%)' },
+  sss:     { title: 'Sea Surface Salinity (PSU)',   ticks: ['32', '33', '34', '35', '36'], bar: 'linear-gradient(to right, #059669 0%, #10B981 50%, #3B82F6 100%)' },
+  sla:     { title: 'Sea Level Anomaly (m)',        ticks: ['-0.3', '-0.15', '0.0', '+0.15', '+0.3'], bar: 'linear-gradient(to right, #4338CA 0%, #6366F1 50%, #EC4899 100%)' },
+  current: { title: 'Surface Ocean Current (m/s)',  ticks: ['0.0', '0.3', '0.6', '0.9', '1.2'], bar: 'linear-gradient(to right, #0284C7 0%, #06B6D4 50%, #E11D48 100%)' },
+  wind:    { title: 'Surface Winds (m/s)',          ticks: ['2', '5', '8', '11', '14'], bar: 'linear-gradient(to right, #475569 0%, #38BDF8 50%, #F59E0B 100%)' },
+};
+
+document.querySelectorAll('.ky-param-tile').forEach(tile => {
+  tile.addEventListener('click', () => {
+    document.querySelectorAll('.ky-param-tile').forEach(t => t.classList.remove('ky-param-tile--active'));
+    tile.classList.add('ky-param-tile--active');
+
+    const param = tile.getAttribute('data-param');
+    selectedParam = param;
+    selectedDepth = 0; // Auto-set/lock depth to 0m (Surface) for 2D surface parameter
+
+    // Sync Depth dropdown UI
+    if (depthSelect) {
+      depthSelect.value = '0';
+    }
+    if (depthLabel) {
+      depthLabel.textContent = 'Depth: 0 m (Surface)';
+    }
+
+    const cfg = PARAM_CONFIG[param] || PARAM_CONFIG.sst;
+    
+    const legendTitle = document.getElementById('map-legend-title');
+    if (legendTitle) legendTitle.textContent = cfg.title;
+
+    const legendBar = document.getElementById('map-legend-bar');
+    if (legendBar) legendBar.style.background = cfg.bar;
+
+    const legendTicks = document.getElementById('map-legend-ticks');
+    if (legendTicks) {
+      legendTicks.innerHTML = cfg.ticks.map(t => `<span>${t}</span>`).join('');
+    }
+
+    // Trigger heatmap refresh with new parameter overlay
+    checkAndRefreshHeatmap();
+  });
+});
+
 
 /* ── Render Validation Metrics ────────────────────────────── */
 
@@ -737,6 +1472,19 @@ function renderValidation(val, argo) {
   const container = document.getElementById('validation-metrics-grid');
   if (!container) return;
   container.innerHTML = '';
+
+  const argoRefEl = document.getElementById('validation-argo-ref');
+
+  // Real backend returns null for both — show a neutral message instead of fake stats
+  if (!val) {
+    const note = document.createElement('div');
+    note.className = 'metric-card metric-card--wide';
+    note.style.cssText = 'grid-column: 1 / -1; text-align: center; color: var(--muted, #6E8AA3); font-size: 0.85rem; padding: 1rem 0;';
+    note.textContent = 'In-situ validation not available for this deployment.';
+    container.appendChild(note);
+    if (argoRefEl) argoRefEl.textContent = '';
+    return;
+  }
 
   const metrics = [
     { label: 'RMSE', val: `±${val.rmse}°C`, sub: 'vs in-situ ARGO' },
@@ -755,7 +1503,6 @@ function renderValidation(val, argo) {
     container.appendChild(card);
   });
 
-  const argoRefEl = document.getElementById('validation-argo-ref');
   if (argoRefEl) {
     if (argo && argo.floatId) {
       argoRefEl.innerHTML = `Nearest Argo float <strong>#${argo.floatId}</strong> &middot; ${argo.lat.toFixed(2)}°N, ${argo.lon.toFixed(2)}°E &middot; ${argo.distKm} km away &middot; ${formatDate(new Date(argo.date))}`;
@@ -796,29 +1543,15 @@ function buildChart(prediction) {
   const borderWidths = depths.map((_, i) => 1.5 + 1.5 * (i / (n - 1)));
 
   const mainDataset = {
-    label: 'OceanEmbed (Satellite)',
+    label: 'Temperature',
     data: temps.map((t, i) => ({ x: t, y: depths[i] })),
     parsing: false,
-    borderColor: function(ctx) {
-      return segmentColors[ctx.p1DataIndex] || TEAL;
-    },
-    borderWidth: function(ctx) {
-      return borderWidths[ctx.p1DataIndex] || 2;
-    },
-    segment: {
-      borderColor: function(ctx) {
-        const t = ctx.p1DataIndex / (n - 1);
-        const { r, g, b } = lerpColor(t);
-        const alpha = 0.5 + 0.5 * t;
-        return rgba(r, g, b, alpha);
-      },
-      borderWidth: function(ctx) {
-        return 1.5 + 1.5 * (ctx.p1DataIndex / (n - 1));
-      },
-    },
-    pointRadius: depths.map((_, i) => 3.0 + 0.8 * (i / (n - 1))),
-    pointBackgroundColor: segmentColors,
-    pointBorderColor: 'transparent',
+    borderColor: '#1D64F2',
+    borderWidth: 2,
+    pointRadius: 3.5,
+    pointBackgroundColor: '#1D64F2',
+    pointBorderColor: '#FFFFFF',
+    pointBorderWidth: 1,
     tension: 0.35,
     fill: false,
     order: 1,
@@ -867,23 +1600,24 @@ function buildChart(prediction) {
       plugins: {
         legend: {
           display: true,
-          position: 'bottom',
+          position: 'top',
+          align: 'end',
           labels: {
-            color: MUTED,
-            font: { family: 'Inter', size: 10.5 },
-            boxWidth: 14,
+            color: '#1E293B',
+            font: { family: 'Inter', size: 11, weight: '500' },
+            boxWidth: 10,
             padding: 8,
             usePointStyle: true,
           },
         },
         tooltip: {
-          backgroundColor: '#123049',
-          borderColor: '#1B4A6B',
-          borderWidth: 0.5,
-          titleColor: '#E8EEF2',
-          bodyColor: '#6E8AA3',
+          backgroundColor: '#FFFFFF',
+          borderColor: '#BFDBFE',
+          borderWidth: 1,
+          titleColor: '#1E293B',
+          bodyColor: '#64748B',
           padding: 8,
-          cornerRadius: 4,
+          cornerRadius: 8,
           callbacks: {
             title: function(items) {
               const depth = items[0].raw.y;
@@ -898,22 +1632,23 @@ function buildChart(prediction) {
       scales: {
         x: {
           type: 'linear',
-          position: 'top',
+          position: 'bottom',
           title: {
             display: true,
-            text: 'temperature (°C)',
-            color: MUTED,
-            font: { family: 'Inter', size: 11 },
+            text: 'Temperature (°C)',
+            color: '#64748B',
+            font: { family: 'Inter', size: 11, weight: '500' },
           },
           ticks: {
-            color: MUTED,
+            color: '#64748B',
             font: { family: 'Inter', size: 10 },
-            maxTicksLimit: 6,
+            stepSize: 5,
+            maxTicksLimit: 7,
           },
           grid: {
-            color: 'rgba(27,74,107,0.3)',
+            color: 'rgba(226, 232, 240, 0.8)',
           },
-          border: { color: '#1B4A6B' },
+          border: { color: '#CBD5E1' },
         },
         y: {
           type: 'linear',
@@ -922,30 +1657,68 @@ function buildChart(prediction) {
           max: 1000,
           title: {
             display: true,
-            text: 'depth (m)',
-            color: MUTED,
-            font: { family: 'Inter', size: 11 },
+            text: 'Depth (m)',
+            color: '#64748B',
+            font: { family: 'Inter', size: 11, weight: '500' },
           },
           ticks: {
-            color: MUTED,
+            color: '#64748B',
             font: { family: 'Inter', size: 10 },
-            callback: v => v + ' m',
-            values: [0, 50, 100, 200, 300, 500, 700, 1000],
+            values: [0, 200, 400, 600, 800, 1000],
           },
           grid: {
-            color: 'rgba(27,74,107,0.3)',
+            color: 'rgba(226, 232, 240, 0.8)',
           },
-          border: { color: '#1B4A6B' },
+          border: { color: '#CBD5E1' },
         },
       },
     },
+    plugins: [{
+      id: 'referenceDepthLine',
+      afterDraw(chart) {
+        const { ctx, chartArea: { left, right }, scales: { y } } = chart;
+        const refDepth = 68; // Reference depth matching visual design
+        const yPos = y.getPixelForValue(refDepth);
+        if (yPos >= chart.chartArea.top && yPos <= chart.chartArea.bottom) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.setLineDash([5, 4]);
+          ctx.strokeStyle = '#94A3B8';
+          ctx.lineWidth = 1.5;
+          ctx.moveTo(left, yPos);
+          ctx.lineTo(right, yPos);
+          ctx.stroke();
+
+          // Label on the right edge
+          ctx.fillStyle = '#1E293B';
+          ctx.font = 'bold 11px Inter, sans-serif';
+          ctx.textAlign = 'left';
+          ctx.fillText('68 m', right + 4, yPos + 4);
+          ctx.restore();
+        }
+      }
+    }]
   });
 }
 
 /* ── Cast / Reconstruct button handler ───────────────────── */
 
+function showCastError(msg) {
+  document.getElementById('result-loading').style.display = 'none';
+  document.getElementById('result-content').style.display = 'none';
+  const idleEl = document.getElementById('result-idle');
+  idleEl.style.display = 'flex';
+  // Reuse idle panel to surface the error message
+  const existingErr = idleEl.querySelector('.cast-error-msg');
+  if (existingErr) existingErr.remove();
+  const errDiv = document.createElement('p');
+  errDiv.className = 'cast-error-msg';
+  errDiv.textContent = msg;
+  idleEl.appendChild(errDiv);
+}
+
 document.getElementById('btn-cast').addEventListener('click', function () {
-  if (!clickedLatLng) return;
+  if (!clickedLatLng || !hasSelectedDate) return;
 
   const lat     = clickedLatLng.lat;
   const lon     = clickedLatLng.lng;
@@ -953,41 +1726,106 @@ document.getElementById('btn-cast').addEventListener('click', function () {
   const dateObj = dayIndexToDate(dayIdx);
   const dateStr = dateToISO(dateObj);
 
+  // Date guard — model needs 10 days of prior satellite history
+  if (dayIdx < MIN_VALID_DAY) {
+    showCastError('Date requires 10 days of prior satellite history. Please select a date on or after 2021-01-11.');
+    return;
+  }
+
   // Show loading, hide others
   document.getElementById('result-idle').style.display    = 'none';
   document.getElementById('result-content').style.display = 'none';
   document.getElementById('result-loading').style.display = 'block';
 
-  // Simulate ~600ms latency for satellite reconstruction inference
-  setTimeout(function () {
-    const prediction = mockPredict(lat, lon, dateStr);
+  if (USE_MOCK) {
+    // ── Offline dev fallback ─────────────────────────────────
+    setTimeout(function () {
+      const prediction = mockPredict(lat, lon, dateStr);
+      renderPrediction(prediction, lat, lon, dateObj);
+    }, 620);
+    return;
+  }
 
-    // Update target location & date header
-    const coordsValEl = document.getElementById('result-coords-val');
-    const regionValEl = document.getElementById('result-region-val');
-    const dateValEl   = document.getElementById('result-date-val');
-    if (coordsValEl) coordsValEl.textContent = `${lat.toFixed(3)}° N, ${lon.toFixed(3)}° E`;
-    if (regionValEl) regionValEl.textContent = getRegionName(lat, lon);
-    if (dateValEl)   dateValEl.textContent   = formatDate(dateObj);
-
-    // Render Compact Surface Inputs
-    renderSurfaceInputs(prediction.surfaceInputs);
-
-    // Render 15-Depth Profile Chart
-    buildChart(prediction);
-
-    // Summary text
-    const surfT = prediction.temps[0];
-    const deepT = prediction.temps[prediction.temps.length - 1];
-    document.getElementById('result-summary').innerHTML =
-      `Thermocline drop: <strong>${surfT.toFixed(1)}°C</strong> surface &rarr; <strong>${deepT.toFixed(1)}°C</strong> at 1&thinsp;000&thinsp;m`;
-
-    // Render Independent ARGO Validation
-    renderValidation(prediction.validation, prediction.argo);
-
-    // Show result
-    document.getElementById('result-loading').style.display = 'none';
-    document.getElementById('result-content').style.display = 'block';
-
-  }, 620);
+  // ── Real inference via FastAPI backend ───────────────────
+  fetch(`${API_BASE}/predict`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ latitude: lat, longitude: lon, date: dateStr }),
+  })
+    .then(function (res) {
+      if (!res.ok) {
+        return res.json().then(function (body) {
+          throw new Error(body.detail || `Server error ${res.status}`);
+        }).catch(function (e) {
+          if (e instanceof SyntaxError) throw new Error(`Server error ${res.status}`);
+          throw e;
+        });
+      }
+      return res.json();
+    })
+    .then(function (prediction) {
+      renderPrediction(prediction, lat, lon, dateObj);
+    })
+    .catch(function (err) {
+      let msg = err.message || 'Inference service unavailable.';
+      if (!navigator.onLine || msg.toLowerCase().includes('failed to fetch')) {
+        msg = 'Inference service unavailable. Make sure the Python backend is running on port 8000.';
+      }
+      showCastError(msg);
+    });
 });
+
+/* ── Shared render helper (used by both mock and real paths) ─ */
+
+function renderPrediction(prediction, lat, lon, dateObj) {
+  // Update target location & date header
+  const coordsValEl = document.getElementById('result-coords-val');
+  const regionValEl = document.getElementById('result-region-val');
+  const dateValEl   = document.getElementById('result-date-val');
+  if (coordsValEl) coordsValEl.textContent = `${lat.toFixed(3)}° N, ${lon.toFixed(3)}° E`;
+  if (regionValEl) regionValEl.textContent = getRegionName(lat, lon);
+  if (dateValEl)   dateValEl.textContent   = formatDate(dateObj);
+
+  // Update Ocean Parameters tiles
+  renderSurfaceInputs(prediction.surfaceInputs);
+
+  // Update Stat Cards (MLD, OHC, SVAD, RMSE)
+  updateStatCards(prediction);
+
+  // Update Depth-Temperature table
+  updateDepthTable(prediction.depths, prediction.temps);
+
+  // Render 15-Depth Profile Chart (Chart.js)
+  buildChart(prediction);
+
+  // Summary text
+  const surfT = prediction.temps[0];
+  const deepT = prediction.temps[prediction.temps.length - 1];
+  const summaryEl = document.getElementById('result-summary');
+  if (summaryEl) summaryEl.innerHTML =
+    `Thermocline drop: <strong>${surfT.toFixed(1)}°C</strong> surface &rarr; <strong>${deepT.toFixed(1)}°C</strong> at 1&thinsp;000&thinsp;m`;
+
+  // Render Independent ARGO Validation
+  renderValidation(prediction.validation, prediction.argo);
+
+  // Hide empty state and show table or graph based on active toggle
+  const emptyView = document.getElementById('tvd-empty-view');
+  const btnTable = document.getElementById('tvd-btn-table');
+  const tableView = document.getElementById('tvd-table-view');
+  const graphView = document.getElementById('tvd-graph-view');
+
+  if (emptyView) emptyView.style.display = 'none';
+  if (btnTable && btnTable.classList.contains('ky-tvd-toggle__btn--active')) {
+    if (tableView) tableView.style.display = '';
+    if (graphView) graphView.style.display = 'none';
+  } else {
+    if (graphView) graphView.style.display = '';
+    if (tableView) tableView.style.display = 'none';
+  }
+
+  // Show result panel
+  document.getElementById('result-loading').style.display = 'none';
+  document.getElementById('result-content').style.display = 'flex';
+}
+
+

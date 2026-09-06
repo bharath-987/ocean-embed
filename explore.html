@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>OceanEmbed — Explore depth profiles</title>
+  <title>Kyogre — Ocean Intelligence Platform</title>
   <meta name="description" content="Interactive map to explore satellite-derived ocean temperature depth profiles in the north Indian Ocean." />
 
   <!-- MapLibre GL -->
@@ -15,162 +15,503 @@
 
   <link rel="stylesheet" href="style.css" />
 </head>
-<body>
+<body class="kyogre-page">
 
-  <div class="explore-layout">
+  <div class="ky-app">
 
-    <!-- ====================================================
-         LEFT — map panel
-         ==================================================== -->
-    <section class="map-panel" aria-label="Map">
-
-      <header class="map-panel__header">
-        <div class="map-panel__brand-search">
-          <div class="map-panel__logo">
-            <a href="index.html">Ocean<span style="color:var(--teal)">Embed</span></a>
-          </div>
-          <div class="map-search-wrap">
-            <svg class="map-search__icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <circle cx="11" cy="11" r="8"></circle>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-            </svg>
-            <input
-              type="text"
-              id="map-search-input"
-              class="map-search__input"
-              placeholder="Search location or coordinates (e.g. 15N 65E)..."
-              autocomplete="off"
-              spellcheck="false"
-              aria-label="Search location or coordinates"
-            />
-            <button type="button" id="map-search-clear" class="map-search__clear" aria-label="Clear search" style="display:none;">&times;</button>
-            <div id="map-search-results" class="map-search__dropdown" style="display:none;" role="listbox"></div>
-          </div>
-        </div>
-      </header>
-
-      <div class="map-wrap">
-        <div id="map"></div>
-        <!-- SVG overlay for outside-bounds dimming -->
-        <svg class="map-dim-overlay" id="dim-overlay" xmlns="http://www.w3.org/2000/svg"></svg>
+    <!-- ============================================================
+         HEADER — full width top bar matching reference design
+         ============================================================ -->
+    <header class="ky-header">
+      <!-- Logo brand with Kyogre bold blue wordmark, no icon -->
+      <div class="ky-header__brand">
+        <div class="ky-header__brand-title">Kyogre</div>
       </div>
 
-      <footer class="map-footer">
-        <div class="slider-row">
-          <span class="slider-label-left">1 jan 2021</span>
-          <input
-            type="range"
-            id="date-slider"
-            min="0"
-            max="1094"
-            value="547"
-            aria-label="Select date"
-          />
-          <span class="slider-label-right">31 dec 2023</span>
-        </div>
-        <div class="date-display" id="date-display">15 jun 2022</div>
-        <div class="cast-row">
-          <button class="btn-cast" id="btn-cast" disabled aria-label="Take a cast at selected coordinates and date">
-            Take a cast
-          </button>
-        </div>
-      </footer>
-
-    </section>
-
-    <!-- ====================================================
-         RIGHT — result panel
-         ==================================================== -->
-    <section class="result-panel" aria-label="Depth profile results" aria-live="polite">
-
-      <div class="result-panel__inner" id="result-inner">
-
-        <!-- Idle state -->
-        <div class="result-idle" id="result-idle">
-          <svg class="result-idle__icon" width="56" height="56" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <circle cx="28" cy="28" r="26" stroke="#2DD4BF" stroke-width="1.5" stroke-dasharray="4 3"/>
-            <path d="M28 10 L28 46 M10 28 L46 28" stroke="#2DD4BF" stroke-width="1" opacity="0.4"/>
-            <circle cx="28" cy="28" r="4" fill="#2DD4BF" opacity="0.5"/>
+      <!-- Centered search bar -->
+      <div class="ky-header__search">
+        <div class="map-search-wrap">
+          <svg class="map-search__icon" width="16" height="16" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
           </svg>
-          <p class="result-idle__text">
-            Pick a location inside the study boundary, pick a date, then press <strong style="color:var(--coral)">Take a cast</strong>.
-          </p>
+          <input type="text" id="map-search-input" class="map-search__input"
+            placeholder="Search location (e.g. Chennai, 10°N 80°E)..."
+            autocomplete="off" spellcheck="false" aria-label="Search location or coordinates" />
+          <span class="ky-search-kbd">Ctrl K</span>
+          <button type="button" id="map-search-clear" class="map-search__clear"
+            aria-label="Clear search" style="display:none;">&times;</button>
+          <div id="map-search-results" class="map-search__dropdown" style="display:none;" role="listbox"></div>
         </div>
-
-        <!-- Loading state (hidden initially) -->
-        <div id="result-loading" style="display:none;">
-          <div class="sonar-wrap">
-            <div class="sonar" aria-label="Loading profile…">
-              <div class="sonar__ring"></div>
-              <div class="sonar__ring"></div>
-              <div class="sonar__ring"></div>
-              <div class="sonar__ring"></div>
-            </div>
-          </div>
-          <p style="text-align:center;font-size:12px;color:var(--muted);">Reconstructing 0–1000 m temperature profile…</p>
-        </div>
-
-        <!-- Result content (hidden initially) -->
-        <div id="result-content" style="display:none;">
-
-          <!-- Merged Selected location + Date panel -->
-          <div class="result-header-card">
-            <div class="result-location-block">
-              <span class="result-card-label">Selected location</span>
-              <div class="result-coords-title" id="result-coords-val">--</div>
-              <div class="result-region-subtitle" id="result-region-val">--</div>
-            </div>
-            <div class="result-date-block">
-              <span class="result-card-label">Observation date</span>
-              <div class="result-date-badge" id="result-date-val">--</div>
-            </div>
-          </div>
-
-          <!-- Compact Surface Inputs (SST, SSS, SSH/SLA, Surface Current U/V, Wind U/V) -->
-          <div class="surface-inputs-section">
-            <div class="section-title-sub">Satellite surface inputs</div>
-            <div class="surface-inputs-grid" id="surface-inputs-grid">
-              <!-- Rendered dynamically -->
-            </div>
-          </div>
-
-          <!-- Depth Profile Chart (Primary Result, 15 standard depths) -->
-          <div class="chart-section">
-            <div class="chart-header">
-              <h3 class="chart-section__title">Temperature vs depth</h3>
-              <span class="chart-depth-tag">0 – 1000 m</span>
-            </div>
-            <div class="chart-wrap">
-              <canvas id="profile-chart" aria-label="Depth profile chart showing temperature from 0 to 1000 m"></canvas>
-            </div>
-          </div>
-
-          <!-- Summary headline -->
-          <div class="result-summary" id="result-summary"></div>
-
-          <!-- Validation Section (ARGO reference validation, RMSE, Correlation, Bias) -->
-          <div class="validation-section" id="validation-section">
-            <div class="validation-header">
-              <div class="validation-title">Independent validation</div>
-              <span class="validation-badge">Argo float reference</span>
-            </div>
-            <p class="validation-note">
-              Argo profiles serve as an independent in-situ benchmark and are never used as model inputs.
-            </p>
-            <div class="validation-metrics-grid" id="validation-metrics-grid">
-              <!-- Rendered dynamically (3 small numbers in a row) -->
-            </div>
-            <div class="validation-argo-ref" id="validation-argo-ref">
-              <!-- Rendered dynamically (one line for nearest Argo profile's lat/lon, distance, date) -->
-            </div>
-          </div>
-
-        </div>
-
       </div>
-    </section>
+
+      <!-- Right controls: date picker on left, live indicator on far right -->
+      <div class="ky-header__right">
+        <div class="ky-date-picker-wrap">
+          <button class="ky-date-btn" id="ky-date-btn" aria-label="Selected date" type="button">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/>
+              <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+            <span id="date-display-header">Select date</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6,9 12,15 18,9"/>
+            </svg>
+          </button>
+          <input type="date" id="native-date-picker" min="2021-01-01" max="2023-12-31" value="" class="ky-hidden-date-input" aria-label="Choose date" />
+        </div>
+
+        <div class="ky-live-indicator">
+          <span class="ky-live-dot"></span>
+          <div class="ky-live-text">
+            <div class="ky-live-title">Live Data</div>
+            <div class="ky-live-sub">Real-time updates</div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- ============================================================
+         BODY — sidebar + main content
+         ============================================================ -->
+    <div class="ky-body">
+
+      <!-- SIDEBAR -->
+      <aside class="ky-sidebar">
+        <nav class="ky-sidebar__nav">
+
+          <button class="ky-nav-item ky-nav-item--active" data-nav="dashboard">
+            <span class="ky-nav-item__icon">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+              </svg>
+            </span>
+            <span class="ky-nav-item__label">Dashboard</span>
+          </button>
+
+          <button class="ky-nav-item" data-nav="fisheries">
+            <span class="ky-nav-item__icon">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M2 16s1-5 8-5 8 5 8 5-2 2-8 2-8-2-8-2z"/>
+                <path d="M18 11c1-2 3-4 3-4s-1 2-1 4 1 4 1 4-2-2-3-4z"/>
+                <circle cx="8" cy="11" r="1" fill="currentColor"/>
+              </svg>
+            </span>
+            <span class="ky-nav-item__label">Fisheries Mode</span>
+          </button>
+
+          <button class="ky-nav-item" data-nav="cyclone">
+            <span class="ky-nav-item__icon">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2a10 10 0 1 0 0 20"/><path d="M12 8a4 4 0 0 1 0 8"/>
+                <path d="M12 2c2 0 4 2 4 4s-2 4-4 4"/><path d="M12 22c-2 0-4-2-4-4s2-4 4-4"/>
+              </svg>
+            </span>
+            <span class="ky-nav-item__label">Cyclone &amp; Disaster Mode</span>
+          </button>
+
+          <button class="ky-nav-item" data-nav="ecology">
+            <span class="ky-nav-item__icon">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z"/>
+                <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>
+              </svg>
+            </span>
+            <span class="ky-nav-item__label">Marine Ecology &amp; Heatwave Mode</span>
+          </button>
+
+          <button class="ky-nav-item" data-nav="argo">
+            <span class="ky-nav-item__icon">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="3" y="12" width="4" height="9" rx="1"/>
+                <rect x="10" y="7" width="4" height="14" rx="1"/>
+                <rect x="17" y="3" width="4" height="18" rx="1"/>
+              </svg>
+            </span>
+            <span class="ky-nav-item__label">ARGO Validation &amp; Compare</span>
+          </button>
+        </nav>
+
+        <!-- Sidebar footer note and copyright -->
+        <div class="ky-sidebar__footer">
+          <p class="ky-sidebar__note"><em>Reconstructed from real satellite data for the selected date — not a forecast.</em></p>
+          <p class="ky-sidebar__copy">© 2025 Kyogre. All rights reserved.</p>
+        </div>
+      </aside>
+
+      <!-- MAIN CONTENT -->
+      <main class="ky-main">
+
+        <!-- TOP STAT CARDS ROW (Matching Reference: MLD, OHC₃₀₀, SVAD, RMSE — label and value only) -->
+        <div class="ky-stat-row">
+          <!-- 1: Mixed Layer Depth (MLD) -->
+          <div class="ky-stat-card">
+            <div class="ky-stat-card__icon ky-stat-card__icon--blue">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <path d="M2 6c.6.5 1.2 1 2.5 1C7 7 7 5 9.5 5c2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/>
+                <path d="M2 12c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/>
+                <path d="M2 18c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/>
+              </svg>
+            </div>
+            <div class="ky-stat-card__body">
+              <div class="ky-stat-card__label">Mixed Layer Depth (MLD)</div>
+              <div class="ky-stat-card__val" id="stat-mld-val">—</div>
+            </div>
+          </div>
+
+          <!-- 2: Ocean Heat Content – 300m (OHC₃₀₀) -->
+          <div class="ky-stat-card">
+            <div class="ky-stat-card__icon ky-stat-card__icon--red">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/>
+              </svg>
+            </div>
+            <div class="ky-stat-card__body">
+              <div class="ky-stat-card__label">Ocean Heat Content – 300m (OHC₃₀₀)</div>
+              <div class="ky-stat-card__val" id="stat-ohc-val">—</div>
+            </div>
+          </div>
+
+          <!-- 3: Sound Velocity / Acoustic Shadow Depth -->
+          <div class="ky-stat-card">
+            <div class="ky-stat-card__icon ky-stat-card__icon--purple">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <circle cx="12" cy="12" r="2"/>
+                <path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49m12.72-4.24a12 12 0 0 1 0 16.97m-16.96 0a12 12 0 0 1 0-16.97"/>
+              </svg>
+            </div>
+            <div class="ky-stat-card__body">
+              <div class="ky-stat-card__label">Sound Velocity / Acoustic Shadow Depth</div>
+              <div class="ky-stat-card__val" id="stat-svad-val">—</div>
+            </div>
+          </div>
+
+          <!-- 4: RMSE -->
+          <div class="ky-stat-card">
+            <div class="ky-stat-card__icon ky-stat-card__icon--blue">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="3" y="12" width="4" height="9" rx="1"/>
+                <rect x="10" y="7" width="4" height="14" rx="1"/>
+                <rect x="17" y="3" width="4" height="18" rx="1"/>
+              </svg>
+            </div>
+            <div class="ky-stat-card__body">
+              <div class="ky-stat-card__label">RMSE</div>
+              <div class="ky-stat-card__val" id="stat-rmse-val">—</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- CONTENT ROW: center col + right panel -->
+        <div class="ky-content-row">
+
+          <!-- CENTER COLUMN: map + ocean parameters -->
+          <div class="ky-center-col">
+
+            <!-- MAP CARD (Real Satellite Base + Colored Intensity Overlay + Overlays) -->
+            <div class="ky-map-card">
+              <div class="map-wrap">
+                <!-- MapLibre satellite container -->
+                <div id="map"></div>
+
+                <!-- 1: Top-Left Depth Selector Dropdown -->
+                <div class="ky-map-depth-wrap" id="map-depth-dropdown-wrap">
+                  <div class="ky-map-depth-btn" id="map-depth-btn">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                    </svg>
+                    <span id="map-depth-label">Select depth</span>
+                    <svg class="ky-depth-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polyline points="6 9 12 15 18 9"/>
+                    </svg>
+                  </div>
+                  <select id="native-depth-select" class="ky-hidden-depth-select" aria-label="Select depth level">
+                    <option value="" disabled selected>Select depth</option>
+                    <option value="0">0 m (Surface)</option>
+                    <option value="5">5 m</option>
+                    <option value="10">10 m</option>
+                    <option value="20">20 m</option>
+                    <option value="30">30 m</option>
+                    <option value="50">50 m</option>
+                    <option value="75">75 m</option>
+                    <option value="100">100 m</option>
+                    <option value="125">125 m</option>
+                    <option value="150">150 m</option>
+                    <option value="200">200 m</option>
+                    <option value="300">300 m</option>
+                    <option value="500">500 m</option>
+                    <option value="700">700 m</option>
+                    <option value="1000">1000 m</option>
+                  </select>
+                </div>
+
+                <!-- 3: Bottom-Left Parameter Scale Legend Card -->
+                <div class="ky-map-legend" id="map-legend">
+                  <div class="ky-map-legend__title" id="map-legend-title">Sea Surface Temperature (°C)</div>
+                  <div class="ky-map-legend__bar" id="map-legend-bar"></div>
+                  <div class="ky-map-legend__ticks" id="map-legend-ticks">
+                    <span>24</span>
+                    <span>26</span>
+                    <span>28</span>
+                    <span>30</span>
+                    <span>32</span>
+                  </div>
+                </div>
+
+                <!-- 4: Bottom-Right Scale Indicator -->
+                <div class="ky-map-scale-bar">
+                  <div class="ky-scale-ticks">
+                    <div class="ky-scale-line"></div>
+                    <div class="ky-scale-labels">
+                      <span>0</span>
+                      <span>500</span>
+                      <span>1,000</span>
+                    </div>
+                  </div>
+                  <span class="ky-scale-total">2,000 km</span>
+                </div>
+              </div>
+
+              <!-- Hidden elements preserved for app.js functionality without inline controls -->
+              <div style="display:none;">
+                <input type="range" id="date-slider" min="0" max="1094" value="547" />
+                <span id="date-display">Select date</span>
+                <button id="btn-cast">Cast</button>
+              </div>
+            </div>
+
+            <!-- OCEAN PARAMETERS CARD (2x3 Grid matching reference design) -->
+            <div class="ky-ocean-params-card">
+              <div class="ky-ocean-params-card__header">
+                <h2 class="ky-ocean-params-card__title">Ocean Parameters</h2>
+                <p class="ky-ocean-params-card__sub">Select a parameter to visualize on the map</p>
+              </div>
+
+              <div class="ky-params-grid" id="surface-inputs-grid">
+
+                <!-- 1: SST -->
+                <button class="ky-param-tile" data-param="sst" id="param-sst">
+                  <div class="ky-param-tile__icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/>
+                    </svg>
+                  </div>
+                  <div class="ky-param-tile__body">
+                    <div class="ky-param-tile__name">Sea Surface Temperature</div>
+                    <div class="ky-param-tile__sub">SST</div>
+                    <div class="ky-param-tile__val" id="param-sst-val">—</div>
+                  </div>
+                  <svg class="ky-param-tile__arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="9 18 15 12 9 6"/>
+                  </svg>
+                </button>
+
+                <!-- 2: SSH -->
+                <button class="ky-param-tile" data-param="ssh" id="param-ssh">
+                  <div class="ky-param-tile__icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M2 6c.6.5 1.2 1 2.5 1C7 7 7 5 9.5 5c2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/>
+                      <path d="M2 12c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/>
+                    </svg>
+                  </div>
+                  <div class="ky-param-tile__body">
+                    <div class="ky-param-tile__name">Sea Surface Height</div>
+                    <div class="ky-param-tile__sub">SSH</div>
+                    <div class="ky-param-tile__val" id="param-ssh-val">—</div>
+                  </div>
+                  <svg class="ky-param-tile__arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="9 18 15 12 9 6"/>
+                  </svg>
+                </button>
+
+                <!-- 3: SSS -->
+                <button class="ky-param-tile" data-param="sss" id="param-sss">
+                  <div class="ky-param-tile__icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                      <circle cx="5" cy="5" r="2"/><circle cx="12" cy="5" r="2"/><circle cx="19" cy="5" r="2"/>
+                      <circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/>
+                      <circle cx="5" cy="19" r="2"/><circle cx="12" cy="19" r="2"/><circle cx="19" cy="19" r="2"/>
+                    </svg>
+                  </div>
+                  <div class="ky-param-tile__body">
+                    <div class="ky-param-tile__name">Sea Surface Salinity</div>
+                    <div class="ky-param-tile__sub">SSS</div>
+                    <div class="ky-param-tile__val" id="param-sss-val">—</div>
+                  </div>
+                  <svg class="ky-param-tile__arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="9 18 15 12 9 6"/>
+                  </svg>
+                </button>
+
+                <!-- 4: SLA -->
+                <button class="ky-param-tile" data-param="sla" id="param-sla">
+                  <div class="ky-param-tile__icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                      <rect x="3" y="12" width="4" height="9" rx="1"/>
+                      <rect x="10" y="7" width="4" height="14" rx="1"/>
+                      <rect x="17" y="3" width="4" height="18" rx="1"/>
+                    </svg>
+                  </div>
+                  <div class="ky-param-tile__body">
+                    <div class="ky-param-tile__name">Sea Level Anomaly</div>
+                    <div class="ky-param-tile__sub">SLA</div>
+                    <div class="ky-param-tile__val" id="param-sla-val">—</div>
+                  </div>
+                  <svg class="ky-param-tile__arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="9 18 15 12 9 6"/>
+                  </svg>
+                </button>
+
+                <!-- 5: Current -->
+                <button class="ky-param-tile" data-param="current" id="param-current">
+                  <div class="ky-param-tile__icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="12" r="9"/>
+                      <path d="M12 7a5 5 0 0 1 5 5c0 3-2 5-5 5s-4-2-4-4 1.5-3 3.5-3"/>
+                    </svg>
+                  </div>
+                  <div class="ky-param-tile__body">
+                    <div class="ky-param-tile__name">Surface Ocean Current</div>
+                    <div class="ky-param-tile__sub">Currents</div>
+                    <div class="ky-param-tile__val" id="param-current-val">—</div>
+                  </div>
+                  <svg class="ky-param-tile__arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="9 18 15 12 9 6"/>
+                  </svg>
+                </button>
+
+                <!-- 6: Wind -->
+                <button class="ky-param-tile" data-param="wind" id="param-wind">
+                  <div class="ky-param-tile__icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"/>
+                    </svg>
+                  </div>
+                  <div class="ky-param-tile__body">
+                    <div class="ky-param-tile__name">Surface Winds</div>
+                    <div class="ky-param-tile__sub">Winds</div>
+                    <div class="ky-param-tile__val" id="param-wind-val">—</div>
+                  </div>
+                  <svg class="ky-param-tile__arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="9 18 15 12 9 6"/>
+                  </svg>
+                </button>
+
+              </div>
+            </div>
+            <!-- end ocean params card -->
+
+          </div>
+          <!-- end center col -->
+
+          <!-- RIGHT PANEL: Temperature vs Depth (Table active by default matching reference) -->
+          <div class="ky-right-panel">
+            <div class="ky-tvd-card">
+
+              <!-- Header -->
+              <div class="ky-tvd-card__header">
+                <h2 class="ky-tvd-card__title">Temperature vs Depth</h2>
+                <button class="ky-tvd-expand" aria-label="Expand">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
+                  </svg>
+                </button>
+              </div>
+
+              <!-- Toggle (Table / Graph - Table active by default) -->
+              <div class="ky-tvd-toggle">
+                <button class="ky-tvd-toggle__btn ky-tvd-toggle__btn--active" id="tvd-btn-table">Table</button>
+                <button class="ky-tvd-toggle__btn" id="tvd-btn-graph">Graph</button>
+              </div>
+
+              <!-- Loading spinner -->
+              <div id="result-loading" style="display:none;" class="ky-tvd-loading">
+                <div class="sonar-wrap">
+                  <div class="sonar" aria-label="Loading profile…">
+                    <div class="sonar__ring"></div>
+                    <div class="sonar__ring"></div>
+                    <div class="sonar__ring"></div>
+                    <div class="sonar__ring"></div>
+                  </div>
+                </div>
+                <p class="ky-tvd-loading__text">Reconstructing 0–1000 m temperature profile…</p>
+              </div>
+
+              <!-- Initial Idle state (retained so app.js can show errors if needed) -->
+              <div class="ky-tvd-idle" id="result-idle" style="display:none;">
+                <svg width="40" height="40" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="28" cy="28" r="26" stroke="#93C5FD" stroke-width="1.5" stroke-dasharray="4 3"/>
+                  <circle cx="28" cy="28" r="4" fill="#93C5FD" opacity="0.5"/>
+                </svg>
+                <p class="ky-tvd-idle__text">Click any point in the Indian Ocean to inspect profile.</p>
+              </div>
+
+              <!-- Result content (Active by default for clean presentation) -->
+              <div id="result-content" class="ky-tvd-result">
+
+                <!-- Hidden location/date summary preserved for app.js -->
+                <div style="display:none;">
+                  <span id="result-coords-val"></span>
+                  <span id="result-region-val"></span>
+                  <span id="result-date-val"></span>
+                </div>
+
+                <!-- EMPTY state (shown until both location and date are selected) -->
+                <div id="tvd-empty-view" class="ky-tvd-empty">
+                  <svg class="ky-tvd-empty__icon" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="12"/>
+                    <line x1="12" y1="16" x2="12.01" y2="16"/>
+                  </svg>
+                  <p class="ky-tvd-empty__text">Select a location and date to view temperature data</p>
+                </div>
+
+                <!-- GRAPH view -->
+                <div id="tvd-graph-view" class="ky-tvd-chart-wrap" style="display:none;">
+                  <canvas id="profile-chart" aria-label="Depth profile chart"></canvas>
+                </div>
+
+                <!-- TABLE view (2 columns: Depth, Temperature — Hidden until location + date selected) -->
+                <div id="tvd-table-view" class="ky-tvd-table-wrap" style="display:none;">
+                  <table class="ky-tvd-table">
+                    <thead>
+                      <tr>
+                        <th>Depth (m)</th>
+                        <th>Temperature (°C)</th>
+                      </tr>
+                    </thead>
+                    <tbody id="tvd-table-body">
+                      <!-- Populated when location + date are chosen -->
+                    </tbody>
+                  </table>
+                </div>
+
+                <!-- Preserved hidden containers for app.js data integrity without cluttering UI -->
+                <div style="display:none;">
+                  <div id="result-summary"></div>
+                  <div id="validation-section">
+                    <div id="validation-metrics-grid"></div>
+                    <div id="validation-argo-ref"></div>
+                  </div>
+                </div>
+
+              </div>
+              <!-- end result-content -->
+
+            </div>
+          </div>
+          <!-- end right panel -->
+
+        </div>
+        <!-- end content row -->
+
+      </main>
+    </div>
+    <!-- end body -->
 
   </div>
+  <!-- end app -->
 
   <script src="app.js"></script>
 </body>
