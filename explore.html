@@ -37,7 +37,7 @@
             <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
           </svg>
           <input type="text" id="map-search-input" class="map-search__input"
-            placeholder="Search location (e.g. Chennai, 10°N 80°E)..."
+            placeholder="Search location (e.g. Andaman Sea, 10°N 95°E)..."
             autocomplete="off" spellcheck="false" aria-label="Search location or coordinates" />
           <span class="ky-search-kbd">Ctrl K</span>
           <button type="button" id="map-search-clear" class="map-search__clear"
@@ -59,7 +59,7 @@
               <polyline points="6,9 12,15 18,9"/>
             </svg>
           </button>
-          <input type="date" id="native-date-picker" min="2021-01-01" max="2023-12-31" value="" class="ky-hidden-date-input" aria-label="Choose date" />
+          <input type="date" id="native-date-picker" min="2021-01-11" max="2023-12-31" value="" class="ky-hidden-date-input" aria-label="Choose date" />
         </div>
 
         <div class="ky-live-indicator">
@@ -90,7 +90,7 @@
             <span class="ky-nav-item__label">Dashboard</span>
           </button>
 
-          <button class="ky-nav-item" data-nav="fisheries">
+          <button class="ky-nav-item" data-nav="fisheries" onclick="window.location.href='fisheries.html'">
             <span class="ky-nav-item__icon">
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M2 16s1-5 8-5 8 5 8 5-2 2-8 2-8-2-8-2z"/>
@@ -99,16 +99,6 @@
               </svg>
             </span>
             <span class="ky-nav-item__label">Fisheries Mode</span>
-          </button>
-
-          <button class="ky-nav-item" data-nav="cyclone">
-            <span class="ky-nav-item__icon">
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 2a10 10 0 1 0 0 20"/><path d="M12 8a4 4 0 0 1 0 8"/>
-                <path d="M12 2c2 0 4 2 4 4s-2 4-4 4"/><path d="M12 22c-2 0-4-2-4-4s2-4 4-4"/>
-              </svg>
-            </span>
-            <span class="ky-nav-item__label">Cyclone &amp; Disaster Mode</span>
           </button>
 
           <button class="ky-nav-item" data-nav="ecology">
@@ -121,7 +111,7 @@
             <span class="ky-nav-item__label">Marine Ecology &amp; Heatwave Mode</span>
           </button>
 
-          <button class="ky-nav-item" data-nav="argo">
+          <button class="ky-nav-item" data-nav="argo" onclick="window.location.href='argo.html'">
             <span class="ky-nav-item__icon">
               <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
                 <rect x="3" y="12" width="4" height="9" rx="1"/>
@@ -184,6 +174,7 @@
             <div class="ky-stat-card__body">
               <div class="ky-stat-card__label">Sound Velocity / Acoustic Shadow Depth</div>
               <div class="ky-stat-card__val" id="stat-svad-val">—</div>
+              <div class="ky-stat-card__sub" id="stat-svad-sub" style="display: none;"></div>
             </div>
           </div>
 
@@ -214,20 +205,50 @@
               <div class="map-wrap">
                 <!-- MapLibre satellite container -->
                 <div id="map"></div>
+                <!-- Dedicated transparent canvas for animated particle-streamline flow -->
+                <canvas id="ky-vector-canvas" class="ky-vector-canvas"></canvas>
+
+                <!-- Operational Region / Warning Notice Banner -->
+                <div class="ky-region-notice" id="region-notice" role="alert" style="display:none;">
+                  <span class="ky-region-notice__icon">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <line x1="12" y1="8" x2="12" y2="12"></line>
+                      <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                    </svg>
+                  </span>
+                  <span class="ky-region-notice__text" id="region-notice-text">This location is outside our supported region (North Indian Ocean: 5°N–30°N, 45°E–105°E)</span>
+                </div>
 
                 <!-- 1: Top-Left Depth Selector Dropdown -->
                 <div class="ky-map-depth-wrap" id="map-depth-dropdown-wrap">
-                  <div class="ky-map-depth-btn" id="map-depth-btn">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
-                    </svg>
-                    <span id="map-depth-label">Select depth</span>
+                  <button class="ky-map-depth-btn" id="map-depth-btn" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Depth level selector">
+                    <span id="map-depth-label">Depth</span>
                     <svg class="ky-depth-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <polyline points="6 9 12 15 18 9"/>
                     </svg>
+                  </button>
+                  <div class="ky-depth-menu" id="map-depth-menu" role="listbox" aria-label="Select Depth Level">
+                    <div class="ky-depth-menu__inner">
+                      <button type="button" class="ky-depth-option" data-depth="0">0 m (Surface)</button>
+                      <button type="button" class="ky-depth-option" data-depth="5">5 m</button>
+                      <button type="button" class="ky-depth-option" data-depth="10">10 m</button>
+                      <button type="button" class="ky-depth-option" data-depth="20">20 m</button>
+                      <button type="button" class="ky-depth-option" data-depth="30">30 m</button>
+                      <button type="button" class="ky-depth-option" data-depth="50">50 m</button>
+                      <button type="button" class="ky-depth-option" data-depth="75">75 m</button>
+                      <button type="button" class="ky-depth-option" data-depth="100">100 m</button>
+                      <button type="button" class="ky-depth-option" data-depth="125">125 m</button>
+                      <button type="button" class="ky-depth-option" data-depth="150">150 m</button>
+                      <button type="button" class="ky-depth-option" data-depth="200">200 m</button>
+                      <button type="button" class="ky-depth-option" data-depth="300">300 m</button>
+                      <button type="button" class="ky-depth-option" data-depth="500">500 m</button>
+                      <button type="button" class="ky-depth-option" data-depth="700">700 m</button>
+                      <button type="button" class="ky-depth-option" data-depth="1000">1000 m</button>
+                    </div>
                   </div>
-                  <select id="native-depth-select" class="ky-hidden-depth-select" aria-label="Select depth level">
-                    <option value="" disabled selected>Select depth</option>
+                  <select id="native-depth-select" class="ky-hidden-depth-select" aria-label="Select depth level" style="display:none;" tabindex="-1">
+                    <option value="" disabled selected>Depth</option>
                     <option value="0">0 m (Surface)</option>
                     <option value="5">5 m</option>
                     <option value="10">10 m</option>
@@ -513,6 +534,7 @@
   </div>
   <!-- end app -->
 
+  <script src="coastline.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

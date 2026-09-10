@@ -1,0 +1,36 @@
+﻿# Virtual environments
+venv/
+backend/venv/
+env/
+.env
+
+# Python cache & artifacts
+__pycache__/
+backend/__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+
+# Large binary datasets (stored externally / generated during ingestion)
+backend/data/*.npy
+*.npy
+*.npz
+
+# Node / npm
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# System & IDE files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Local scratch / test logs
+scratch/
+*.log

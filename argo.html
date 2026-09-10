@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kyogre — ARGO Validation &amp; Compare</title>
+  <meta name="description" content="Validate Kyogre deep learning ocean temperature predictions against real in-situ ARGO profiling floats in the North Indian Ocean." />
+
+  <!-- MapLibre GL -->
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="kyogre-page ky-argo-body-theme">
+
+  <div class="ky-app">
+
+    <!-- ============================================================
+         1. TOP NAVBAR — Simple flat layout
+         Logo "Kyogre" left, page title center-left, Live pill + account icon right
+         ============================================================ -->
+    <header class="ky-header ky-argo-navbar">
+      <div class="ky-header__brand" onclick="window.location.href='explore.html'" style="cursor: pointer;" title="Back to Dashboard">
+        <div class="ky-brand-logo-combo">
+          <span class="ky-header__brand-title">Kyogre</span>
+        </div>
+      </div>
+
+      <!-- Centered search bar matching Dashboard component -->
+      <div class="ky-header__search">
+        <div class="map-search-wrap">
+          <svg class="map-search__icon" width="16" height="16" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <input type="text" id="map-search-input" class="map-search__input"
+            placeholder="Search floats by region or float ID (e.g. Arabian Sea, #2902282)..."
+            autocomplete="off" spellcheck="false" aria-label="Search floats by region or float ID" />
+          <span class="ky-search-kbd">Ctrl K</span>
+          <button type="button" id="map-search-clear" class="map-search__clear"
+            aria-label="Clear search" style="display:none;">&times;</button>
+          <div id="map-search-results" class="map-search__dropdown" style="display:none;" role="listbox"></div>
+        </div>
+      </div>
+
+      <div class="ky-argo-nav-right">
+        <div class="ky-argo-live-badge">
+          <span class="ky-argo-live-dot"></span>
+          <span>Live</span>
+        </div>
+        <button type="button" class="ky-argo-avatar-btn" aria-label="Account profile">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+            <circle cx="12" cy="7" r="4"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- ============================================================
+         BODY — Sidebar + Main Content
+         ============================================================ -->
+    <div class="ky-body">
+
+      <!-- SIDEBAR -->
+      <aside class="ky-sidebar">
+        <nav class="ky-sidebar__nav">
+
+          <button class="ky-nav-item" data-nav="dashboard" onclick="window.location.href='explore.html'">
+            <span class="ky-nav-item__icon">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+              </svg>
+            </span>
+            <span class="ky-nav-item__label">Dashboard</span>
+          </button>
+
+          <button class="ky-nav-item" data-nav="fisheries" onclick="window.location.href='fisheries.html'">
+            <span class="ky-nav-item__icon">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M2 16s1-5 8-5 8 5 8 5-2 2-8 2-8-2-8-2z"/>
+                <path d="M18 11c1-2 3-4 3-4s-1 2-1 4 1 4 1 4-2-2-3-4z"/>
+                <circle cx="8" cy="11" r="1.2" fill="currentColor"/>
+              </svg>
+            </span>
+            <span class="ky-nav-item__label">Fisheries Mode</span>
+          </button>
+
+          <button class="ky-nav-item" data-nav="ecology">
+            <span class="ky-nav-item__icon">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z"/>
+                <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>
+              </svg>
+            </span>
+            <span class="ky-nav-item__label">Marine Ecology &amp; Heatwave Mode</span>
+          </button>
+
+          <button class="ky-nav-item ky-nav-item--active" data-nav="argo">
+            <span class="ky-nav-item__icon">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="3" y="12" width="4" height="9" rx="1"/>
+                <rect x="10" y="7" width="4" height="14" rx="1"/>
+                <rect x="17" y="3" width="4" height="18" rx="1"/>
+              </svg>
+            </span>
+            <span class="ky-nav-item__label">ARGO Validation &amp; Compare</span>
+          </button>
+        </nav>
+
+        <!-- Sidebar footer note and copyright -->
+        <div class="ky-sidebar__footer">
+          <p class="ky-sidebar__copy">© 2025 Kyogre<br>All rights reserved.</p>
+          <p class="ky-sidebar__note">Real observational in-situ data via Argovis &amp; ARGO GDAC — not synthetic.</p>
+        </div>
+      </aside>
+
+      <!-- MAIN CONTENT -->
+      <main class="ky-main ky-argo-main-container">
+
+        <!-- 2. STAT CARDS ROW (4 Cards: icon + label + big number only) -->
+        <div class="ky-argo-stat-grid">
+          <!-- Card 1: Basin RMSE -->
+          <div class="ky-argo-mini-card">
+            <div class="ky-argo-mini-card__icon ky-argo-mini-card__icon--blue">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+              </svg>
+            </div>
+            <div class="ky-argo-mini-card__body">
+              <span class="ky-argo-mini-card__label">Basin RMSE</span>
+              <span class="ky-argo-mini-card__val" id="stat-argo-rmse">1.34 °C</span>
+            </div>
+          </div>
+
+          <!-- Card 2: Mean Thermal Bias -->
+          <div class="ky-argo-mini-card">
+            <div class="ky-argo-mini-card__icon ky-argo-mini-card__icon--coral">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/>
+              </svg>
+            </div>
+            <div class="ky-argo-mini-card__body">
+              <span class="ky-argo-mini-card__label">Mean Thermal Bias</span>
+              <span class="ky-argo-mini-card__val" id="stat-argo-bias">0.41 °C</span>
+            </div>
+          </div>
+
+          <!-- Card 3: Profile Coherence -->
+          <div class="ky-argo-mini-card">
+            <div class="ky-argo-mini-card__icon ky-argo-mini-card__icon--purple">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="3" y="12" width="4" height="9" rx="1"/>
+                <rect x="10" y="7" width="4" height="14" rx="1"/>
+                <rect x="17" y="3" width="4" height="18" rx="1"/>
+              </svg>
+            </div>
+            <div class="ky-argo-mini-card__body">
+              <span class="ky-argo-mini-card__label">Profile Coherence</span>
+              <span class="ky-argo-mini-card__val" id="stat-argo-corr">0.994</span>
+            </div>
+          </div>
+
+          <!-- Card 4: Active Floats -->
+          <div class="ky-argo-mini-card">
+            <div class="ky-argo-mini-card__icon ky-argo-mini-card__icon--green">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7z"/>
+                <circle cx="12" cy="9" r="2.5"/>
+              </svg>
+            </div>
+            <div class="ky-argo-mini-card__body">
+              <span class="ky-argo-mini-card__label">Active Floats</span>
+              <span class="ky-argo-mini-card__val" id="stat-argo-floats">41</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3 & 4. MIDDLE TWO-COLUMN ROW: Map (Left) + Vertical Profile Comparison (Right) -->
+        <div class="ky-argo-content-split">
+
+          <!-- LEFT: Map Panel ("ARGO Float In-Situ Network") -->
+          <div class="ky-argo-panel ky-argo-map-panel">
+            <div class="ky-argo-panel-header">
+              <h2 class="ky-argo-panel-title">ARGO Float In-Situ Network</h2>
+              <!-- Subregion Filter Pills -->
+              <div class="ky-argo-filter-bar" id="subregion-filters">
+                <button type="button" class="ky-argo-filter-btn ky-argo-filter-btn--active" data-region="all">All (41)</button>
+                <button type="button" class="ky-argo-filter-btn" data-region="Arabian Sea">Arabian Sea (15)</button>
+                <button type="button" class="ky-argo-filter-btn" data-region="Bay of Bengal">Bay of Bengal (15)</button>
+                <button type="button" class="ky-argo-filter-btn" data-region="Equatorial Indian Ocean">Equatorial (10)</button>
+                <button type="button" class="ky-argo-filter-btn" data-region="Andaman Sea">Andaman (1)</button>
+              </div>
+            </div>
+
+            <!-- Clean Map Container (NO floating popups, NO legend card) -->
+            <div class="ky-argo-map-wrapper" id="map-wrap">
+              <div id="map"></div>
+
+              <!-- Bottom-Right: North Compass & Scale Bar ONLY -->
+              <div class="ky-map-tools-bottom-right">
+                <div class="ky-map-scale-bar">
+                  <div class="ky-scale-ticks">
+                    <span>0</span>
+                    <span>500</span>
+                    <span>1,000</span>
+                    <span>2,000 km</span>
+                  </div>
+                  <div class="ky-scale-line">
+                    <div class="ky-scale-seg"></div>
+                    <div class="ky-scale-seg"></div>
+                    <div class="ky-scale-seg"></div>
+                  </div>
+                </div>
+                <div class="ky-compass-indicator" title="North">
+                  <span class="ky-compass-letter">N</span>
+                  <svg width="14" height="22" viewBox="0 0 16 26" fill="none">
+                    <polygon points="8,0 16,18 8,14" fill="#0F172A"/>
+                    <polygon points="8,0 0,18 8,14" fill="#FFFFFF" stroke="#0F172A" stroke-width="1"/>
+                    <polygon points="8,14 16,18 8,26" fill="#64748B"/>
+                    <polygon points="8,14 0,18 8,26" fill="#CBD5E1"/>
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- RIGHT: Vertical Profile Comparison Panel -->
+          <div class="ky-argo-panel ky-argo-compare-panel">
+            <h2 class="ky-argo-panel-title">Vertical Profile Comparison</h2>
+
+            <!-- Empty / Placeholder State (Active on initial load until a float marker is clicked) -->
+            <div class="ky-argo-empty-state" id="argo-compare-empty">
+              <div class="ky-argo-empty-icon">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                  <circle cx="12" cy="10" r="3"/>
+                </svg>
+              </div>
+              <p class="ky-argo-empty-title">No Float Selected</p>
+              <p class="ky-argo-empty-desc">Select a float on the map to view its profile comparison</p>
+            </div>
+
+            <!-- Populated Profile Content (Hidden on initial load until a float is clicked) -->
+            <div class="ky-argo-compare-content" id="argo-compare-content" style="display: none;">
+              <!-- Float Selector Dropdown & Subtext -->
+              <div class="ky-argo-select-container">
+                <label class="ky-argo-field-label" for="argo-float-select">Selected Float</label>
+                <div class="ky-argo-select-wrap">
+                  <select id="argo-float-select" class="ky-argo-select" aria-label="Select ARGO float profile">
+                    <!-- Populated dynamically -->
+                  </select>
+                  <svg class="ky-argo-select-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="6 9 12 15 18 9"/>
+                  </svg>
+                </div>
+                <div class="ky-argo-select-sub" id="argo-selected-sub">—</div>
+              </div>
+
+              <!-- Observation Date / Cycle Selector (Step 2) -->
+              <div class="ky-argo-select-container ky-argo-date-select-container">
+                <label class="ky-argo-field-label" for="argo-date-select">Observation Date &amp; Cycle</label>
+                <div class="ky-argo-select-wrap">
+                  <select id="argo-date-select" class="ky-argo-select" aria-label="Select observation date and cycle">
+                    <option value="" disabled selected>Select observation date...</option>
+                  </select>
+                  <svg class="ky-argo-select-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="6 9 12 15 18 9"/>
+                  </svg>
+                </div>
+                <div class="ky-argo-date-sub" id="argo-date-sub">Choose an available observation date (2021–2023)</div>
+              </div>
+
+              <!-- Temperature Profile Section -->
+              <div class="ky-argo-chart-section">
+                <div class="ky-argo-chart-header">
+                  <div class="ky-argo-chart-title">Temperature Profile</div>
+                </div>
+
+                <!-- State 2 Placeholder: Shown before date is picked -->
+                <div class="ky-argo-chart-placeholder" id="argo-chart-placeholder">
+                  <div class="ky-argo-chart-placeholder__icon">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                      <line x1="16" y1="2" x2="16" y2="6"/>
+                      <line x1="8" y1="2" x2="8" y2="6"/>
+                      <line x1="3" y1="10" x2="21" y2="10"/>
+                    </svg>
+                  </div>
+                  <div class="ky-argo-chart-placeholder__title">Select a date to compare</div>
+                  <div class="ky-argo-chart-placeholder__desc">Pick an observation date above to generate the vertical temperature profile comparison.</div>
+                </div>
+
+                <!-- State 3 Chart Box: Shown after date is picked -->
+                <div class="ky-argo-chart-box" id="argo-chart-box" style="display: none;">
+                  <canvas id="argo-chart-canvas"></canvas>
+                </div>
+              </div>
+
+              <!-- 3 Plain Metrics in a Row (RMSE, Mean Bias, Correlation) -->
+              <div class="ky-argo-plain-metrics">
+                <div class="ky-argo-plain-metric">
+                  <span class="ky-argo-plain-metric__label">RMSE</span>
+                  <span class="ky-argo-plain-metric__val" id="comp-float-rmse">—</span>
+                </div>
+                <div class="ky-argo-plain-metric">
+                  <span class="ky-argo-plain-metric__label">Mean Bias</span>
+                  <span class="ky-argo-plain-metric__val" id="comp-float-bias">—</span>
+                </div>
+                <div class="ky-argo-plain-metric">
+                  <span class="ky-argo-plain-metric__label">Correlation</span>
+                  <span class="ky-argo-plain-metric__val" id="comp-float-corr">—</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- 5. BOTTOM FULL-WIDTH ROW: Profile Comparison Data Table -->
+        <div class="ky-argo-panel ky-argo-table-panel">
+          <h2 class="ky-argo-panel-title" style="margin-bottom: 14px;">Profile Comparison Data</h2>
+
+          <div class="ky-argo-table-container">
+            <table class="ky-argo-plain-table">
+              <thead>
+                <tr>
+                  <th>Depth (m)</th>
+                  <th>AI Model (°C)</th>
+                  <th>ARGO Float (°C)</th>
+                  <th>Diff (Δ)</th>
+                </tr>
+              </thead>
+              <tbody id="argo-table-body">
+                <tr>
+                  <td colspan="4" class="ky-argo-table-placeholder">Select a float on the map to view profile comparison data</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </main>
+    </div>
+
+  </div>
+
+  <script src="argo.js"></script>
+</body>
+</html>

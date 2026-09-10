@@ -640,6 +640,14 @@ body.kyogre-page {
   text-align: center;
 }
 
+.map-search__item--out-of-bounds:hover {
+  background: #FEF2F2;
+}
+
+.map-search__item--land:hover {
+  background: #FFFBEB;
+}
+
 /* Header Right: Live Indicator + Date Button aligned to far right */
 .ky-header__right {
   display: flex;
@@ -944,6 +952,109 @@ body.kyogre-page {
   text-overflow: ellipsis;
 }
 
+.ky-stat-card__val--loading {
+  opacity: 0.55;
+  animation: ky-skeleton-pulse 1.2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes ky-skeleton-pulse {
+  0% { opacity: 0.35; }
+  50% { opacity: 0.75; }
+  100% { opacity: 0.35; }
+}
+
+#stat-svad-sub {
+  font-size: 10.5px;
+  color: #64748B;
+  font-weight: 500;
+  line-height: 1.25;
+  margin-top: 3px;
+  white-space: normal;
+}
+
+.cast-error-msg {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 13px;
+  color: #B91C1C;
+  background: #FEF2F2;
+  border: 1px solid #FECACA;
+  border-radius: 14px;
+  padding: 18px 20px;
+  margin: 12px auto;
+  font-weight: 400;
+  width: 100%;
+  max-width: 300px;
+  box-sizing: border-box;
+  box-shadow: 0 1px 3px rgba(220, 38, 38, 0.05);
+}
+
+.cast-error-msg::before {
+  content: "⚠️";
+  display: block;
+  font-size: 22px;
+  line-height: 1;
+  margin-bottom: 10px;
+  text-align: center;
+}
+
+.cast-error-msg strong,
+.cast-error-msg__title {
+  display: block;
+  font-size: 15px;
+  font-weight: 700;
+  color: #991B1B;
+  line-height: 1.35;
+  margin-bottom: 8px;
+  text-align: center;
+  width: 100%;
+}
+
+.cast-error-msg span,
+.cast-error-msg p,
+.cast-error-msg__body {
+  display: block;
+  font-size: 13px !important;
+  font-weight: 400;
+  color: #B91C1C;
+  line-height: 1.55;
+  opacity: 1 !important;
+  text-align: center;
+  margin: 0;
+  width: 100%;
+}
+
+.cast-error-msg br {
+  display: none;
+}
+
+.cast-error-msg code,
+.cast-error-msg a {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+  font-weight: 600;
+  color: #991B1B;
+  background: rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(0, 0, 0, 0.07);
+  border-radius: 4px;
+  padding: 2px 6px;
+  text-decoration: none;
+  display: inline-block;
+  vertical-align: baseline;
+  margin: 0 2px;
+}
+
+.cast-error-msg a:hover,
+.cast-error-msg a:focus,
+.cast-error-msg a:visited {
+  color: #991B1B;
+  text-decoration: none;
+}
+
 /* Middle Layout: Center Map Column (flexible) + Right TVD Panel (340px) */
 .ky-content-row {
   display: flex;
@@ -985,6 +1096,16 @@ body.kyogre-page {
 #map {
   width: 100%;
   height: 100%;
+}
+
+.ky-vector-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 2;
 }
 
 
@@ -1040,7 +1161,7 @@ body.kyogre-page {
   position: absolute;
   top: 16px;
   left: 16px;
-  z-index: 10;
+  z-index: 25;
   display: inline-flex;
   align-items: center;
 }
@@ -1051,6 +1172,7 @@ body.kyogre-page {
   gap: 8px;
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   padding: 8px 14px;
   border-radius: 12px;
   border: 1px solid rgba(226, 235, 246, 0.9);
@@ -1060,36 +1182,118 @@ body.kyogre-page {
   color: #1E293B;
   cursor: pointer;
   user-select: none;
-  pointer-events: none; /* Let clicks pass directly into native select */
   transition: all 0.15s ease;
-}
-
-.ky-map-depth-btn svg {
-  color: #2563EB;
+  font-family: inherit;
 }
 
 .ky-map-depth-btn .ky-depth-arrow {
   color: #64748B;
   margin-left: 2px;
+  transition: transform 0.2s ease, color 0.2s ease;
 }
 
-.ky-hidden-depth-select {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  cursor: pointer;
-  z-index: 2;
-  font-size: 14px;
-  appearance: menulist;
-}
-
-.ky-map-depth-wrap:hover .ky-map-depth-btn {
+.ky-map-depth-btn:hover {
   background: #FFFFFF;
   border-color: #CBD5E1;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.ky-map-depth-btn--open {
+  background: #FFFFFF;
+  border-color: #93C5FD;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15), 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.ky-map-depth-btn--open .ky-depth-arrow {
+  transform: rotate(180deg);
+  color: #2563EB;
+}
+
+/* Depth Custom Dropdown Panel (Smooth rounded corners & light-blue theme) */
+.ky-depth-menu {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 175px;
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(191, 219, 254, 0.95);
+  border-radius: 14px;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.12), 0 8px 10px -6px rgba(15, 23, 42, 0.08);
+  padding: 6px;
+  z-index: 30;
+}
+
+.ky-depth-menu--open {
+  display: block;
+  animation: depthDropdownFade 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes depthDropdownFade {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ky-depth-menu__inner {
+  max-height: 275px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: #CBD5E1 transparent;
+}
+
+.ky-depth-menu__inner::-webkit-scrollbar {
+  width: 4px;
+}
+
+.ky-depth-menu__inner::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 4px;
+}
+
+/* Individual Depth Option Item */
+.ky-depth-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 9px;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: #1E293B;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.ky-depth-option:hover {
+  background: #EFF6FF;
+  color: #1D4ED8;
+  font-weight: 600;
+}
+
+.ky-depth-option--selected {
+  background: #DCEAFE;
+  color: #1D4ED8;
+  font-weight: 600;
+}
+
+.ky-hidden-depth-select {
+  display: none !important;
 }
 
 .ky-map-region-pill {
@@ -1166,7 +1370,7 @@ body.kyogre-page {
   width: 100%;
   height: 8px;
   border-radius: 4px;
-  background: linear-gradient(to right, #2563EB 0%, #38BDF8 25%, #FACC15 50%, #F97316 75%, #EF4444 100%);
+  background: linear-gradient(to right, #2A0845 0%, #1B267E 10%, #1976D2 20%, #00B4D8 32%, #00E1B4 42%, #10B981 52%, #84CC16 63%, #FACC15 74%, #F97316 84%, #EF4444 93%, #8C1028 100%);
   margin-bottom: 4px;
 }
 
@@ -1217,13 +1421,33 @@ body.kyogre-page {
   margin-bottom: 2px;
 }
 
-/* Custom Pin Element */
+/* Custom Pin Element with Coordinate Badge */
 .custom-marker-wrapper {
   display: flex;
   flex-direction: column;
   align-items: center;
   cursor: pointer;
   filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.3));
+}
+
+.custom-marker__coord {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  color: #1E293B;
+  font-family: var(--font-body, system-ui, -apple-system, sans-serif);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 6px;
+  border: 1px solid #CBD5E1;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+  margin-bottom: 4px;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
 }
 
 .custom-marker__pin {
@@ -1570,6 +1794,34 @@ body.kyogre-page {
   100% { opacity: 0; transform: scale(1); }
 }
 
+/* Idle & Error state in TVD Panel */
+.ky-tvd-idle {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 24px 18px;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 280px;
+}
+
+.ky-tvd-idle__text {
+  font-size: 13px;
+  color: #64748B;
+  max-width: 230px;
+  line-height: 1.5;
+  font-weight: 500;
+  margin-top: 8px;
+}
+
+.ky-tvd-idle:has(.cast-error-msg) > svg,
+.ky-tvd-idle:has(.cast-error-msg) > .ky-tvd-idle__text {
+  display: none;
+}
+
 /* Responsive adjustments */
 @media (max-width: 1100px) {
   .ky-right-panel { width: 300px; }
@@ -1583,3 +1835,1445 @@ body.kyogre-page {
   .ky-nav-item__label, .ky-sidebar__art-wrap { display: none; }
   .ky-nav-item { justify-content: center; }
 }
+
+/* ── Operational Region / Out-of-Bounds Notification Banner ── */
+.ky-region-notice {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(15, 23, 42, 0.94);
+  color: #F8FAFC;
+  padding: 8px 18px;
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  pointer-events: none;
+  animation: kyNoticeFadeIn 0.22s ease-out;
+  max-width: 90%;
+  text-align: center;
+}
+
+.ky-region-notice--warning {
+  border-color: rgba(245, 158, 11, 0.5);
+}
+
+.ky-region-notice__icon {
+  display: flex;
+  align-items: center;
+  color: #F87171;
+  flex-shrink: 0;
+}
+
+.ky-region-notice--warning .ky-region-notice__icon {
+  color: #FBBF24;
+}
+
+@keyframes kyNoticeFadeIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -8px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+/* ── Fisheries Mode Specific Styles ────────────────────────── */
+
+.ky-sub-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.ky-sub-header__left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.ky-sub-header__icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: #EFF6FF;
+  border: 1px solid #DBEAFE;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #1D4ED8;
+  flex-shrink: 0;
+}
+
+.ky-sub-header__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ky-sub-header__title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #0F172A;
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.ky-sub-header__sub {
+  font-size: 13px;
+  color: #64748B;
+  margin: 0;
+}
+
+.ky-sub-header__right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ky-sub-header__tagline-line {
+  width: 28px;
+  height: 1.5px;
+  background: #CBD5E1;
+}
+
+.ky-sub-header__tagline {
+  font-size: 12.5px;
+  color: #64748B;
+  font-style: normal;
+  font-weight: 500;
+}
+
+/* Stat card badges and trend notes */
+.ky-stat-card__val-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.ky-stat-card__badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.ky-stat-card__badge--green {
+  background: #DCFCE7;
+  color: #15803D;
+}
+
+.ky-stat-card__badge--blue {
+  background: #DBEAFE;
+  color: #1D4ED8;
+}
+
+.ky-stat-card__badge--amber {
+  background: #FEF3C7;
+  color: #B45309;
+}
+
+.ky-stat-card__note {
+  font-size: 11px;
+  color: #64748B;
+  margin-top: 4px;
+  font-weight: 500;
+}
+
+.ky-stat-card__icon--green {
+  background: #DCFCE7;
+  color: #16A34A;
+}
+
+.ky-stat-card__icon--mint {
+  background: #ECFDF5;
+  color: #059669;
+}
+
+/* PFZ Map Popup Card */
+.ky-pfz-popup {
+  padding: 10px 14px;
+  background: #FFFFFF;
+  border-radius: 10px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.12);
+  border: 1px solid #E2E8F0;
+  min-width: 190px;
+  font-family: inherit;
+}
+
+.ky-pfz-popup__title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #0F172A;
+  margin-bottom: 3px;
+}
+
+.ky-pfz-popup__desc {
+  font-size: 11.5px;
+  color: #475569;
+  line-height: 1.35;
+  margin-bottom: 6px;
+}
+
+.ky-pfz-popup__coord {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #2563EB;
+  margin-bottom: 4px;
+}
+
+.ky-pfz-popup__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #15803D;
+  background: #DCFCE7;
+  padding: 2px 8px;
+  border-radius: 9999px;
+}
+
+/* PFZ Advisory Callout Box */
+.ky-pfz-advisory {
+  margin-top: 14px;
+  background: #ECFDF5;
+  border: 1px solid #A7F3D0;
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.ky-pfz-advisory__icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #D1FAE5;
+  color: #059669;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ky-pfz-advisory__body {
+  flex: 1;
+}
+
+.ky-pfz-advisory__title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #065F46;
+  margin-bottom: 2px;
+}
+
+.ky-pfz-advisory__text {
+  font-size: 12px;
+  color: #047857;
+  line-height: 1.45;
+  margin: 0;
+}
+
+/* Key Insights */
+.ky-insights {
+  margin-top: 14px;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+
+.ky-insights__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #0F172A;
+  margin-bottom: 10px;
+}
+
+.ky-insights__icon {
+  color: #2563EB;
+}
+
+.ky-insights__list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ky-insights__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12px;
+  color: #334155;
+  line-height: 1.4;
+}
+
+.ky-insights__bullet {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #2563EB;
+  margin-top: 5px;
+  flex-shrink: 0;
+}
+
+/* Fisheries Bottom Section: Species & Hotspots */
+.ky-fisheries-bottom-card {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 14px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.ky-fisheries-bottom-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.ky-fisheries-bottom-card__title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0F172A;
+  margin: 0;
+}
+
+.ky-fisheries-bottom-card__sub {
+  font-size: 12px;
+  color: #64748B;
+  margin: 2px 0 0 0;
+}
+
+.ky-fisheries-grid-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 900px) {
+  .ky-fisheries-grid-2col {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ky-species-list, .ky-hotspot-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ky-species-card, .ky-hotspot-card {
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  transition: all 0.18s ease;
+}
+
+.ky-hotspot-card {
+  cursor: pointer;
+}
+
+.ky-hotspot-card:hover {
+  background: #EFF6FF;
+  border-color: #BFDBFE;
+  transform: translateY(-1px);
+}
+
+.ky-species-card__info, .ky-hotspot-card__info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ky-species-card__name, .ky-hotspot-card__name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0F172A;
+}
+
+.ky-species-card__meta, .ky-hotspot-card__meta {
+  font-size: 11px;
+  color: #64748B;
+  display: flex;
+  gap: 10px;
+}
+
+.ky-species-card__badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.ky-badge--green {
+  background: #DCFCE7;
+  color: #15803D;
+}
+
+.ky-badge--blue {
+  background: #DBEAFE;
+  color: #1D4ED8;
+}
+
+.ky-badge--amber {
+  background: #FEF3C7;
+  color: #B45309;
+}
+
+
+
+
+/* ============================================================
+   FISHERIES MODE TWO-COLUMN GRID & CONTROLS (Mockup Fidelity)
+   ============================================================ */
+
+.ky-fisheries-content-row {
+  display: grid;
+  grid-template-columns: 1fr 390px;
+  gap: 16px;
+  flex: 1;
+  min-height: 590px;
+}
+
+@media (max-width: 1200px) {
+  .ky-fisheries-content-row {
+    grid-template-columns: 1fr 350px;
+  }
+}
+
+@media (max-width: 960px) {
+  .ky-fisheries-content-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ky-fisheries-map-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 100%;
+}
+
+.ky-fisheries-side-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 100%;
+}
+
+.ky-fisheries-map-card {
+  background: #FFFFFF;
+  border-radius: 16px;
+  box-shadow: 0 2px 10px rgba(0, 30, 60, 0.04);
+  border: 1px solid rgba(226, 235, 246, 0.8);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 560px;
+  height: 100%;
+}
+
+.ky-fisheries-map-wrap {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  min-height: 500px;
+  height: 100%;
+  background: #0B192C;
+}
+
+.ky-fisheries-map-wrap #map {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Region Selector Button (Top Left of Map) */
+.ky-map-region-select {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  z-index: 20;
+}
+
+.ky-map-region-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #FFFFFF;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1E293B;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.ky-map-region-btn:hover {
+  background: #F8FAFC;
+  border-color: #93C5FD;
+}
+
+/* Map Tools (Top Right) */
+.ky-map-tools-top-right {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ky-zoom-btn-group {
+  display: flex;
+  flex-direction: column;
+  background: #FFFFFF;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+}
+
+.ky-tool-btn {
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #FFFFFF;
+  border: none;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.ky-zoom-btn-group .ky-tool-btn:first-child {
+  border-bottom: 1px solid #E2E8F0;
+}
+
+.ky-tool-btn:hover {
+  background: #F1F5F9;
+  color: #1D4ED8;
+}
+
+.ky-map-tools-top-right > .ky-tool-btn {
+  border-radius: 8px;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+/* Map Tools (Bottom Right: North Compass & Scale Bar) */
+.ky-map-tools-bottom-right {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  z-index: 20;
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  pointer-events: none;
+}
+
+.ky-compass-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.ky-compass-letter {
+  font-size: 11px;
+  font-weight: 800;
+  color: #FFFFFF;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8), 0 0 4px rgba(0, 0, 0, 0.6);
+}
+
+.ky-map-scale-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.ky-scale-ticks {
+  display: flex;
+  justify-content: space-between;
+  width: 140px;
+  font-size: 9.5px;
+  font-weight: 600;
+  color: #FFFFFF;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8), 0 0 4px rgba(0, 0, 0, 0.6);
+}
+
+.ky-scale-line {
+  display: flex;
+  width: 140px;
+  height: 4px;
+  border: 1px solid #FFFFFF;
+  background: rgba(255, 255, 255, 0.4);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+.ky-scale-seg {
+  flex: 1;
+}
+
+.ky-scale-seg:nth-child(even) {
+  background: #FFFFFF;
+}
+
+/* Chlorophyll-a Legend Card (Bottom Left) */
+.ky-fisheries-legend {
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  z-index: 20;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(226, 235, 246, 0.9);
+  border-radius: 12px;
+  padding: 10px 14px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+  min-width: 240px;
+}
+
+.ky-fisheries-legend__title {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #1E293B;
+  margin-bottom: 5px;
+  display: block;
+}
+
+.ky-fisheries-legend__bar {
+  height: 10px;
+  border-radius: 5px;
+  background: linear-gradient(to right, #0F172A 0%, #1E3A8A 12%, #0284C7 28%, #10B981 50%, #FACC15 72%, #EA580C 88%, #DC2626 100%);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.ky-fisheries-legend__ticks {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: #64748B;
+  margin-top: 3px;
+  font-weight: 600;
+}
+
+/* Small fish badge on dashed PFZ zones */
+.pfz-fish-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.28);
+  backdrop-filter: blur(4px);
+  border: 1.5px dashed rgba(255, 255, 255, 0.9);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.pfz-fish-badge:hover {
+  transform: scale(1.18);
+  background: rgba(37, 99, 235, 0.5);
+}
+
+/* Tuna zone speech bubble popup */
+.ky-pfz-speech-bubble {
+  background: #FFFFFF;
+  border-radius: 12px;
+  padding: 12px 14px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.2);
+  border: 1px solid #E2E8F0;
+  min-width: 185px;
+  font-family: inherit;
+}
+
+.ky-pfz-speech-bubble__title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0F172A;
+  margin-bottom: 2px;
+}
+
+.ky-pfz-speech-bubble__sub {
+  font-size: 11px;
+  color: #64748B;
+  line-height: 1.35;
+  margin-bottom: 6px;
+}
+
+.ky-pfz-speech-bubble__coord {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #2563EB;
+  margin-bottom: 6px;
+}
+
+.ky-pfz-speech-bubble__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #DCFCE7;
+  color: #15803D;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+/* Row Highlight in Table */
+.ky-tvd-table-row--highlight {
+  background: #EFF6FF !important;
+}
+
+.ky-tvd-table-row--highlight td {
+  color: #1D4ED8 !important;
+  font-weight: 700 !important;
+}
+
+/* ============================================================
+   PAGE 4 — ARGO Validation & Compare (argo.html)
+   Clean, flat, minimal SaaS layout matching reference mockup
+   ============================================================ */
+
+body.ky-argo-body-theme {
+  background: #F8FAFC;
+}
+
+/* 1. Top Navbar */
+.ky-argo-navbar {
+  height: 56px;
+  background: #FFFFFF;
+  border-bottom: 1px solid #E2E8F0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.ky-brand-logo-combo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ky-brand-wave {
+  flex-shrink: 0;
+}
+
+.ky-argo-navbar .ky-header__search {
+  margin: 0 auto;
+}
+
+.ky-argo-nav-title h1 {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0F172A;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.ky-argo-nav-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.ky-argo-live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #DCFCE7;
+  color: #15803D;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 9999px;
+}
+
+.ky-argo-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #16A34A;
+}
+
+.ky-argo-avatar-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #F1F5F9;
+  border: 1px solid #E2E8F0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748B;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ky-argo-avatar-btn:hover {
+  background: #E2E8F0;
+  color: #1E293B;
+}
+
+/* Main scrollable container */
+.ky-argo-main-container {
+  padding: 18px 24px 32px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+  min-width: 0;
+}
+
+/* 2. Top Stat Cards Row */
+.ky-argo-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 1000px) {
+  .ky-argo-stat-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.ky-argo-mini-card {
+  background: #FFFFFF;
+  border-radius: 12px;
+  border: 1px solid #E2E8F0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.ky-argo-mini-card__icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ky-argo-mini-card__icon--blue {
+  background: #EFF6FF;
+  color: #2563EB;
+}
+
+.ky-argo-mini-card__icon--coral {
+  background: #FEF2F2;
+  color: #EF4444;
+}
+
+.ky-argo-mini-card__icon--purple {
+  background: #F5F3FF;
+  color: #8B5CF6;
+}
+
+.ky-argo-mini-card__icon--green {
+  background: #F0FDF4;
+  color: #10B981;
+}
+
+.ky-argo-mini-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.ky-argo-mini-card__label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #64748B;
+}
+
+.ky-argo-mini-card__val {
+  font-size: 22px;
+  font-weight: 700;
+  color: #0F172A;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+}
+
+/* 3 & 4. Middle Two-Column Grid */
+.ky-argo-content-split {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 16px;
+  min-height: 470px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 1100px) {
+  .ky-argo-content-split {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ky-argo-panel {
+  background: #FFFFFF;
+  border-radius: 12px;
+  border: 1px solid #E2E8F0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+}
+
+.ky-argo-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.ky-argo-panel-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0F172A;
+  margin: 0;
+}
+
+/* Subregion Filters Bar */
+.ky-argo-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.ky-argo-filter-btn {
+  background: #F1F5F9;
+  color: #475569;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  padding: 5px 12px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.ky-argo-filter-btn:hover {
+  background: #E2E8F0;
+  color: #1E293B;
+}
+
+.ky-argo-filter-btn--active {
+  background: #2563EB !important;
+  color: #FFFFFF !important;
+  border-color: #2563EB !important;
+}
+
+/* Map Wrapper */
+.ky-argo-map-wrapper {
+  position: relative;
+  border-radius: 10px;
+  overflow: hidden;
+  flex: 1;
+  min-height: 400px;
+  background: #0B192C;
+}
+
+.ky-argo-map-wrapper #map {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Empty / Placeholder State for Vertical Profile Comparison */
+.ky-argo-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  flex: 1;
+  min-height: 380px;
+  padding: 36px 20px;
+  gap: 12px;
+}
+
+.ky-argo-empty-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #F1F5F9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748B;
+  margin-bottom: 4px;
+}
+
+.ky-argo-empty-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1E293B;
+  margin: 0;
+}
+
+.ky-argo-empty-desc {
+  font-size: 12px;
+  color: #64748B;
+  max-width: 240px;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.ky-argo-compare-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+/* Float & Date Selector Containers */
+.ky-argo-field-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 5px;
+  display: block;
+}
+
+.ky-argo-select-container {
+  margin: 10px 0 12px;
+}
+
+.ky-argo-date-select-container {
+  margin: 4px 0 14px;
+}
+
+.ky-argo-date-sub {
+  font-size: 11px;
+  color: #94A3B8;
+  font-weight: 500;
+  margin-top: 5px;
+}
+
+.ky-argo-select-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.ky-argo-select {
+  width: 100%;
+  height: 38px;
+  padding: 0 36px 0 12px;
+  background: #FFFFFF;
+  border: 1px solid #CBD5E1;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1E293B;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  font-family: inherit;
+}
+
+.ky-argo-select:focus {
+  border-color: #2563EB;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.ky-argo-select-chevron {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #64748B;
+  pointer-events: none;
+}
+
+.ky-argo-select-sub {
+  font-size: 11.5px;
+  color: #64748B;
+  font-weight: 500;
+  margin-top: 6px;
+}
+
+/* Temperature Profile Chart Section */
+.ky-argo-chart-section {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 250px;
+  margin-bottom: 12px;
+}
+
+.ky-argo-chart-header {
+  margin-bottom: 8px;
+}
+
+.ky-argo-chart-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #1E293B;
+}
+
+.ky-argo-chart-box {
+  position: relative;
+  flex: 1;
+  min-height: 240px;
+  width: 100%;
+}
+
+.ky-argo-chart-box canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Date Pending Chart Placeholder */
+.ky-argo-chart-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  min-height: 240px;
+  background: #F8FAFC;
+  border: 1px dashed #CBD5E1;
+  border-radius: 10px;
+  padding: 24px 16px;
+  gap: 8px;
+  margin: 4px 0 8px;
+}
+
+.ky-argo-chart-placeholder__icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: #EFF6FF;
+  color: #2563EB;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 2px;
+}
+
+.ky-argo-chart-placeholder__title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #1E293B;
+  margin: 0;
+}
+
+.ky-argo-chart-placeholder__desc {
+  font-size: 11.5px;
+  color: #64748B;
+  max-width: 260px;
+  line-height: 1.45;
+  margin: 0;
+}
+
+/* 3 Plain Metrics Row */
+.ky-argo-plain-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  border-top: 1px solid #F1F5F9;
+  padding-top: 14px;
+  text-align: center;
+}
+
+.ky-argo-plain-metric {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.ky-argo-plain-metric__label {
+  font-size: 11px;
+  font-weight: 500;
+  color: #64748B;
+}
+
+.ky-argo-plain-metric__val {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0F172A;
+}
+
+/* 5. Bottom Panel: Profile Comparison Data Table */
+.ky-argo-table-panel {
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+
+.ky-argo-table-container {
+  overflow-x: auto;
+  width: 100%;
+}
+
+.ky-argo-plain-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+}
+
+.ky-argo-plain-table th {
+  background: #F8FAFC;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 10px 16px;
+  text-align: center;
+  border-bottom: 1px solid #E2E8F0;
+}
+
+.ky-argo-plain-table th:first-child {
+  border-top-left-radius: 8px;
+  border-bottom-left-radius: 8px;
+  text-align: left;
+}
+
+.ky-argo-plain-table th:last-child {
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
+}
+
+.ky-argo-plain-table td {
+  padding: 10px 16px;
+  text-align: center;
+  border-bottom: 1px solid #F1F5F9;
+  color: #334155;
+  font-weight: 500;
+}
+
+.ky-argo-plain-table td:first-child {
+  text-align: left;
+  font-weight: 600;
+  color: #0F172A;
+}
+
+.ky-argo-plain-table tr:hover td {
+  background: #F8FAFC;
+}
+
+.ky-argo-table-placeholder {
+  text-align: center !important;
+  color: #94A3B8 !important;
+  font-weight: 500 !important;
+  padding: 32px 16px !important;
+}
+
+/* Float Map Markers (Jitter-Free Anchoring & Selected Float Distinction) */
+.ky-float-marker-wrap {
+  position: relative;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  transition: none !important;
+  z-index: 10;
+}
+
+/* Floating Location Label above selected marker (Matching Dashboard Pattern) */
+.ky-float-label {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  color: #0F172A;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid #CBD5E1;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22);
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+  z-index: 101;
+  line-height: 1.35;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  animation: kyMarkerLabelFade 0.18s ease-out;
+}
+
+@keyframes kyMarkerLabelFade {
+  from { opacity: 0; transform: translate(-50%, 4px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* Pulsing halo ring around selected marker */
+.ky-float-pulse {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid #2563EB;
+  pointer-events: none;
+  z-index: 98;
+  animation: kyFloatPulse 1.8s ease-out infinite;
+}
+
+@keyframes kyFloatPulse {
+  0% {
+    transform: translate(-50%, -50%) scale(0.6);
+    opacity: 0.9;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(2.2);
+    opacity: 0;
+  }
+}
+
+/* Marker Dot (Unselected: smaller muted/gray) */
+.ky-float-dot {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #64748B;
+  border: 1.5px solid #FFFFFF;
+  cursor: pointer;
+  pointer-events: auto;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+  transition: background-color 0.15s ease, border-color 0.15s ease, width 0.15s ease, height 0.15s ease;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ky-float-dot:hover {
+  background: #3B82F6;
+  border-color: #FFFFFF;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.45);
+  z-index: 50;
+}
+
+/* Marker Dot (Selected: larger, accent blue, white center) */
+.ky-float-dot--selected {
+  width: 18px !important;
+  height: 18px !important;
+  background: #2563EB !important;
+  border: 2.5px solid #FFFFFF !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.35), 0 3px 12px rgba(0, 0, 0, 0.45) !important;
+  z-index: 100 !important;
+}
+
+.ky-float-dot__inner {
+  display: none;
+}
+
+.ky-float-dot--selected .ky-float-dot__inner {
+  display: block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #FFFFFF;
+}
+
+/* Marker Dimmed State (Non-matching during float search) */
+.ky-float-marker-wrap--dimmed .ky-float-dot {
+  opacity: 0.22;
+  filter: grayscale(0.85);
+  transition: opacity 0.2s ease, filter 0.2s ease;
+}
+
+.ky-float-marker-wrap--dimmed .ky-float-label {
+  opacity: 0.22;
+}
+
+.ky-float-marker-wrap--dimmed .ky-float-pulse {
+  display: none !important;
+}
+
+/* Marker Matched / Highlighted State during float search */
+.ky-float-marker-wrap--matched .ky-float-dot {
+  opacity: 1;
+  box-shadow: 0 0 0 3.5px rgba(37, 99, 235, 0.4), 0 2px 8px rgba(0, 0, 0, 0.35);
+  transition: box-shadow 0.2s ease, opacity 0.2s ease;
+}
+

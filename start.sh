@@ -4,15 +4,19 @@
 # Compatible with Git Bash (Windows) and WSL
 # ============================================================
 
-# Resolve backend directory (Git Bash vs WSL vs native Windows)
-if [ -d "D:/oceanembed_handoff" ]; then
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -d "$SCRIPT_DIR/backend" ]; then
+  BACKEND_DIR="$SCRIPT_DIR/backend"
+elif [ -d "$SCRIPT_DIR/oceanembed_handoff" ]; then
+  BACKEND_DIR="$SCRIPT_DIR/oceanembed_handoff"
+elif [ -d "D:/oceanembed_handoff" ]; then
   BACKEND_DIR="D:/oceanembed_handoff"
 elif [ -d "/d/oceanembed_handoff" ]; then
   BACKEND_DIR="/d/oceanembed_handoff"
 elif [ -d "/mnt/d/oceanembed_handoff" ]; then
   BACKEND_DIR="/mnt/d/oceanembed_handoff"
 else
-  echo "Error: Backend directory oceanembed_handoff not found on D: drive!"
+  echo "Error: Backend directory not found in project or on D: drive!"
   exit 1
 fi
 
