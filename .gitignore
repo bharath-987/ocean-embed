@@ -1,4 +1,4 @@
-﻿# Virtual environments
+# Virtual environments
 venv/
 backend/venv/
 env/
@@ -16,6 +16,8 @@ backend/__pycache__/
 backend/data/*.npy
 *.npy
 *.npz
+*.zip
+backend/data/*.zip
 
 # Node / npm
 node_modules/

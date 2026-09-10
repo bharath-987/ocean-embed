@@ -3,6 +3,16 @@
 > [!IMPORTANT]
 > **MANDATORY PROTOCOL**: This file **MUST** be updated after **EVERY SINGLE TASK** without exception or user reminder.
 > Record status, files changed, and verification evidence for every item.
+- [x] **Create `ocean-embed-data.zip` Archive for 9 Dataset `.npy` Files** `[Completed 2026-09-10]`
+  - **Archive Creation & Validation**:
+    - Created `backend/data/ocean-embed-data.zip` (2.63 GB / 2,757,219,752 bytes).
+    - Verified all 9 required `.npy` files packaged inside archive (`temp_target_clim.npy`, `sst.npy`, `sst_anom.npy`, `sss_anom.npy`, `ssh_anom.npy`, `u_cur_anom.npy`, `v_cur_anom.npy`, `u_wind_anom.npy`, `v_wind_anom.npy`).
+    - Added `*.zip` and `backend/data/*.zip` to `.gitignore` to prevent accidental git tracking of multi-gigabyte archives.
+  - **GitHub Hard Limit Clarification**:
+    - Confirmed all source code, neural network model weights (`backend/model_v4_dilated_checkpoint_epoch30.pt` @ 227 KB), ARGO dataset (`backend/data/argo_profiles.json` @ 65 KB), HTML/JS/CSS, test suites, and documentation (`SETUP.md`) are already 100% committed and pushed to GitHub `origin/master`.
+    - Documented that GitHub strictly blocks any git push containing files > 100MB (regardless of whether the repo is public or private), and Git LFS free tier caps at 2GB per file and 1GB total bandwidth.
+    - Verified complete system integrity with `node test_d20_card.js` and `python test_system.py` (100% PASS).
+
 - [x] **Full Repository Audit, Backend Setup Guide (SETUP.md), and Teammate Portability Push** `[Completed 2026-09-10]`
   - **Git Status & Branch Verification**:
     - Confirmed single branch `master` tracking `origin/master`.
