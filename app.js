@@ -2136,7 +2136,7 @@ function renderSurfaceInputs(inputs) {
 /* ── Stat Cards In-Flight Loading State ──────────────────── */
 
 function setStatsLoading(isLoading) {
-  const statIds = ['stat-mld-val', 'stat-ohc-val', 'stat-svad-val', 'stat-rmse-val'];
+  const statIds = ['stat-mld-val', 'stat-ohc-val', 'stat-svad-val', 'stat-d20-val'];
   statIds.forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
@@ -2260,14 +2260,39 @@ function updateStatCards(prediction) {
     }
   }
 
-  // 4: RMSE
-  // When real in-situ ARGO validation is not co-located, display informative message instead of fabricated number
-  const rmseEl = document.getElementById('stat-rmse-val');
-  if (rmseEl) {
-    if (validation && validation.rmse !== undefined && validation.rmse !== null) {
-      rmseEl.textContent = `±${validation.rmse} °C`;
+  // 4: D20 Isotherm Depth
+  // Compute depth (in meters) at which temperature first drops to 20°C,
+  // linearly interpolating between the depth level just above 20°C and the depth level just below 20°C.
+  let d20Isotherm = null;
+  if (temps && temps.length > 0) {
+    if (temps[0] <= 20.0) {
+      d20Isotherm = depths[0];
     } else {
-      rmseEl.textContent = 'N/A — no co-located ARGO float';
+      for (let i = 1; i < depths.length; i++) {
+        if (temps[i] <= 20.0) {
+          const d0 = depths[i - 1];
+          const d1 = depths[i];
+          const t0 = temps[i - 1];
+          const t1 = temps[i];
+          const frac = (t0 - 20.0) / (t0 - t1 || 1);
+          d20Isotherm = Math.round(d0 + frac * (d1 - d0));
+          break;
+        }
+      }
+    }
+  }
+
+  const d20El = document.getElementById('stat-d20-val');
+  if (d20El) {
+    if (d20Isotherm !== null) {
+      d20El.textContent = `${d20Isotherm} m`;
+      d20El.title = `D20 Isotherm Depth: ${d20Isotherm} m`;
+    } else if (temps && temps.length > 0) {
+      d20El.textContent = 'N/A — 20°C not reached in profile';
+      d20El.title = '20°C isotherm not reached in depth range';
+    } else {
+      d20El.textContent = '—';
+      d20El.title = '';
     }
   }
 }
@@ -2718,7 +2743,7 @@ function handleBackendFailure(msg) {
       idleEl.appendChild(errDiv);
     }
     // Set honest placeholders rather than displaying fabricated numbers
-    ['stat-mld-val', 'stat-ohc-val', 'stat-svad-val', 'stat-rmse-val'].forEach(id => {
+    ['stat-mld-val', 'stat-ohc-val', 'stat-svad-val', 'stat-d20-val'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.textContent = '—';
     });
@@ -2831,7 +2856,7 @@ function renderPrediction(prediction, lat, lon, dateObj) {
   // Update Ocean Parameters tiles
   renderSurfaceInputs(prediction.surfaceInputs);
 
-  // Update Stat Cards (MLD, OHC, SVAD, RMSE)
+  // Update Stat Cards (MLD, OHC, SVAD, D20 Isotherm)
   updateStatCards(prediction);
 
   // Update Depth-Temperature table

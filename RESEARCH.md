@@ -102,15 +102,26 @@ All 6 surface parameters are 2D spatial datasets at depth = 0 m:
   - Immediately beneath the SLD, sound rays refract downward, creating an **Acoustic Shadow Zone** where naval sonar detection drops precipitously.
   - If sound speed decreases monotonically from the surface ($c(0) \ge c(z)$ for all $z$), no surface duct exists and the UI reports `0 m` accompanied by the explanatory caption and tooltip: *"No surface duct — sound speed decreases with depth"*, eliminating any ambiguity that `0 m` is an error or uncalculated state.
 
-### 4.4 In-situ ARGO Float Validation & Error Diagnostics
-- Independent ARGO profiling floats within 0.5° and ±2 days are paired against model outputs when available.
-- **Honest Statistical Reporting**: When no co-located ARGO float is available within the match window, `prediction.validation` returns `null`. The UI stat card strictly displays `"N/A — no co-located ARGO float"` rather than misleading static constants.
-- When an ARGO float is available:
-  - **Root Mean Square Error (RMSE)** in °C: $\sqrt{\frac{1}{N}\sum_{i=1}^N (T_{\text{pred}}(z_i) - T_{\text{argo}}(z_i))^2}$
-  - **Pearson Correlation ($r$)**: Profile shape and vertical gradient tracking
-  - **Mean Bias**: Systematic model offset across depth levels
+### 4.4 20°C Isotherm Depth (D20) — Thermocline Proxy
+- **Definition & Oceanographic Significance**:
+  The $20^\circ\text{C}$ Isotherm Depth ($D_{20}$) is the vertical depth (in meters) where the water column temperature drops to $20^\circ\text{C}$. In tropical and subtropical oceans (specifically the North Indian Ocean, Arabian Sea, and Bay of Bengal), the $20^\circ\text{C}$ isotherm lies directly within the sharp upper thermocline and serves as the primary standard dynamical proxy for thermocline displacement, equatorial Kelvin/Rossby waves, and climate modes (such as the Indian Ocean Dipole [IOD] and El Niño–Southern Oscillation [ENSO]).
+- **Interpolation Algorithm**:
+  Using the 15 standard ocean depth levels $z \in [0, 5, 10, 20, 30, 50, 75, 100, 125, 150, 200, 300, 500, 700, 1000]\text{ m}$:
+  1. If surface temperature $T(0) \le 20.0^\circ\text{C}$, $D_{20} = 0\text{ m}$.
+  2. Otherwise, find the first depth level $k$ where $T(z_k) \le 20.0^\circ\text{C}$. The isotherm is bracketed between $z_{k-1}$ ($T_{k-1} > 20^\circ\text{C}$) and $z_k$ ($T_k \le 20^\circ\text{C}$).
+  3. Piecewise linear interpolation yields:
+     $$\text{frac} = \frac{T_{k-1} - 20.0^\circ\text{C}}{T_{k-1} - T_k}$$
+     $$D_{20} = \text{round}\left( z_{k-1} + \text{frac} \cdot (z_k - z_{k-1}) \right)$$
+  4. If the water column never reaches $20.0^\circ\text{C}$ across the full sampled depth range, the dashboard displays `"N/A — 20°C not reached in profile"`.
+- **Card Subtext**: `"Depth where temperature crosses 20°C — a proxy for thermocline depth."`
 
-### 4.5 Dynamic Thermocline Depth on TVD Profile Chart
+### 4.5 In-situ ARGO Float Validation & Error Diagnostics (ARGO Module)
+- Independent ARGO profiling floats within 0.5° and ±2 days are paired against model outputs when available on the dedicated ARGO Validation & Compare page.
+- **Root Mean Square Error (RMSE)** in °C: $\sqrt{\frac{1}{N}\sum_{i=1}^N (T_{\text{pred}}(z_i) - T_{\text{argo}}(z_i))^2}$
+- **Pearson Correlation ($r$)**: Profile shape and vertical gradient tracking
+- **Mean Bias**: Systematic model offset across depth levels
+
+### 4.6 Dynamic Thermocline Depth on TVD Profile Chart
 - The Chart.js Temperature vs Depth profile includes a horizontal dashed reference line indicating the thermocline boundary.
 - **Dynamic Gradient Calculation**: The depth is extracted directly from `prediction.indices.thermocline_depth` or computed dynamically as the depth of maximum negative vertical gradient:
   $$Z_{tc} = \arg\max_z \left( -\frac{\Delta T}{\Delta z} \right)$$

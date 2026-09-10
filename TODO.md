@@ -3,6 +3,60 @@
 > [!IMPORTANT]
 > **MANDATORY PROTOCOL**: This file **MUST** be updated after **EVERY SINGLE TASK** without exception or user reminder.
 > Record status, files changed, and verification evidence for every item.
+- [x] **Full Repository Audit, Backend Setup Guide (SETUP.md), and Teammate Portability Push** `[Completed 2026-09-10]`
+  - **Git Status & Branch Verification**:
+    - Confirmed single branch `master` tracking `origin/master`.
+    - Tracked backend assets: `backend/api_server.py`, `backend/inference.py`, `backend/model_v4_dilated_checkpoint_epoch30.pt` (227 KB), `backend/requirements.txt`, and `backend/data/argo_profiles.json` (65 KB).
+  - **Large File Analysis (>50MB, >100MB)**:
+    - Identified 9 numerical grid arrays in `backend/data/`: `temp_target_clim.npy` (4,069.77 MB = ~4.07 GB) and 8 anomaly arrays (`ssh_anom.npy`, `sss_anom.npy`, `sst.npy`, `sst_anom.npy`, `u_cur_anom.npy`, `u_wind_anom.npy`, `v_cur_anom.npy`, `v_wind_anom.npy`) at 271.32 MB each (~6.24 GB total).
+    - Confirmed that `.gitignore` excludes `backend/data/*.npy` to avoid GitHub's 100MB per-file rejection and free-tier LFS limits.
+  - **Portability & Documentation**:
+    - Updated `backend/requirements.txt` with compatible versions (`torch>=2.0`, `numpy>=1.24,<2.0`, `pandas>=2.0`, `fastapi>=0.110`, `uvicorn[standard]>=0.27`, `pydantic>=2.0`).
+    - Authored `SETUP.md` providing step-by-step instructions for cloning, virtualenv setup, pip install, data file acquisition, one-command startup (`start.bat` / `start.sh`), and verification.
+  - **Files Modified/Created**:
+    - `SETUP.md`: Comprehensive local setup and onboarding documentation.
+    - `backend/requirements.txt`: Pinned compatibility constraints and added pydantic.
+    - `test_d20_card.js`: Regression test suite for D20 Isotherm Depth.
+    - `explore.html`, `app.js`, `style.css`: D20 Isotherm Depth card implementation.
+    - `AGENTS.md`, `RESEARCH.md`, `TODO.md`: Operational, oceanographic, and verification tracking.
+  - **Rigorous Verification Evidence**:
+    - `node --check app.js argo.js fisheries.js coastline.js test_d20_card.js` $\rightarrow$ **PASS** (0 syntax errors).
+    - `python -m py_compile backend/api_server.py backend/inference.py` $\rightarrow$ **PASS** (0 syntax errors).
+    - `node test_d20_card.js` $\rightarrow$ **PASS** (100% assertions passed).
+    - `node test_interactions.js; node test_region_mask.js; node test_fisheries.js; node test_argo_page.js; node test_error_component.js; node test_start_script.js` $\rightarrow$ **PASS** (100% passed).
+    - `python test_system.py` $\rightarrow$ **PASS** (100% assertions across all suites passed).
+
+- [x] **Replace RMSE Summary Card with D20 Isotherm Depth Card in Kyogre Dashboard** `[Completed 2026-09-10]`
+  - **D20 Isotherm Depth Card Implementation (`explore.html`)**:
+    - Replaced the 4th summary card (RMSE) with "D20 Isotherm Depth", maintaining the exact card layout (`.ky-stat-card`, `.ky-stat-card__icon--blue`, `.ky-stat-card__body`, `.ky-stat-card__label`, `.ky-stat-card__val`, and `.ky-stat-card__sub`).
+    - Reused the Feather/Lucide SVG thermometer icon (`<path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/>`) in `explore.html`.
+    - Added element `#stat-d20-val` initialized to default empty state (`—`).
+    - Added subtext element `#stat-d20-sub` explaining: `"Depth where temperature crosses 20°C — a proxy for thermocline depth."`.
+  - **Styling (`style.css`)**:
+    - Styled `#stat-d20-sub` alongside `#stat-svad-sub` with `font-size: 10.5px`, `color: #64748B`, `font-weight: 500`, `line-height: 1.25`, `margin-top: 3px`, and `white-space: normal`.
+  - **Linear Interpolation Algorithm & State Machine (`app.js`)**:
+    - Extracted depths and temperatures from the same `prediction.temps` and `prediction.depths` array feeding the TVD table/graph.
+    - Implemented linear interpolation: finds first index $k$ where $T(z_k) \le 20.0^\circ\text{C}$; interpolates $D_{20} = \text{round}(z_{k-1} + \frac{T_{k-1} - 20}{T_{k-1} - T_k} \times (z_k - z_{k-1}))$.
+    - Fallbacks:
+      - If surface temperature $T(0) \le 20.0^\circ\text{C}$, sets $D_{20} = 0\text{ m}$.
+      - If temperature never reaches $20.0^\circ\text{C}$ throughout profile, displays `"N/A — 20°C not reached in profile"`.
+      - On loading/idle states, displays skeleton loader `···` or placeholder `—`.
+    - Updated `setStatsLoading()`, `handleBackendFailure()`, and `renderPrediction()` to use `stat-d20-val` and variable `d20Isotherm`.
+    - Preserved all ARGO validation RMSE occurrences on `argo.html` and `argo.js` completely untouched.
+  - **Files Modified**:
+    - `explore.html`: Replaced RMSE card markup with D20 Isotherm Depth card.
+    - `style.css`: Added `#stat-d20-sub` rule.
+    - `app.js`: Updated stat card loading, failure handling, and D20 calculation in `updateStatCards()`.
+    - `AGENTS.md`: Updated Section 1.3 testing checklist to reflect D20 Isotherm Depth.
+    - `RESEARCH.md`: Added Section 4.4 documenting D20 oceanographic definition and interpolation formulas.
+    - `test_d20_card.js`: Added comprehensive 4-part automated verification suite.
+    - `TODO.md`: Documented task completion and verification evidence.
+  - **Verification Evidence**:
+    - `node test_d20_card.js` $\rightarrow$ **PASS** (100% success across all cases: standard profile 170m, exact 20°C crossing 100m, cold surface 0m, warm profile fallback, and ARGO preservation).
+    - `node --check app.js argo.js fisheries.js coastline.js` $\rightarrow$ **PASS** (0 syntax errors).
+    - `node test_interactions.js; node test_region_mask.js; node test_fisheries.js; node test_argo_page.js; node test_error_component.js; node test_start_script.js` $\rightarrow$ **PASS** (100% tests passed across all suites).
+    - `python test_system.py` $\rightarrow$ **PASS** (100% assertions across all suites passed).
+
 - [x] **Pre-Push Testing Verification Matrix and Push to GitHub Repository** `[Completed 2026-09-10]`
   - **Git Ignore & Repository Hygiene**:
     - Created `.gitignore` to safeguard against tracking large `.npy` satellite/climatology binary datasets (`temp_target_clim.npy` 4.2 GB and 284 MB per-parameter arrays) and python virtual environments (`backend/venv/`).

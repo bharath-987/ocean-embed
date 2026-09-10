@@ -964,7 +964,8 @@ body.kyogre-page {
   100% { opacity: 0.35; }
 }
 
-#stat-svad-sub {
+#stat-svad-sub,
+#stat-d20-sub {
   font-size: 10.5px;
   color: #64748B;
   font-weight: 500;

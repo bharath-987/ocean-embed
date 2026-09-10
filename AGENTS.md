@@ -53,7 +53,7 @@ Before running `git commit` or `git push`, the agent **MUST** complete every ste
        4. Render the parameter's 2D spatial raster overlay.
    - **Location + Date Gating (TVD & Stat Cards)**:
      - Clicking an ocean coordinate or selecting a search location must drop the blue teardrop pin.
-     - Once both Location and Date are set, the TVD Table/Graph and Top 4 stat cards (MLD, OHC₃₀₀, Sound Velocity Depth, RMSE) must populate with real predictions.
+     - Once both Location and Date are set, the TVD Table/Graph and Top 4 stat cards (MLD, OHC₃₀₀, Sound Velocity Depth, D20 Isotherm Depth) must populate with real predictions.
 
 4. **Edge Cases & Error Handling**:
    - Land coordinates clicked: Ignored cleanly via land mask (`isLand()`).
