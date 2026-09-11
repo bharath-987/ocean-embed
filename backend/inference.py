@@ -32,16 +32,29 @@ import torch.nn.functional as F
 # 1. CONFIG -- answers to items 5-10 from your checklist
 # ---------------------------------------------------------------------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+_env_f16 = os.environ.get("USE_FLOAT16_DATA") or os.environ.get("USE_FLOAT16")
 _env_trimmed = os.environ.get("USE_TRIMMED_DATA")
+
+untrimmed_sst = os.path.join(BASE_DIR, "data", "sst.npy")
+float16_sst = os.path.join(BASE_DIR, "data", "float16", "sst.npy")
+trimmed_sst = os.path.join(BASE_DIR, "data", "trimmed", "sst.npy")
+
+if _env_f16 is not None:
+    USE_FLOAT16_DATA = _env_f16.lower() in ("true", "1", "yes")
+else:
+    USE_FLOAT16_DATA = (not os.path.exists(untrimmed_sst)) and os.path.exists(float16_sst)
+
 if _env_trimmed is not None:
     USE_TRIMMED_DATA = _env_trimmed.lower() in ("true", "1", "yes")
 else:
-    # Auto-detect: if untrimmed data doesn't exist but trimmed does, use trimmed
-    untrimmed_sst = os.path.join(BASE_DIR, "data", "sst.npy")
-    trimmed_sst = os.path.join(BASE_DIR, "data", "trimmed", "sst.npy")
-    USE_TRIMMED_DATA = (not os.path.exists(untrimmed_sst)) and os.path.exists(trimmed_sst)
+    # Auto-detect trimmed: if neither untrimmed nor float16 exists, but trimmed does
+    USE_TRIMMED_DATA = (not os.path.exists(untrimmed_sst)) and (not USE_FLOAT16_DATA) and os.path.exists(trimmed_sst)
 
-if USE_TRIMMED_DATA:
+if USE_FLOAT16_DATA:
+    DATA_DIR = os.path.join(BASE_DIR, "data", "float16")
+    _day_index_map = None
+    USE_TRIMMED_DATA = False
+elif USE_TRIMMED_DATA:
     DATA_DIR = os.path.join(BASE_DIR, "data", "trimmed")
     _map_path = os.path.join(DATA_DIR, "day_index_map.json")
     if os.path.exists(_map_path):
