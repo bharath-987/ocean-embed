@@ -4,6 +4,19 @@
 > **MANDATORY PROTOCOL**: This file **MUST** be updated after **EVERY SINGLE TASK** without exception or user reminder.
 > Record status, files changed, and verification evidence for every item.
 
+- [x] **Point Frontend config.js to Live Render Backend URL** `[Completed 2026-09-11]`
+  - **Task Objective**: Replace `'https://REPLACE_WITH_RENDER_URL.onrender.com'` placeholder in `config.js` with live Render service URL `'https://kyogre-zk7p.onrender.com'`, preserving local hostname detection logic. Stage `config.js`, commit, and push to GitHub.
+  - **Implementation Details**:
+    1. Replaced placeholder URL with `'https://kyogre-zk7p.onrender.com'` in `config.js` (header comment and fallback assignment).
+    2. Verified localhost/127.0.0.1 continues to map to `'http://localhost:8000'`, while remote hosts map to `'https://kyogre-zk7p.onrender.com'`.
+    3. Staged, committed, and pushed changes to `origin/master`.
+  - **Verification Evidence**:
+    - Syntax verification: `node --check config.js` passed with 0 errors.
+    - Node environment verification: Local evaluated to `'http://localhost:8000'`, remote host evaluated to `'https://kyogre-zk7p.onrender.com'`.
+    - Git push: Cleanly pushed to `origin/master`.
+  - **Files Modified**:
+    - `config.js`: Updated production backend endpoint.
+
 - [x] **Optimize Backend Memory Footprint for Render 512MB RAM Ceiling** `[Completed 2026-09-11]`
   - **Task Objective**: Resolve Render OOM ("used over 512MB") crash during `DEMO_PREWARM_DATES` pre-warming. Audit array loading (`np.load` vs `mmap_mode="r"`), inspect cache warming behavior and memory retention, eliminate redundant intermediate caches, and verify total estimated RAM footprint under 512MB while preserving 100% prediction accuracy and logic.
   - **Root Cause Analysis**:
