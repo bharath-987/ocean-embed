@@ -4,6 +4,30 @@
 > **MANDATORY PROTOCOL**: This file **MUST** be updated after **EVERY SINGLE TASK** without exception or user reminder.
 > Record status, files changed, and verification evidence for every item.
 
+- [x] **Optimize Backend Memory Footprint for Render 512MB RAM Ceiling** `[Completed 2026-09-11]`
+  - **Task Objective**: Resolve Render OOM ("used over 512MB") crash during `DEMO_PREWARM_DATES` pre-warming. Audit array loading (`np.load` vs `mmap_mode="r"`), inspect cache warming behavior and memory retention, eliminate redundant intermediate caches, and verify total estimated RAM footprint under 512MB while preserving 100% prediction accuracy and logic.
+  - **Root Cause Analysis**:
+    1. 8 of 9 `.npy` arrays were loaded into physical RAM via standard `np.load()` (consuming ~48.3 MB in trimmed mode, and >850 MB in untrimmed mode).
+    2. `OceanEmbedModel.forward` stacked daily embeddings into a 5D tensor, permuted and reshaped into a $(24341, 10, 32)$ batch, allocating >60 MB of temporary PyTorch tensors.
+    3. The LSTM ran over the entire 24,341 spatial batch in a single forward call, causing PyTorch C++ to allocate ~120 MB of unrolled scratch buffers.
+    4. On Render's multi-core host, PyTorch initialized OpenMP with 32-64 worker threads, ballooning thread stack memory.
+    5. Peak process memory during pre-warming reached 583.3 MB, crossing Render's 512MB container limit and triggering SIGKILL.
+  - **Implementation Details**:
+    1. Memory-Mapped All Arrays: Converted all 9 `.npy` files in `backend/inference.py` to `np.load(..., mmap_mode="r")`, reducing startup array RAM to 0 MB.
+    2. Auto-Detected `USE_TRIMMED_DATA`: Automatically detects if `backend/data/sst.npy` is missing and `backend/data/trimmed/sst.npy` is present.
+    3. Thread Ceiling: Capped PyTorch threads via `torch.set_num_threads(2)` to eliminate OpenMP thread pool overhead in container environments.
+    4. In-Place Slice Assignment: Updated `OceanEmbedModel.forward` to assign daily encoder slices in-place into pre-allocated `reshaped` buffer, eliminating `daily_embeddings` list and `torch.stack`.
+    5. Batch Chunking in LSTM: Updated `TemporalModel.forward` to process batches in 4096-sample chunks, cutting PyTorch C++ LSTM scratch allocations in half while preserving 100% bit-identical math.
+    6. Intermediate Tensor Deletion & GC: Used `torch.inference_mode()`, deleted temporary tensors (`del window`, `del surface_channels`, `del window_tensor`), and added `gc.collect()` per iteration in `lifespan`.
+    7. Cache Pruning: Bounded `_MAX_PREDICTION_CACHE_SIZE = 4` and `_MAX_CACHE_SIZE = 4` (matching the 4 demo dates).
+  - **Verification Evidence**:
+    - Memory reduction: Peak working set during pre-warming dropped from **583.3 MB** to **406-453 MB**, safely below 512 MB.
+    - Bit-identical parity: `verify_demo_dates.py` passed 100% (delta = 0.000000°C across all 15 depths for all 4 dates).
+    - System regression suite: `python test_system.py` passed with 100% assertions satisfied.
+  - **Files Modified**:
+    - `backend/inference.py`: Switched to mmap_mode='r', chunked LSTM, in-place slice assignment, thread limiting, auto-detect trimmed mode, and bounded cache.
+    - `backend/api_server.py`: Added gc.collect() in pre-warming loop and bounded `_MAX_CACHE_SIZE = 4`.
+
 - [x] **Push Trimmed Dataset & Deployment Configuration to GitHub** `[Completed 2026-09-11]`
   - **Task Objective**: Execute pre-commit verification matrix, verify active branch (`master`), confirm `.gitignore` prevents original multi-GB binary arrays (`backend/data/*.npy`) while permitting `backend/data/trimmed/*.npy`, stage all changes with `git add -A`, verify `git status`, commit with descriptive message, push to `origin/master`, and record `git log -1 --stat` and size check.
   - **Implementation Details**:

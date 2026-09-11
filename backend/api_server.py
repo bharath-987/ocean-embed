@@ -39,6 +39,7 @@ REPRESENTATIVE_LON = 70.0
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Pre-warming inference cache for demo dates at server startup
+    import gc
     print("=" * 65, flush=True)
     print("  OceanEmbed — Pre-warming inference cache for SIH demo dates...", flush=True)
     print("=" * 65, flush=True)
@@ -46,7 +47,9 @@ async def lifespan(app: FastAPI):
         t0 = time.perf_counter()
         predict_temperature_profile(REPRESENTATIVE_LAT, REPRESENTATIVE_LON, date_str)
         elapsed_ms = int((time.perf_counter() - t0) * 1000)
+        gc.collect()
         print(f"Pre-warming cache for demo date {date_str}... done ({elapsed_ms}ms)", flush=True)
+    gc.collect()
     print("=" * 65, flush=True)
     print("  Inference cache ready! All demo dates pre-warmed (<1ms response).", flush=True)
     print("=" * 65, flush=True)
@@ -265,7 +268,7 @@ def predict(req: PredictRequest):
 
 
 _spatial_prediction_cache = {}
-_MAX_CACHE_SIZE = 8
+_MAX_CACHE_SIZE = 4
 
 
 def get_spatial_predictions(date_str: str):

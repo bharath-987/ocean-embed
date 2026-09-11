@@ -32,7 +32,14 @@ import torch.nn.functional as F
 # 1. CONFIG -- answers to items 5-10 from your checklist
 # ---------------------------------------------------------------------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-USE_TRIMMED_DATA = os.environ.get("USE_TRIMMED_DATA", "false").lower() in ("true", "1", "yes")
+_env_trimmed = os.environ.get("USE_TRIMMED_DATA")
+if _env_trimmed is not None:
+    USE_TRIMMED_DATA = _env_trimmed.lower() in ("true", "1", "yes")
+else:
+    # Auto-detect: if untrimmed data doesn't exist but trimmed does, use trimmed
+    untrimmed_sst = os.path.join(BASE_DIR, "data", "sst.npy")
+    trimmed_sst = os.path.join(BASE_DIR, "data", "trimmed", "sst.npy")
+    USE_TRIMMED_DATA = (not os.path.exists(untrimmed_sst)) and os.path.exists(trimmed_sst)
 
 if USE_TRIMMED_DATA:
     DATA_DIR = os.path.join(BASE_DIR, "data", "trimmed")
@@ -79,6 +86,11 @@ def translate_day_idx(day_idx: int) -> int | None:
 # 11: day-of-year sin     12: day-of-year cos
 # (all "anomaly" = value minus the location's seasonal-average climatology)
 
+# Cap PyTorch CPU threads in constrained container environments (e.g. Render 512MB RAM)
+# to prevent OpenMP worker thread pool stack bloat.
+if torch.get_num_threads() > 2:
+    torch.set_num_threads(2)
+
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # ---------------------------------------------------------------------------
@@ -107,8 +119,16 @@ class TemporalModel(nn.Module):
         self.lstm = nn.LSTM(input_size=embedding_channels, hidden_size=hidden_size, batch_first=True)
 
     def forward(self, x):
-        output, (h_n, c_n) = self.lstm(x)
-        return h_n[-1]
+        # Process in chunks along batch dimension to prevent PyTorch C++ LSTM from allocating massive scratch buffers
+        if x.shape[0] <= 4096:
+            _, (h_n, _) = self.lstm(x)
+            return h_n[-1]
+        outputs = []
+        for i in range(0, x.shape[0], 4096):
+            chunk = x[i:i + 4096]
+            _, (h_n, _) = self.lstm(chunk)
+            outputs.append(h_n[-1])
+        return torch.cat(outputs, dim=0)
 
 
 class DepthPredictor(nn.Module):
@@ -136,12 +156,16 @@ class OceanEmbedModel(nn.Module):
     def forward(self, x):
         # x shape: (batch, time=10, channels=13, lat=101, lon=241)  <- item 5: full input shape
         batch, time, channels, lat, lon = x.shape
-        daily_embeddings = [self.encoder(x[:, t]) for t in range(time)]
-        embedding_sequence = torch.stack(daily_embeddings, dim=1)
-        _, _, emb_channels, _, _ = embedding_sequence.shape
-        reshaped = embedding_sequence.permute(0, 3, 4, 1, 2).reshape(batch * lat * lon, time, emb_channels)
+        emb_channels = 32
+        # Assign slices in-place into pre-allocated tensor to avoid 60+ MB intermediate stacks and permutes
+        reshaped = torch.empty((batch * lat * lon, time, emb_channels), dtype=x.dtype, device=x.device)
+        for t in range(time):
+            emb_t = self.encoder(x[:, t])
+            reshaped[:, t, :] = emb_t.permute(0, 2, 3, 1).reshape(batch * lat * lon, emb_channels)
         temporal_summary = self.temporal(reshaped)
+        del reshaped
         predictions = self.predictor(temporal_summary)
+        del temporal_summary
         predictions_map = predictions.reshape(batch, lat, lon, self.num_depths).permute(0, 3, 1, 2)
         return predictions_map  # output is a TEMPERATURE ANOMALY -- climatology is added back below (item 8)
 
@@ -156,22 +180,20 @@ _model.eval()
 _target_lats = np.arange(MIN_LAT, MAX_LAT + 0.25, 0.25)
 _target_lons = np.arange(MIN_LON, MAX_LON + 0.25, 0.25)
 
-# Load satellite surface anomaly arrays and SST into memory once at startup
-# (Total memory footprint: ~2.2 GB; ensures zero disk I/O paging during inference)
-_sst_arr = np.load(f"{DATA_DIR}/sst.npy")
-_sst_anom = np.load(f"{DATA_DIR}/sst_anom.npy")
-_sss_anom = np.load(f"{DATA_DIR}/sss_anom.npy")
-_ssh_anom = np.load(f"{DATA_DIR}/ssh_anom.npy")
-_u_cur_anom = np.load(f"{DATA_DIR}/u_cur_anom.npy")
-_v_cur_anom = np.load(f"{DATA_DIR}/v_cur_anom.npy")
-_u_wind_anom = np.load(f"{DATA_DIR}/u_wind_anom.npy")
-_v_wind_anom = np.load(f"{DATA_DIR}/v_wind_anom.npy")
-# temp_target_clim is ~4.1 GB, so keep mmap_mode='r' to prevent exhausting RAM;
-# slicing day_idx [15, 101, 241] only reads 1.4 MB per request.
-_temp_target_clim = np.load(f"{DATA_DIR}/temp_target_clim.npy", mmap_mode='r')
+# Load satellite surface anomaly arrays and SST via memory-mapping (mmap_mode='r')
+# This avoids loading multi-megabyte arrays into physical RAM at startup, keeping memory minimal.
+_sst_arr = np.load(f"{DATA_DIR}/sst.npy", mmap_mode="r")
+_sst_anom = np.load(f"{DATA_DIR}/sst_anom.npy", mmap_mode="r")
+_sss_anom = np.load(f"{DATA_DIR}/sss_anom.npy", mmap_mode="r")
+_ssh_anom = np.load(f"{DATA_DIR}/ssh_anom.npy", mmap_mode="r")
+_u_cur_anom = np.load(f"{DATA_DIR}/u_cur_anom.npy", mmap_mode="r")
+_v_cur_anom = np.load(f"{DATA_DIR}/v_cur_anom.npy", mmap_mode="r")
+_u_wind_anom = np.load(f"{DATA_DIR}/u_wind_anom.npy", mmap_mode="r")
+_v_wind_anom = np.load(f"{DATA_DIR}/v_wind_anom.npy", mmap_mode="r")
+_temp_target_clim = np.load(f"{DATA_DIR}/temp_target_clim.npy", mmap_mode="r")
 from collections import OrderedDict
 _prediction_cache: OrderedDict[str, np.ndarray] = OrderedDict()
-_MAX_PREDICTION_CACHE_SIZE = 16
+_MAX_PREDICTION_CACHE_SIZE = 4
 
 
 _total_days = _sst_arr.shape[0]
@@ -255,12 +277,17 @@ def predict_temperature_profile(latitude: float, longitude: float, date_str: str
         ], axis=1)
 
         window_tensor = torch.tensor(window, dtype=torch.float32).unsqueeze(0).to(device)
+        del window
+        del surface_channels
 
-        with torch.no_grad():
+        with torch.inference_mode():
             prediction_anom = _model(window_tensor)
+        del window_tensor
 
         clim_at_day = np.array(_temp_target_clim[mapped_day_idx])
-        prediction_real = prediction_anom[0].cpu().numpy() + clim_at_day  # anomaly -> real temperature (item 8)
+        prediction_real = (prediction_anom[0].cpu().numpy() + clim_at_day).astype("float32")  # anomaly -> real temperature (item 8)
+        del prediction_anom
+        del clim_at_day
 
         _prediction_cache[date_str] = prediction_real
         if len(_prediction_cache) > _MAX_PREDICTION_CACHE_SIZE:
