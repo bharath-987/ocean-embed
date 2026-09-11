@@ -4,6 +4,59 @@
 > **MANDATORY PROTOCOL**: This file **MUST** be updated after **EVERY SINGLE TASK** without exception or user reminder.
 > Record status, files changed, and verification evidence for every item.
 
+- [x] **Execute Date Trimming (2021-2023), Parity Verification & Float16 Promotion** `[Completed 2026-09-11]`
+  - **Task Objective**: Run `backend/trim_dates.py` to create `backend/data/float16_2021_2023/` (1095 days). Confirm all 9 files exist and report sizes. Run `diagnostic_tests.py` and `test_system.py` against `float16_2021_2023` to verify bit-identical and parity match against untrimmed data. Replace `backend/data/float16/` contents with trimmed files. Update `KNOWN_SIZES` in `backend/fetch_data.py`. Show `git status`.
+  - **Implementation Details**:
+    1. Executed `backend/trim_dates.py`:
+       - Sliced all 9 arrays down from 2,922 days to 1,095 continuous days (2021-01-01 to 2023-12-31) in 7.0 seconds.
+       - Reduced total dataset footprint by 62.5% from 3,120.2 MB (3.05 GB) to 1,169.3 MB (1.14 GB).
+       - Confirmed all 9 files in `float16_2021_2023/`: 8 surface 2D arrays are exactly 53,306,918 bytes (50.84 MB) and `temp_target_clim.npy` is 799,601,978 bytes (762.56 MB).
+    2. Parity Verification Against Original Untrimmed float32:
+       - Tested 11 random points spanning 2021, 2022, 2023, and cold date `2023-12-16`.
+       - Max absolute discrepancy across all 15 depths and all dates was $\le 0.0100^\circ\text{C}$ (11/11 PASS, all within $0.05^\circ\text{C}$).
+       - Ran `diagnostic_tests.py` against trimmed float16: 100% passed (determinism, ARGO sensitivity, latency, model check).
+       - Ran `test_system.py` against trimmed float16: 100% assertions satisfied.
+    3. Promoted Trimmed Dataset to `backend/data/float16/`:
+       - Replaced contents of `backend/data/float16/` with the new 1095-day files so `inference.py` and `api_server.py` require zero path changes.
+       - Removed temporary directory `backend/data/float16_2021_2023/`.
+    4. Updated `backend/fetch_data.py`:
+       - Updated `KNOWN_SIZES` dictionary to reflect trimmed sizes: `53306918` for 2D grids and `799601978` for 3D climatology.
+  - **Verification Evidence**:
+    - Parity test suite: 11/11 test cases passed ($\Delta \le 0.01^\circ\text{C}$).
+    - Diagnostic suite: `diagnostic_tests.py` passed with 0 errors.
+    - Full system regression suite: `test_system.py` passed with 100% assertions satisfied.
+  - **Files Modified/Created**:
+    - `backend/data/float16/`: Replaced with 1095-day arrays (1.14 GB total).
+    - `backend/fetch_data.py`: Updated `KNOWN_SIZES` values.
+    - `backend/trim_dates.py`: Reusable date trimming script.
+
+- [x] **Audit Float16 Memory Mapping, Date Range & Create Date Trimming Utility for 512MB RAM** `[Completed 2026-09-11]`
+  - **Task Objective**: Check shapes and actual date coverage of `backend/data/float16/*.npy` against `DATASET_START_DATE` (2021-01-01). Audit all `np.load()` calls in `backend/inference.py` for `mmap_mode='r'`. Ensure zero full-array copies in slicing paths. Create `backend/trim_dates.py` to slice down to 2021-01-01 through 2023-12-31 into `backend/data/float16_2021_2023/` (without running). Run regression & diagnostic tests locally and measure cold-inference memory usage (Working Set & Peak Working Set).
+  - **Implementation Details**:
+    1. Audited Array Shapes & Date Range:
+       - Verified all 9 `.npy` files in `backend/data/float16/` have `shape[0] = 2922`.
+       - From `DATASET_START_DATE = 2021-01-01`, day index 0 is `2021-01-01`, and day index 2921 is `2028-12-31`.
+       - Target period `2021-01-01` through `2023-12-31` (inclusive) contains exactly **1,095 days**.
+       - The current dataset contains **1,827 extra days** past `2023-12-31` (a 62.5% reduction opportunity).
+    2. Audited Memory-Mapped Loading & Slicing:
+       - Confirmed all 9 arrays in `backend/inference.py` are loaded with `np.load(f"{DATA_DIR}/<name>.npy", mmap_mode="r")`.
+       - Verified all slicing operations (`start:end`, `mapped_day_idx`, scalar indexing) in `inference.py` and `api_server.py` create lightweight views or small temporal slices (max 3.4 MB), with zero full-array copies.
+    3. Created `backend/trim_dates.py`:
+       - Slices all 9 float16 arrays down to indices `0..1095` (2021-01-01 to 2023-12-31, 1095 days) into `backend/data/float16_2021_2023/`.
+       - Uses `open_memmap` with 100-day chunked streaming for $< 50\text{ MB}$ RAM footprint.
+       - Generates `day_index_map.json` identity map. Script created but NOT run per user instruction.
+    4. Profiled Working Set & Peak Working Set RAM:
+       - Baseline Python Startup: Working Set: 23.00 MB | Peak: 23.00 MB
+       - After Model & mmap Load: Working Set: 246.45 MB | Peak: 246.45 MB
+       - After 4 Prewarm Demo Dates: Working Set: 363.20 MB | Peak: 375.24 MB
+       - Right After Cold Prediction (`2023-12-16`): Working Set: 365.73 MB | Peak: 379.50 MB
+       - Total peak working set remains at **379.50 MB** ($< 512\text{ MB}$, with $> 130\text{ MB}$ headroom).
+  - **Verification Evidence**:
+    - System regression suite: `python test_system.py` passed with 100% assertions satisfied.
+    - Diagnostic suite: `diagnostic_tests.py` ran with `USE_FLOAT16_DATA=true` and passed determinism, ARGO sensitivity, latency, and model checks.
+  - **Files Created/Modified**:
+    - `backend/trim_dates.py`: Date slicing utility for 2021-2023.
+
 - [x] **Automate Dataset Download from Hugging Face Hub for Render Build Pipeline** `[Completed 2026-09-11]`
   - **Task Objective**: Create `backend/fetch_data.py` to download 9 float16 `.npy` files from Hugging Face dataset repo `"bharath-987/ocean-embed-data"` into `backend/data/float16/`. Use `huggingface_hub.hf_hub_download` with `repo_type="dataset"`, support optional `HF_TOKEN`, skip existing files with matching sizes, and print download progress. Add `huggingface_hub` to requirements files. Provide exact Render build command.
   - **Implementation Details**:

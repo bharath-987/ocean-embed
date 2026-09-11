@@ -52,17 +52,17 @@ NPY_FILES = [
     "v_wind_anom.npy",
 ]
 
-# Fallback byte sizes for bharath-987/ocean-embed-data float16 arrays
+# Fallback byte sizes for 2021-01-01 through 2023-12-31 (1095 days) float16 arrays
 KNOWN_SIZES: Dict[str, int] = {
-    "ssh_anom.npy": 142248932,
-    "sss_anom.npy": 142248932,
-    "sst.npy": 142248932,
-    "sst_anom.npy": 142248932,
-    "temp_target_clim.npy": 2133732188,
-    "u_cur_anom.npy": 142248932,
-    "u_wind_anom.npy": 142248932,
-    "v_cur_anom.npy": 142248932,
-    "v_wind_anom.npy": 142248932,
+    "ssh_anom.npy": 53306918,
+    "sss_anom.npy": 53306918,
+    "sst.npy": 53306918,
+    "sst_anom.npy": 53306918,
+    "temp_target_clim.npy": 799601978,
+    "u_cur_anom.npy": 53306918,
+    "u_wind_anom.npy": 53306918,
+    "v_cur_anom.npy": 53306918,
+    "v_wind_anom.npy": 53306918,
 }
 
 
