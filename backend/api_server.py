@@ -6,7 +6,11 @@ Wraps inference.predict_temperature_profile() for the ocean-embed frontend.
 from contextlib import asynccontextmanager
 import json
 import os
+import sys
 import time
+
+# Ensure backend directory is in sys.path so modules can always be imported
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -54,15 +58,7 @@ app = FastAPI(title="OceanEmbed API", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5500",
-        "http://127.0.0.1:5500",
-        "http://localhost:8000",
-        "http://127.0.0.1:8000",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],
-    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -116,17 +112,26 @@ def extract_surface_inputs(latitude: float, longitude: float, date_str: str) -> 
     """Read satellite surface values at the nearest grid cell for the target date."""
     lat_idx, lon_idx = _grid_indices(latitude, longitude)
     day_idx = _day_index(date_str)
+    if inf.USE_TRIMMED_DATA:
+        if inf._day_index_map is None or day_idx not in inf._day_index_map:
+            raise HTTPException(
+                status_code=400,
+                detail="This date is not available in the deployed demo dataset.",
+            )
+        arr_idx = inf._day_index_map[day_idx]
+    else:
+        arr_idx = day_idx
 
-    sst = float(inf._sst_arr[day_idx, lat_idx, lon_idx])
-    sst_anom = float(inf._sst_anom[day_idx, lat_idx, lon_idx])
-    sss_anom = float(inf._sss_anom[day_idx, lat_idx, lon_idx])
-    ssh_anom = float(inf._ssh_anom[day_idx, lat_idx, lon_idx])
-    u_cur = float(inf._u_cur_anom[day_idx, lat_idx, lon_idx])
-    v_cur = float(inf._v_cur_anom[day_idx, lat_idx, lon_idx])
-    u_wind = float(inf._u_wind_anom[day_idx, lat_idx, lon_idx])
-    v_wind = float(inf._v_wind_anom[day_idx, lat_idx, lon_idx])
+    sst = float(inf._sst_arr[arr_idx, lat_idx, lon_idx])
+    sst_anom = float(inf._sst_anom[arr_idx, lat_idx, lon_idx])
+    sss_anom = float(inf._sss_anom[arr_idx, lat_idx, lon_idx])
+    ssh_anom = float(inf._ssh_anom[arr_idx, lat_idx, lon_idx])
+    u_cur = float(inf._u_cur_anom[arr_idx, lat_idx, lon_idx])
+    v_cur = float(inf._v_cur_anom[arr_idx, lat_idx, lon_idx])
+    u_wind = float(inf._u_wind_anom[arr_idx, lat_idx, lon_idx])
+    v_wind = float(inf._v_wind_anom[arr_idx, lat_idx, lon_idx])
 
-    mdt_val = float(_get_mdt(day_idx)[lat_idx, lon_idx])
+    mdt_val = float(_get_mdt(arr_idx)[lat_idx, lon_idx])
     ssh_val = mdt_val + ssh_anom
 
     cur_speed = float(inf.np.sqrt(u_cur**2 + v_cur**2))
@@ -223,17 +228,33 @@ def model_result_to_frontend(result: dict, latitude: float, longitude: float, da
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "device": str(inf.device)}
+    return {
+        "status": "ok",
+        "device": str(inf.device),
+        "trimmed": inf.USE_TRIMMED_DATA,
+    }
 
 
 @app.post("/predict")
 def predict(req: PredictRequest):
     day_idx = _day_index(req.date)
-    if day_idx < inf.SEQUENCE_LENGTH:
-        raise HTTPException(
-            status_code=400,
-            detail="Date requires 10 days of prior satellite history. Earliest valid date: 2021-01-11.",
-        )
+    if inf.USE_TRIMMED_DATA:
+        if (
+            inf._day_index_map is None
+            or day_idx not in inf._day_index_map
+            or (day_idx - inf.SEQUENCE_LENGTH) not in inf._day_index_map
+            or (inf._day_index_map[day_idx] - inf._day_index_map[day_idx - inf.SEQUENCE_LENGTH] != inf.SEQUENCE_LENGTH)
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="This date is not available in the deployed demo dataset.",
+            )
+    else:
+        if day_idx < inf.SEQUENCE_LENGTH:
+            raise HTTPException(
+                status_code=400,
+                detail="Date requires 10 days of prior satellite history. Earliest valid date: 2021-01-11.",
+            )
 
     result = predict_temperature_profile(req.latitude, req.longitude, req.date)
 
@@ -257,15 +278,29 @@ def get_spatial_predictions(date_str: str):
         return _spatial_prediction_cache[date_str]
 
     day_idx = _day_index(date_str)
-    if day_idx < inf.SEQUENCE_LENGTH or day_idx >= inf._total_days:
-        clim = inf._temp_target_clim[day_idx].astype(float)
-        return clim
+    if inf.USE_TRIMMED_DATA:
+        if (
+            inf._day_index_map is None
+            or day_idx not in inf._day_index_map
+            or (day_idx - inf.SEQUENCE_LENGTH) not in inf._day_index_map
+            or (inf._day_index_map[day_idx] - inf._day_index_map[day_idx - inf.SEQUENCE_LENGTH] != inf.SEQUENCE_LENGTH)
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="This date is not available in the deployed demo dataset.",
+            )
+        mapped_day_idx = inf._day_index_map[day_idx]
+        start, end = mapped_day_idx - inf.SEQUENCE_LENGTH, mapped_day_idx
+    else:
+        if day_idx < inf.SEQUENCE_LENGTH or day_idx >= inf._total_days:
+            clim = inf._temp_target_clim[day_idx].astype(float)
+            return clim
+        mapped_day_idx = day_idx
+        start, end = day_idx - inf.SEQUENCE_LENGTH, day_idx
 
     if date_str in inf._prediction_cache:
         prediction_real = inf._prediction_cache[date_str].copy().astype("float32")
     else:
-        start, end = day_idx - inf.SEQUENCE_LENGTH, day_idx
-
         surface_channels = inf.np.stack([
             inf._sst_anom[start:end],
             inf._sss_anom[start:end],
@@ -289,18 +324,17 @@ def get_spatial_predictions(date_str: str):
         with torch.no_grad():
             prediction_anom = inf._model(window_tensor)
 
-        clim_at_day = inf.np.array(inf._temp_target_clim[day_idx])
+        clim_at_day = inf.np.array(inf._temp_target_clim[mapped_day_idx])
         prediction_real = (prediction_anom[0].cpu().numpy() + clim_at_day).astype("float32")
         inf._prediction_cache[date_str] = prediction_real
 
-
     # Accurate ocean mask: where raw SST is 0 (< 0.5), mask all depths to 0.0
-    land_mask = (inf.np.array(inf._sst_arr[day_idx]) < 0.5)
+    land_mask = (inf.np.array(inf._sst_arr[mapped_day_idx]) < 0.5)
     for d in range(len(inf.STANDARD_DEPTHS)):
         prediction_real[d][land_mask] = 0.0
 
     # Depth 0 anchor: Sea Surface Temperature at depth=0 must match observed satellite SST
-    prediction_real[0] = inf.np.array(inf._sst_arr[day_idx], dtype="float32")
+    prediction_real[0] = inf.np.array(inf._sst_arr[mapped_day_idx], dtype="float32")
     prediction_real[0][land_mask] = 0.0
 
     if len(_spatial_prediction_cache) >= _MAX_CACHE_SIZE:
@@ -323,8 +357,20 @@ def temperature_grid(date: str, depth: int = 0):
 
     depth_idx = inf.STANDARD_DEPTHS.index(depth)
     day_idx = _day_index(date)
-    if day_idx < 0 or day_idx >= inf._total_days:
-        raise HTTPException(status_code=400, detail="Date out of range")
+    if inf.USE_TRIMMED_DATA:
+        if (
+            inf._day_index_map is None
+            or day_idx not in inf._day_index_map
+            or (day_idx - inf.SEQUENCE_LENGTH) not in inf._day_index_map
+            or (inf._day_index_map[day_idx] - inf._day_index_map[day_idx - inf.SEQUENCE_LENGTH] != inf.SEQUENCE_LENGTH)
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="This date is not available in the deployed demo dataset.",
+            )
+    else:
+        if day_idx < 0 or day_idx >= inf._total_days:
+            raise HTTPException(status_code=400, detail="Date out of range")
 
     sub_lats = inf._target_lats.tolist()
     sub_lons = inf._target_lons.tolist()
@@ -355,28 +401,37 @@ def parameter_grid(param: str, date: str):
     For vector fields ('current' and 'wind'), also returns 'u' and 'v' grids.
     """
     day_idx = _day_index(date)
-    if day_idx < 0 or day_idx >= inf._total_days:
-        raise HTTPException(status_code=400, detail="Date out of range")
+    if inf.USE_TRIMMED_DATA:
+        if inf._day_index_map is None or day_idx not in inf._day_index_map:
+            raise HTTPException(
+                status_code=400,
+                detail="This date is not available in the deployed demo dataset.",
+            )
+        arr_idx = inf._day_index_map[day_idx]
+    else:
+        if day_idx < 0 or day_idx >= inf._total_days:
+            raise HTTPException(status_code=400, detail="Date out of range")
+        arr_idx = day_idx
 
     p = param.lower()
-    ocean_mask = (inf._sst_arr[day_idx] >= 0.5)
+    ocean_mask = (inf._sst_arr[arr_idx] >= 0.5)
     extra = {}
 
     if p == "sst":
-        slice_data = inf._sst_arr[day_idx].astype(float)
+        slice_data = inf._sst_arr[arr_idx].astype(float)
     elif p == "ssh":
-        mdt = _get_mdt(day_idx)
-        slice_data = (mdt + inf._ssh_anom[day_idx]).astype(float)
+        mdt = _get_mdt(arr_idx)
+        slice_data = (mdt + inf._ssh_anom[arr_idx]).astype(float)
         slice_data[~ocean_mask] = 0.0
     elif p == "sla":
-        slice_data = inf._ssh_anom[day_idx].astype(float)
+        slice_data = inf._ssh_anom[arr_idx].astype(float)
         slice_data[~ocean_mask] = 0.0
     elif p == "sss":
-        slice_data = (35.0 + inf._sss_anom[day_idx].astype(float))
+        slice_data = (35.0 + inf._sss_anom[arr_idx].astype(float))
         slice_data[~ocean_mask] = 0.0
     elif p == "current":
-        u = inf._u_cur_anom[day_idx].astype(float)
-        v = inf._v_cur_anom[day_idx].astype(float)
+        u = inf._u_cur_anom[arr_idx].astype(float)
+        v = inf._v_cur_anom[arr_idx].astype(float)
         slice_data = inf.np.sqrt(u * u + v * v)
         slice_data[~ocean_mask] = 0.0
         u[~ocean_mask] = 0.0
@@ -384,8 +439,8 @@ def parameter_grid(param: str, date: str):
         extra["u"] = u.tolist()
         extra["v"] = v.tolist()
     elif p == "wind":
-        u = inf._u_wind_anom[day_idx].astype(float)
-        v = inf._v_wind_anom[day_idx].astype(float)
+        u = inf._u_wind_anom[arr_idx].astype(float)
+        v = inf._v_wind_anom[arr_idx].astype(float)
         slice_data = inf.np.sqrt(u * u + v * v)
         slice_data[~ocean_mask] = 0.0
         u[~ocean_mask] = 0.0
@@ -422,7 +477,7 @@ _argo_summary_cache = {
     "totalDepthPoints": 615,
     "aggregateRmse": 1.34,
     "aggregateBias": 0.41,
-    "aggregateCorr": 0.994,
+    "aggregateCorr": 0.986,
     "subRegions": {
         "Arabian Sea": {"count": 15, "rmse": 1.12},
         "Bay of Bengal": {"count": 15, "rmse": 1.07},
@@ -499,7 +554,7 @@ def compare_argo_profile(id: str):
 
     pred = predict_temperature_profile(lat, lon, date_str)
     if "error" in pred:
-        raise HTTPException(status_code=500, detail=f"Model inference failed: {pred['error']}")
+        raise HTTPException(status_code=400, detail=pred["error"])
 
     depths = inf.STANDARD_DEPTHS
     ai_temps = [round(float(pred[d]), 2) for d in depths]
@@ -579,7 +634,8 @@ def get_argo_summary():
 
     all_sq_errs = []
     all_diffs = []
-    all_corrs = []
+    all_ai_temps = []
+    all_argo_temps = []
     subregion_stats = {}
 
     for p in profiles:
@@ -597,9 +653,8 @@ def get_argo_summary():
 
         all_sq_errs.extend(sq_err)
         all_diffs.extend(diff)
-        if inf.np.std(ai_temps) > 1e-4 and inf.np.std(argo_temps) > 1e-4:
-            r = float(inf.np.corrcoef(ai_temps, argo_temps)[0, 1])
-            all_corrs.append(r)
+        all_ai_temps.extend(ai_temps)
+        all_argo_temps.extend(argo_temps)
 
         sub = p.get("subRegion", "Other")
         if sub not in subregion_stats:
@@ -609,7 +664,11 @@ def get_argo_summary():
 
     agg_rmse = round(float(inf.np.sqrt(inf.np.mean(all_sq_errs))), 2) if all_sq_errs else 0.0
     agg_bias = round(float(inf.np.mean(all_diffs)), 2) if all_diffs else 0.0
-    agg_corr = round(float(inf.np.mean(all_corrs)), 3) if all_corrs else 1.0
+    # Pooled Pearson correlation across all point-wise AI vs ARGO pairs
+    if len(all_ai_temps) > 1 and inf.np.std(all_ai_temps) > 1e-4 and inf.np.std(all_argo_temps) > 1e-4:
+        agg_corr = round(float(inf.np.corrcoef(all_ai_temps, all_argo_temps)[0, 1]), 3)
+    else:
+        agg_corr = 1.0
 
     sub_summary = {}
     for sub, sdata in subregion_stats.items():
@@ -632,6 +691,7 @@ def get_argo_summary():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("api_server:app", host="0.0.0.0", port=8000, reload=False)
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("api_server:app", host="0.0.0.0", port=port, reload=False)
 
 

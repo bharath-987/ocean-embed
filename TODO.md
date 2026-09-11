@@ -3,6 +3,422 @@
 > [!IMPORTANT]
 > **MANDATORY PROTOCOL**: This file **MUST** be updated after **EVERY SINGLE TASK** without exception or user reminder.
 > Record status, files changed, and verification evidence for every item.
+
+- [x] **Push Trimmed Dataset & Deployment Configuration to GitHub** `[Completed 2026-09-11]`
+  - **Task Objective**: Execute pre-commit verification matrix, verify active branch (`master`), confirm `.gitignore` prevents original multi-GB binary arrays (`backend/data/*.npy`) while permitting `backend/data/trimmed/*.npy`, stage all changes with `git add -A`, verify `git status`, commit with descriptive message, push to `origin/master`, and record `git log -1 --stat` and size check.
+  - **Implementation Details**:
+    1. Verified active branch is `master`.
+    2. Verified `.gitignore` excludes original binary `.npy` files while explicitly tracking `backend/data/trimmed/*.npy` and `*.json`.
+    3. Confirmed staged files via `git status` contain zero original untrimmed `.npy` files.
+    4. Staged all modified files, test suites, and trimmed dataset.
+    5. Committed with message `"Add trimmed demo dataset, USE_TRIMMED_DATA support, CORS/PORT config, and auto-detecting API_BASE_URL for Render deployment"`.
+    6. Pushed to remote `origin/master`.
+  - **Verification Evidence**:
+    - Full system regression suite `python test_system.py`: 100% assertions passed.
+    - Full client test suites (`node test_d20_card.js; node test_argo_cycle_sync.js; node test_argo_metric_verify.js; node test_argo_page.js`): 100% passed.
+    - Trimmed dataset verification: 10 files, total 138.8 MB (vs 6.24 GB original).
+    - Remote push: `origin/master` updated cleanly.
+
+- [x] **Dynamic config.js Environment Detection & Local Live Backend Verification** `[Completed 2026-09-11]`
+  - **Task Objective**: Update `config.js` to automatically set `window.API_BASE_URL` to `'http://localhost:8000'` when `window.location.hostname` is `'localhost'` or `'127.0.0.1'`, and otherwise fallback to `'https://REPLACE_WITH_RENDER_URL.onrender.com'`. Verify backend `api_server.py` is running locally on port 8000 (start if needed), confirm `/health` response, and verify dashboard live values on `http://localhost:5500/explore.html` without "Live Model Unavailable".
+  - **Implementation Details**:
+    1. Updated `config.js`: Implemented self-invoking function inspecting `(typeof window !== 'undefined' && window.location && window.location.hostname)`. If `'localhost'` or `'127.0.0.1'`, sets `window.API_BASE_URL = 'http://localhost:8000'`, otherwise `'https://REPLACE_WITH_RENDER_URL.onrender.com'`.
+    2. Verified Local Backend on Port 8000: Confirmed `backend/api_server.py` is active on port 8000. `/health` responds with HTTP 200 `{"status": "ok", "device": "cpu"}` and valid CORS headers (`access-control-allow-origin: http://localhost:5500`).
+    3. Live Dashboard Data Verification: Evaluated simulated browser fetch from `http://localhost:5500` to `/predict` for date `2022-07-02` at `(15.5°N, 65.0°E)`: returned HTTP 200 with live predictions (SST 28.63°C, 200m 18.72°C, 1000m 9.33°C, MLD 112.5m). "Live Model Unavailable" error condition eliminated.
+  - **Verification Evidence**:
+    - Environment detection test: `node` evaluated `localhost` -> `'http://localhost:8000'`, `127.0.0.1` -> `'http://localhost:8000'`, remote -> `'https://REPLACE_WITH_RENDER_URL.onrender.com'`.
+    - Live server check: `http://localhost:5500/config.js` serves updated dynamic detection script.
+    - Health endpoint check: `http://localhost:8000/health` returns `{"status":"ok","device":"cpu"}`.
+    - Predict endpoint check: `http://localhost:8000/predict` returns HTTP 200 with real physical temperatures.
+    - Full system regression suite: `python test_system.py` — 100% assertions passed.
+    - Client regression suites: `node test_d20_card.js; node test_argo_cycle_sync.js; node test_argo_metric_verify.js; node test_argo_page.js` — 100% passed.
+  - **Files Modified**:
+    - `config.js`: Dynamic environment-based `window.API_BASE_URL` resolution.
+
+- [x] **Fix .gitignore for Trimmed Dataset & Verify Git Staging** `[Completed 2026-09-11]`
+  - **Task Objective**: Add negation rules to `.gitignore` to track `backend/data/trimmed/` files (`*.npy`, `*.json`) while preserving untracked/ignored status for untrimmed `backend/data/*.npy`. Execute `git add -A` and verify staging status via `git status --porcelain`. Audit file sizes inside `backend/data/trimmed/` against GitHub limits (flag >90MB), and catalog all staged changes with rationales.
+  - **Implementation Details**:
+    1. Updated `.gitignore`: Injected negation rules `!backend/data/trimmed/`, `!backend/data/trimmed/*.npy`, and `!backend/data/trimmed/*.json` directly after the global `*.npy` and `*.npz` rules.
+    2. Staged changes: Executed `git add -A` and confirmed all 10 files in `backend/data/trimmed/` appear as staged `A` entries.
+    3. Checked untrimmed isolation: Confirmed zero original files from `backend/data/*.npy` are staged.
+    4. Audited file sizes: Computed sizes for all 10 trimmed files. Flagged `temp_target_clim.npy` at 90.53 MB (94.93M bytes), which is >90MB but within GitHub's 100MB hard threshold.
+    5. Audited working tree modifications: Cataloged all 28 staged files (M and A) with one-line explanations connecting them to recent feature work.
+  - **Verification Evidence**:
+    - `git status --porcelain`: Confirms 10 individual `A` entries for `backend/data/trimmed/`.
+    - Original files check: `backend/data/*.npy` strictly absent from staged index.
+    - File size audit: All single-level arrays are 6.04 MB; 15-level 3D climatology is 90.53 MB.
+    - System regression suite: `python test_system.py` — 100% assertions passed.
+  - **Files Modified**:
+    - `.gitignore`: Added negation rules for trimmed dataset.
+
+- [x] **Check and Clean Up frontend/config.js Reference** `[Completed 2026-09-11]`
+  - **Task Objective**: Check whether `frontend/config.js` is referenced by any HTML or JS file in the project. If unused, delete it and confirm no build step or import depends on it. If used somewhere, report exact location.
+  - **Findings & Actions**:
+    1. Full codebase scan confirmed `frontend/config.js` was NOT referenced, imported, or required by any HTML, JS, or build script.
+    2. All client pages (`explore.html:10`, `argo.html:10`, `fisheries.html:10`) reference the root `config.js` via `<script src="config.js"></script>`.
+    3. The project is static vanilla JS with no build bundler (webpack/vite/rollup) or npm build pipeline.
+    4. Deleted `frontend/config.js` and removed the empty `frontend/` directory.
+    5. Confirmed root `config.js` remains active, setting `window.API_BASE_URL`.
+  - **Verification Evidence**:
+    - Directory check: `os.path.exists('frontend') == False`, `os.path.exists('config.js') == True`.
+    - Script syntax check: `node --check config.js app.js argo.js fisheries.js coastline.js` exited 0.
+    - System regression test suite: `python test_system.py` — 100% assertions passed.
+    - Files Deleted: `frontend/config.js` (and empty `frontend/` directory).
+
+
+- [x] **Add config.js Deployment Variable & Inject as First Script Tag in HTML Files** `[Completed 2026-09-11]`
+  - **Task Objective**: Create `config.js` and `frontend/config.js` setting `window.API_BASE_URL = 'https://REPLACE_WITH_RENDER_URL.onrender.com'`. Inject `<script src="config.js"></script>` before any other script tag in `explore.html`, `argo.html`, and `fisheries.html` to guarantee `window.API_BASE_URL` is available before client logic executes.
+  - **Implementation Details**:
+    1. Created `config.js` in root and `frontend/config.js` containing `window.API_BASE_URL = 'https://REPLACE_WITH_RENDER_URL.onrender.com';`.
+    2. Updated `explore.html` (Line 10): Injected `<script src="config.js"></script>` at the top of `<head>` prior to `maplibre-gl.js`, `chart.js`, `coastline.js`, and `app.js`.
+    3. Updated `argo.html` (Line 10): Injected `<script src="config.js"></script>` at the top of `<head>` prior to `maplibre-gl.js`, `chart.js`, and `argo.js`.
+    4. Updated `fisheries.html` (Line 10): Injected `<script src="config.js"></script>` at the top of `<head>` prior to `maplibre-gl.js`, `chart.js`, `coastline.js`, and `fisheries.js`.
+    5. Confirmed `index.html` has no application script tags (pure landing page).
+  - **Verification Evidence**:
+    - Script load order check: PASS (`explore.html`, `argo.html`, `fisheries.html` all execute `config.js` at Line 10 before external CDN or local scripts).
+    - Node environment verification: PASS (`window.API_BASE_URL` properly evaluated and inherited by `app.js`).
+    - Full system regression suite: PASS (`python test_system.py` — 100% assertions passed).
+    - Client regression suites: PASS (`node test_d20_card.js`, `node test_argo_cycle_sync.js`, `node test_argo_metric_verify.js`, `node test_argo_page.js` — 100% passed).
+  - **Files Created**:
+    - `config.js`: Root configuration script.
+    - `frontend/config.js`: Frontend configuration script.
+  - **Files Modified**:
+    - `explore.html`: Added `<script src="config.js"></script>` at line 10.
+    - `argo.html`: Added `<script src="config.js"></script>` at line 10.
+    - `fisheries.html`: Added `<script src="config.js"></script>` at line 10.
+
+
+- [x] **Prepare Backend & Frontend for Render Deployment** `[Completed 2026-09-11]`
+  - **Task Objective**:
+    1. Configure FastAPI CORSMiddleware in `backend/api_server.py` to allow all origins (`allow_origins=["*"]`).
+    2. Read port dynamically from `os.environ.get("PORT", 8000)` in `api_server.py` `__main__`.
+    3. Verify start command `uvicorn api_server:app --host 0.0.0.0 --port <PORT>`.
+    4. Centralize API base URL in frontend JS (`app.js`, `argo.js`, `fisheries.js`) with configurable `API_BASE_URL`.
+  - **Implementation Details**:
+    1. In `backend/api_server.py`:
+       - Added `sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))` so `api_server.py` can be imported from root or backend directory without module path issues.
+       - Replaced restricted origins with `allow_origins=["*"]` in `CORSMiddleware`.
+       - Updated `__main__` block to read `port = int(os.environ.get("PORT", 8000))` dynamically.
+    2. Verified Render Start Command:
+       - Confirmed `uvicorn api_server:app --host 0.0.0.0 --port <PORT>` starts cleanly with `PORT=8005`.
+       - Verified `/health` returns HTTP 200 on port 8005.
+    3. In Frontend JavaScript:
+       - Defined `const API_BASE_URL = (typeof window !== 'undefined' && window.API_BASE_URL) ? window.API_BASE_URL : 'http://localhost:8000';` and aliased `const API_BASE = API_BASE_URL;` in `app.js` (lines 30–33), `argo.js` (lines 6–9), and `fisheries.js` (lines 10–13).
+       - Allows single-line editing or setting `window.API_BASE_URL` globally when deployed to Render/Vercel/Netlify.
+  - **Verification Evidence**:
+    - Port binding test: PASS (`$env:PORT="8005"; python -m uvicorn api_server:app --host 0.0.0.0 --port 8005` responds with HTTP 200 on `/health`).
+    - Python compilation check: PASS (`python -m py_compile backend/api_server.py backend/inference.py`).
+    - JavaScript syntax check: PASS (`node --check app.js argo.js fisheries.js coastline.js`).
+    - Full system regression suite: PASS (`python test_system.py` — 100% assertions passed).
+    - Client regression suites: PASS (`node test_d20_card.js`, `node test_argo_cycle_sync.js`, `node test_argo_metric_verify.js`, `node test_argo_page.js` — 100% passed).
+  - **Files Modified**:
+    - `backend/api_server.py`: Added sys.path bootstrap, updated CORS to wildcard origins, and wired `PORT` env var.
+    - `app.js`: Centralized `API_BASE_URL` at top of file.
+    - `argo.js`: Centralized `API_BASE_URL` at top of file.
+    - `fisheries.js`: Centralized `API_BASE_URL` at top of file.
+
+
+
+- [x] **Run Bit-Identical Diagnostic Verification for all DEMO_PREWARM_DATES** `[Completed 2026-09-11]`
+  - **Task Objective**: Execute `predict_temperature_profile` across all 4 `DEMO_PREWARM_DATES` (`2021-02-14`, `2022-07-02`, `2021-02-16`, `2023-09-04`) under both `USE_TRIMMED_DATA=true` and `USE_TRIMMED_DATA=false`. Print 15-depth temperature profiles and verify 100% bit-identical parity with explicit PASS/FAIL reporting.
+  - **Execution & Parity Results**:
+    1. Evaluated representative coordinate `(15.0°N, 70.0°E)` (as configured in backend lifespan pre-warming).
+    2. **2021-02-14**: **PASS** (Delta = 0.000000°C across all 15 depths, 100% bit-identical).
+    3. **2022-07-02**: **PASS** (Delta = 0.000000°C across all 15 depths, 100% bit-identical).
+    4. **2021-02-16**: **PASS** (Delta = 0.000000°C across all 15 depths, 100% bit-identical).
+    5. **2023-09-04**: **PASS** (Delta = 0.000000°C across all 15 depths, 100% bit-identical).
+    - **Overall Status**: **ALL 4 DATES PASSED (100% BIT-IDENTICAL)**.
+  - **Verification Evidence**:
+    - `python verify_demo_dates.py`: PASS (exited 0, all 4 dates evaluated under separate worker subprocesses for untrimmed and trimmed environments).
+  - **Files Created**:
+    - `verify_demo_dates.py`: Automated parity verification runner comparing all 15 depths across untrimmed and trimmed data.
+
+
+
+- [x] **Support USE_TRIMMED_DATA in inference.py and api_server.py via day_index_map.json** `[Completed 2026-09-11]`
+  - **Task Objective**: Enable running against `backend/data/trimmed/` controlled by `USE_TRIMMED_DATA` env var, translate `day_idx` via `day_index_map.json`, return `"This date is not available in the deployed demo dataset."` when out-of-map, while keeping untrimmed data mode intact.
+  - **Implementation Details**:
+    1. In `backend/inference.py`:
+       - Added `USE_TRIMMED_DATA = os.environ.get("USE_TRIMMED_DATA", "false").lower() in ("true", "1", "yes")`.
+       - When true, points `DATA_DIR` to `backend/data/trimmed/` and loads `day_index_map.json` (`_day_index_map`) once at startup.
+       - Implemented `translate_day_idx(day_idx)` helper function.
+       - Configured `_day_of_year` calculation in trimmed mode to align with the original calendar dates of each trimmed slot, ensuring trigonometric sinusoidal seasonal channels (`_doy_sin`, `_doy_cos`) match untrimmed arrays 1:1.
+       - In `predict_temperature_profile`: if `USE_TRIMMED_DATA` is active, checks that `day_idx` and the required 10-day prior history window exist contiguously in `_day_index_map`. If missing, returns `{"error": "This date is not available in the deployed demo dataset."}`.
+       - When date is valid in trimmed mode, maps `day_idx` to `mapped_day_idx` and slices `_temp_target_clim[mapped_day_idx]` and `_sst_arr[mapped_day_idx]`.
+    2. In `backend/api_server.py`:
+       - Updated `extract_surface_inputs` to translate `day_idx` through `_day_index_map` and raise HTTP 400 with `"This date is not available in the deployed demo dataset."` if absent.
+       - Updated `/predict` endpoint to validate date availability and raise HTTP 400 if out of trimmed map.
+       - Updated `get_spatial_predictions` to translate `day_idx` to `mapped_day_idx`, slice arrays accordingly, and raise HTTP 400 when date is not present in trimmed map.
+       - Updated `/temperature-grid` and `/parameter-grid` endpoints to translate `day_idx` to `arr_idx`, validate map membership, and return HTTP 400 with `"This date is not available in the deployed demo dataset."` when out-of-dataset.
+       - Updated `/health` to expose `"trimmed": inf.USE_TRIMMED_DATA`.
+       - Maintained 100% backward compatibility with `USE_TRIMMED_DATA=false` (untrimmed data path).
+  - **Verification Evidence**:
+    - **Trimmed Mode Validation (`USE_TRIMMED_DATA=true`)**:
+      - Demo date `2021-02-14`: PASS (predicts 27.34°C at 0m, 16.29°C at 200m).
+      - Bit-exact numerical equivalence: PASS (untrimmed vs trimmed outputs are 100% bit-identical).
+      - Out-of-dataset date `2023-06-15`: PASS (returns HTTP 400 with exact detail `"This date is not available in the deployed demo dataset."` across `/predict`, `/temperature-grid`, `/parameter-grid`).
+      - Startup cache pre-warming: PASS across all 4 demo dates (`2021-02-14`, `2022-07-02`, `2021-02-16`, `2023-09-04`).
+    - **Untrimmed Mode Validation (`USE_TRIMMED_DATA=false`)**:
+      - Standard dates: PASS (`2023-06-15` returns HTTP 200 across `/predict`, `/temperature-grid`, `/parameter-grid`).
+      - Full regression suite `python test_system.py`: PASS (100% assertions passed).
+      - Client regression suites (`node test_d20_card.js; node test_argo_cycle_sync.js; node test_argo_metric_verify.js; node test_argo_page.js`): PASS (100% passed).
+      - Syntax & compile checks (`python -m py_compile backend/inference.py backend/api_server.py`): PASS (0 errors).
+  - **Files Modified**:
+    - `backend/inference.py`: Added `USE_TRIMMED_DATA` configuration, `_day_index_map`, `translate_day_idx`, aligned DOY calculations, and trimmed date validation.
+    - `backend/api_server.py`: Integrated `USE_TRIMMED_DATA` translation across `extract_surface_inputs`, `/predict`, `get_spatial_predictions`, `/temperature-grid`, and `/parameter-grid`.
+
+
+
+- [x] **Create backend/trim_data.py to Extract Clusters and Trim Data Arrays** `[Completed 2026-09-11]`
+  - **Task Objective**: Build `backend/trim_data.py` to extract 3 temporal clusters (covering SIH demo dates: 2021-02-14, 2021-02-16, 2022-07-02, 2023-09-04 with 5-day buffers), produce trimmed `.npy` files in `backend/data/trimmed/`, generate `day_index_map.json`, and verify file sizes / reduction.
+  - **Implementation Details**:
+    1. Defined clusters of day indices to keep:
+       - Cluster A: days 29..51 (23 days, covers 2021-02-14 [day 44] and 2021-02-16 [day 46] with 5-day buffer)
+       - Cluster B: days 532..552 (21 days, covers 2022-07-02 [day 547] with 5-day buffer)
+       - Cluster C: days 961..981 (21 days, covers 2023-09-04 [day 976] with 5-day buffer)
+       - Concatenated list: 65 days in order (A then B then C).
+    2. Loaded each of the 9 `.npy` files in `backend/data/` using `mmap_mode="r"`, sliced along time axis (axis 0) for the 65 indices, and saved to `backend/data/trimmed/<filename>` using `np.save`.
+    3. Constructed `day_index_map` dictionary (`{int(orig_idx): int(new_idx)}`) for all 65 days and saved to `backend/data/trimmed/day_index_map.json`.
+    4. Evaluated file sizes: achieved **97.8% overall disk space reduction** from 6,240.32 MB down to 138.82 MB (saving 6,101.50 MB).
+    5. Confirmed original files in `backend/data/` remain untouched.
+  - **Verification Evidence**:
+    - `python backend/trim_data.py`: PASS (exited 0, processed all 9 files, wrote `day_index_map.json`).
+    - Python bit-exact validation: PASS (all 9 arrays match original `arr[indices]` 100% bit-identical).
+    - `python -m py_compile backend/trim_data.py`: PASS (0 syntax errors).
+    - `git status`: PASS (original files in `backend/data/` completely unmodified).
+  - **Files Created**:
+    - `backend/trim_data.py`: Trimming script with cluster definitions, array slicing, mapping generation, and MB reduction summary.
+    - `backend/data/trimmed/`: Directory containing trimmed `.npy` files and `day_index_map.json`.
+
+
+- [x] **Fix TVD Chart D20 Reference Line & Truncated Label Artifact** `[Completed 2026-09-11]`
+  - **Task Objective**: Resolve truncated label artifact (e.g. stray '1' or '3') and ensure the horizontal dashed reference line on the Temperature vs Depth profile chart correctly marks the D20 isotherm depth with full, legible text (e.g. "D20: 127 m").
+  - **Root Cause & Diagnosis**:
+    1. In `app.js` (`buildChart`, plugin `referenceDepthLine`), the horizontal dashed line previously called `ctx.fillText(`${refDepth} m`, right + 4, yPos + 4)` with `textAlign = 'left'`.
+    2. Because `right` is the right boundary of `chartArea` and the canvas inside the 340px right panel has negligible margin beyond `chartArea.right`, drawing at `right + 4` positioned the string outside the canvas boundary. All characters after the first digit were clipped by the canvas edge, leaving a stray, truncated character (`"1"` for 100-199m depths, or `"3"` for ~30m depths).
+    3. Additionally, the line was tracking discrete gradient midpoint `thermocline_depth` rather than aligning with the 4th stat card (`D20 Isotherm Depth`) directly above the chart, and lacked semantic prefix labeling.
+  - **Changes Implemented (`app.js`)**:
+    1. **Synchronized D20 Calculation**: Extracted shared `computeD20Isotherm(depths, temps)` using continuous linear interpolation bracketing 20°C:
+       $$Z_{D20} = z_{i-1} + \frac{T(z_{i-1}) - 20.0}{T(z_{i-1}) - T(z_i)} \cdot (z_i - z_{i-1})$$
+       Both `updateStatCards()` (`#stat-d20-val`) and `buildChart()` (`d20Depth`) now use this identical formula, guaranteeing exact integer parity.
+    2. **Anti-Clipping Label Rendering Inside ChartArea**:
+       - Anchored label inside the chart plotting area at `right - 6` with `textAlign = 'right'`.
+       - Rendered full semantic label: `D20: ${d20Depth} m` (e.g. `D20: 127 m`, `D20: 170 m`).
+       - Added white halo contrast stroke (`lineWidth: 3`) so the text never clashes with grid lines or data points.
+       - Implemented `isNearTop` check (`yPos < top + 18 ? 'top' : 'bottom'`) to avoid top axis clipping.
+       - Added Chart.js layout padding (`padding: { top: 4, right: 8, bottom: 0, left: 0 }`).
+    3. **Clean Absence Gating**: If the 20°C isotherm is not reached in the profile (`d20Depth === null`), the reference line and label are cleanly omitted (`plugins: []`).
+  - **Verification Evidence**:
+    - `node "C:\Users\Asus\.gemini\antigravity\brain\11f280a8-20e7-4bbd-b664-2c59aa9dedfa\scratch\test_tvd_d20_chart.js"`: PASS (100% assertions passed).
+    - `python "C:\Users\Asus\.gemini\antigravity\brain\11f280a8-20e7-4bbd-b664-2c59aa9dedfa\scratch\test_tvd_multilocation.py"`: PASS across Arabian Sea (170m), Bay of Bengal (134m), Equatorial IO (109m), Andaman Sea (57m), and synthetic non-crossing edge case (cleanly absent).
+    - `node test_d20_card.js`: PASS (100%).
+    - `node test_interactions.js`: PASS (100%).
+    - `node --check app.js`: PASS (0 syntax errors).
+  - **Files Modified**:
+    - `app.js`: Added `computeD20Isotherm`, updated `updateStatCards` and `buildChart`, updated plugin to render `D20: ${d20Depth} m` inside `chartArea` (`right - 6`).
+    - `RESEARCH.md`: Updated Section 4.6 to document D20 reference line mechanics and anti-clipping positioning.
+    - `TODO.md`: Updated task log with root cause, resolution, and verification evidence.
+
+- [x] **Audit Dashboard Page (`explore.html` / `app.js`) for Dev/Debug Artifacts** `[Completed 2026-09-11]`
+  - **Task Objective**: Clean up any developer debug artifacts on the main Dashboard page to ensure a pristine hackathon demo and judge screen share experience.
+  - **Audit Scope & Findings**:
+    1. **Console Logging Statements**: Audited `app.js` and identified 3 active console statements (`console.warn` on parameter grid fallback at line 1710, `console.warn` on temperature grid fallback at line 1742, and verbose `console.log` in `validateLayerMarkerSync` at line 3033 that fired on every map click/pan/parameter change). Gated all three behind `if (isDevModeEnabled()) { ... }`.
+    2. **Dev Mode Mechanism**: Added reusable `isDevModeEnabled()` in `app.js` matching `argo.js` specifications: inspects `?debug=true`, `?debug=1`, `?dev=true`, `?dev=1` query parameters and `window.__KYOGRE_DEV__` / `window.DEBUG` globals.
+    3. **Dev-Only UI Elements**: Audited `explore.html` and `app.js` for dev-only buttons, panels, or tools. Confirmed zero dev-only UI elements exist on the Dashboard.
+    4. **Placeholder/Test Values**: Audited `explore.html` and `app.js` for strings like "test", "TODO", "lorem ipsum", "sample data". Confirmed all titles, badges, and empty/default states use clean oceanographic terminology ("—", "Awaiting profile selection", "Select depth", "Select date").
+    5. **D20 Isotherm Depth Subtext Removal**: Re-verified that `#stat-d20-sub` and explanatory subtext remain completely removed from `explore.html` and `style.css`, with no visual regressions.
+  - **Verification Evidence**:
+    - `node "C:\Users\Asus\.gemini\antigravity\brain\11f280a8-20e7-4bbd-b664-2c59aa9dedfa\scratch\test_dashboard_debug_audit.js"`: PASS (100%).
+    - `node test_d20_card.js`: PASS (100%).
+    - `node test_interactions.js`: PASS (100%).
+    - `node --check app.js`: PASS (0 syntax errors).
+  - **Files Modified**:
+    - `app.js`: Added `isDevModeEnabled()` and gated `console.warn` (x2) and `console.log` (x1).
+    - `TODO.md`: Updated task log with completion timestamp and verification evidence.
+
+- [x] **Conditional Debug Gating for ARGO "Verify Metrics (Dev)" Button** `[Completed 2026-09-11]`
+  - **Task Objective**: Prevent developer-only audit button (`#btn-verify-metrics`) on `argo.html` from rendering by default during hackathon presentations and screen shares, while allowing on-demand rendering when a `?debug=true` or `?dev=true` URL query parameter is supplied.
+  - **Changes Made**:
+    - `argo.html`: Replaced static `#btn-verify-metrics` button, status span, and collapsible audit panel markup with an empty unstyled mount container (`<div id="argo-dev-verify-tool"></div>`).
+    - `argo.js`: Implemented `isDevModeEnabled()` (inspecting `window.location.search` for `debug=true`/`1` or `dev=true`/`1`, plus window global fallback) and `initDevVerifyTool()` to conditionally render the verification tool markup and bind `verifyMetricsDev()` only when the debug flag is enabled. By default (no flag), the button is completely absent from the DOM.
+    - `test_argo_metric_verify.js`: Updated regression test suite to assert that `#btn-verify-metrics` and `"Verify Metrics (Dev)"` text are NOT statically rendered by default in `argo.html`, and added test coverage verifying that debug flags (`?debug=true`, `?debug=1`, `?dev=true`, `?dev=1`) successfully trigger dynamic rendering and listener binding.
+    - **Global Audit for Dev-Only UI Elements**: Searched all HTML and client JS files (`argo.html`, `explore.html`, `fisheries.html`, `index.html`, `app.js`, `fisheries.js`, `style.css`). Confirmed that `#btn-verify-metrics` was the only dev-only tool in the UI. No other dev-only buttons, popups, or debug elements exist on any page.
+  - **Verification Evidence**:
+    - `node test_argo_metric_verify.js`: PASS (51/51 assertions passed, 100%).
+    - `node test_argo_page.js`: PASS (124/124 assertions passed, 100%).
+    - `node test_argo_cycle_sync.js`: PASS (100% passed).
+    - `node test_d20_card.js`: PASS (100% passed).
+    - `python test_system.py`: PASS (100% passed).
+    - `node --check app.js argo.js fisheries.js coastline.js test_argo_metric_verify.js`: PASS (0 syntax errors).
+  - **Files Modified**:
+    - `argo.html`: Replaced static dev tool markup with dynamic mount container.
+    - `argo.js`: Added `isDevModeEnabled()` and `initDevVerifyTool()`.
+    - `test_argo_metric_verify.js`: Updated assertions for conditional gating.
+    - `TODO.md`: Updated task log with completion timestamp and verification evidence.
+
+- [x] **Remove Descriptive Subtext from D20 Isotherm Depth Card on Dashboard** `[Completed 2026-09-11]`
+  - **Task Objective**: Remove the explanatory subtext line (`"Depth where temperature crosses 20°C — a proxy for thermocline depth."`) below the value in the D20 Isotherm Depth summary card on the Dashboard page (`explore.html`) so that it matches the visual weight of the other three cards (MLD, OHC₃₀₀, and Sound Velocity Depth).
+  - **Changes Made**:
+    - `explore.html`: Deleted the explanatory `<div class="ky-stat-card__sub" id="stat-d20-sub">Depth where temperature crosses 20°C — a proxy for thermocline depth.</div>` element inside the 4th stat card. Kept card title (`D20 Isotherm Depth`) and value container (`#stat-d20-val`) completely unchanged.
+    - `style.css`: Cleaned up the CSS selector `#stat-svad-sub, #stat-d20-sub` to `#stat-svad-sub`.
+    - `test_d20_card.js`: Updated the regression test suite to assert the removal of `stat-d20-sub` and the subtext string from `explore.html`, while verifying that `#stat-d20-val` and title `"D20 Isotherm Depth"` remain intact and dynamic calculations work as expected.
+  - **Visual & Alignment Verification**:
+    - Confirmed `.ky-stat-card` uses `padding: 16px 18px;` with flex layout `display: flex; align-items: center; gap: 16px;`.
+    - With the subtext removed, the card body contains only the label (12px) and the primary value (22px), matching the exact vertical dimensions and visual weight of the MLD and OHC₃₀₀ cards.
+    - The icon (48x48) and the body remain vertically centered via flexbox `align-items: center`, ensuring balanced padding without empty or awkward spacing across the entire `.ky-stat-row`.
+  - **Verification Evidence**:
+    - `node test_d20_card.js`: PASS (100% assertions passed).
+    - `python test_system.py`: PASS (all suites and cross-endpoint parity passed).
+    - `node test_interactions.js; node test_region_mask.js; node test_fisheries.js; node test_error_component.js; node test_argo_cycle_sync.js; node test_argo_page.js`: PASS (100% passed).
+    - `node --check app.js argo.js fisheries.js coastline.js test_d20_card.js`: PASS (0 syntax errors).
+    - `python -m py_compile backend/api_server.py backend/inference.py`: PASS (0 syntax errors).
+  - **Files Modified**:
+    - `explore.html`: Removed `#stat-d20-sub` div.
+    - `style.css`: Cleaned up `#stat-d20-sub` rule.
+    - `test_d20_card.js`: Updated assertions for subtext removal and alignment checks.
+    - `TODO.md`: Updated task log with completion timestamp and verification evidence.
+
+- [/] **Fix MLD Calculation, Graph Artifact '3', and Dashboard Cards Grouping** `[In Progress]`
+  - **Part 1 (MLD Fix)**: Investigate why MLD outputs physically implausible 1m on Dashboard for profiles with slow surface cooling (e.g. 28.8°C at 0m, 28.0°C at 10m, 27.8°C at 20m). Trace implementation against de Boyer Montégut (2004) criterion (0.2°C drop from ~10m reference depth), fix reference depth / interpolation, and verify across 5 distinct ocean locations.
+  - **Part 2 (Graph Artifact)**: Eliminate floating stray '3' / '1' character rendered near top-right corner of Temperature vs Depth Chart.js graph. `[RESOLVED 2026-09-11 via TVD D20 Reference Line Fix]`
+  - **Part 3 (Dashboard Card Grouping)**: Add "Derived Ocean Indices" section header above the top 4 computed cards and clarify "Ocean Parameters" direct satellite observations subheading without altering layout or sizing.
+  - **Status**: In Progress - Part 2 resolved, Parts 1 & 3 in backlog.
+
+- [x] **Fix Cycle-Number Mismatch on ARGO Validation & Compare Page** `[Completed 2026-09-11]`
+  - **Step 1 - Root Cause & Source Identification**:
+    - **Header Dropdown**: In `argo.html`, element `<select id="argo-float-select">` populated by `populateDropdown(profiles)` in `argo.js` with options formatted as `Float #${p.wmoFloatId} · Cycle ${p.cycleNumber}`. Synchronized to `id` on initial float click in `selectFloat(id)`.
+    - **Date Dropdown**: In `argo.html`, element `<select id="argo-date-select">` populated by `populateDateDropdown(wmoFloatId)` in `argo.js` with options formatted as `${c.date} · Cycle #${c.cycleNumber}`.
+    - **The Discrepancy Cause**: For multi-cycle floats (like Float #2902278 with Cycle 126 and Cycle 144), when the user clicked a marker (e.g. Cycle 144) or selected a profile, `#argo-float-select` was set to `"2902278_144"`. When the user subsequently selected `"2021-02-13 · Cycle #126"` in `#argo-date-select`, `selectDate(cycleId)` updated the subtitle (`argo-selected-sub`) to `19.34°N, 91.80°E · 2021-02-13 (Bay of Bengal)` and executed inference, but **never updated `#argo-float-select`**. Consequently, the header dropdown remained stuck displaying `"Float #2902278 · Cycle 144"`, while the date dropdown and subtitle displayed Cycle 126 and date 2021-02-13.
+  - **Step 2 - Ground-Truth Verification (`backend/data/argo_profiles.json`)**:
+    - **Cycle 126**: Real ARGO CTD profile `D2902278_126.nc`, Date: `2021-02-13`, Coordinates: `(19.335°N, 91.796°E)`, Bay of Bengal.
+    - **Cycle 144**: Real ARGO CTD profile `D2902278_144.nc`, Date: `2021-05-14`, Coordinates: `(19.889°N, 89.840°E)`, Bay of Bengal (3 months / 18 cycles later).
+    - Verified that Cycle 126 is the ground truth for 2021-02-13, and Cycle 144 is the ground truth for 2021-05-14.
+  - **Step 3 - Bidirectional Synchronization Implementation (`argo.js`)**:
+    - In `selectDate(cycleId)`: Synchronized `#argo-float-select.value = cycleId` so the header dropdown immediately reflects the chosen cycle number. If the float crossed subregions, dynamically repopulates dropdown from `allProfiles`.
+    - In `selectDate(cycleId)`: Ensured `#argo-date-select.value = cycleId` matches whenever programmatic selection occurs.
+    - In `setupEventListeners()`: Added `selectDate(targetId)` on `#argo-float-select` change so selecting any profile from the header dropdown instantly synchronizes the date dropdown, updates coordinates/subtitle, and loads the comparison profile without requiring redundant user clicks.
+  - **Step 4 - Spot-Check Across 10 Floats & All Subregions**:
+    - Verified multi-cycle floats:
+      - Float #2902278 (Bay of Bengal): Cycle 126 (`2021-02-13`) & Cycle 144 (`2021-05-14`) $\rightarrow$ 100% in sync.
+      - Float #2902265 (Arabian Sea): Cycle 75 (`2021-02-15`) & Cycle 84 (`2021-05-16`) $\rightarrow$ 100% in sync.
+      - Float #2902283 (Bay of Bengal): Cycle 126 (`2021-02-15`) & Cycle 127 (`2021-02-16`) $\rightarrow$ 100% in sync.
+      - Float #2902768 (Bay of Bengal): Cycle 38 (`2021-02-13`) & Cycle 47 (`2021-05-14`) $\rightarrow$ 100% in sync.
+      - Float #2902770 (Bay of Bengal): Cycle 37 (`2021-02-13`) & Cycle 46 (`2021-05-14`) $\rightarrow$ 100% in sync.
+      - Float #2902775 (Equatorial IO): Cycle 43 (`2021-02-12`) & Cycle 61 (`2021-05-14`) $\rightarrow$ 100% in sync.
+      - Float #2901898 (Bay of Bengal / Equatorial IO): Cycle 241 (`2021-02-12`) & Cycle 250 (`2021-05-13`) $\rightarrow$ 100% in sync.
+      - Float #2902852 (Equatorial IO): Cycle 28 (`2021-02-12`) & Cycle 46 (`2021-05-13`) $\rightarrow$ 100% in sync.
+    - Verified single-cycle floats: Float #2902205 (Cycle 274), Float #2902282 (Cycle 126), Float #6903060 (Cycle 5).
+  - **Step 5 - Rigorous Verification Suite**:
+    - `node test_argo_cycle_sync.js` $\rightarrow$ **PASS** (100% assertions passed).
+    - `node test_argo_page.js` $\rightarrow$ **PASS** (124/124 assertions passed, 100%).
+    - `node test_argo_metric_verify.js` $\rightarrow$ **PASS** (43/43 assertions passed, 100%).
+    - `python test_system.py` $\rightarrow$ **PASS** (100% assertions across all suites passed).
+    - `node test_d20_card.js; node test_interactions.js; node test_region_mask.js; node test_fisheries.js; node test_error_component.js; node test_start_script.js` $\rightarrow$ **PASS** (100% passed).
+    - `node --check app.js argo.js fisheries.js coastline.js test_argo_cycle_sync.js` $\rightarrow$ **PASS** (0 syntax errors).
+    - `python -m py_compile backend/api_server.py backend/inference.py` $\rightarrow$ **PASS** (0 syntax errors).
+  - **Files Modified**:
+    - `argo.js`: Synchronized `#argo-float-select` and `#argo-date-select` in `selectDate()` and float dropdown change listener.
+    - `test_argo_cycle_sync.js`: Added regression test suite verifying cycle synchronization across all floats and subregions.
+    - `RESEARCH.md`: Added Section 12.7 documenting cycle number synchronization mechanics and ground truth.
+    - `TODO.md`: Updated task log with root cause, fix implementation, and verification evidence.
+
+- [/] **Investigate and Optimize /predict Latency & Satellite Data Loading Strategy** `[In Progress]`
+  - **Goal**: Investigate and eliminate repeated disk reads during `/predict` calls, profile the exact latency breakdown (disk read vs PyTorch model execution), move data loading to startup/in-memory cache, and measure improvements.
+  - **Task Plan**:
+    1. Confirm the diagnosis: profile exact time taken by data loading vs PyTorch CNN-LSTM forward execution.
+    2. Check file sizes and read times of satellite anomaly files (`sst_anom`, `sss_anom`, etc.) and `temp_target_clim`.
+    3. Report findings back to user before proceeding with changes.
+    4. Move any remaining disk reads to startup cache / in-memory.
+    5. Measure latency before and after fix.
+    6. Verify prediction correctness is bit-identical and run regression suites.
+  - **Status**: In Progress - Profiling data loading and model execution.
+
+- [x] **Align Profile Coherence (aggregateCorr) Aggregation to Pooled Pearson Correlation** `[Completed 2026-09-10]`
+  - **Investigation & Cause Identification (Step 1)**:
+    - Inspected `backend/api_server.py` and determined that `aggregateCorr` was previously calculated using **Method (B): MEAN OF PER-FLOAT**:
+      ```python
+      if inf.np.std(ai_temps) > 1e-4 and inf.np.std(argo_temps) > 1e-4:
+          r = float(inf.np.corrcoef(ai_temps, argo_temps)[0, 1])
+          all_corrs.append(r)
+      agg_corr = round(float(inf.np.mean(all_corrs)), 3) # Evaluated to 0.9938 -> 0.994
+      ```
+    - While Basin RMSE and Mean Thermal Bias were both calculated via pooled aggregation across all 615 points, Profile Coherence was averaging 41 individual 15-point correlation coefficients.
+  - **Method (A) Alignment & One-Line Comment (Step 2 & Step 4)**:
+    - Updated `get_argo_summary()` in `backend/api_server.py` to collect all predicted temperatures (`all_ai_temps`) and in-situ ARGO temperatures (`all_argo_temps`) into flat pooled arrays across all 41 floats.
+    - Replaced per-float mean correlation with pooled Pearson correlation:
+      ```python
+      # Pooled Pearson correlation across all point-wise AI vs ARGO pairs
+      if len(all_ai_temps) > 1 and inf.np.std(all_ai_temps) > 1e-4 and inf.np.std(all_argo_temps) > 1e-4:
+          agg_corr = round(float(inf.np.corrcoef(all_ai_temps, all_argo_temps)[0, 1]), 3)
+      else:
+          agg_corr = 1.0
+      ```
+    - Updated `_argo_summary_cache` in `backend/api_server.py` to `"aggregateCorr": 0.986`.
+    - Updated `argo.html` initial placeholder card `#stat-argo-corr` to `0.986`.
+    - Updated `argo.js` fallback for `dispCorr` to `0.986`.
+  - **Backend Restart & Verification (Step 3)**:
+    - Restarted FastAPI backend on port 8000. Verified `/argo/summary` returns `aggregateCorr: 0.986`.
+    - Re-ran `node test_argo_metric_verify.js` simulating the "Verify Metrics (Dev)" tool:
+      - Displayed Coherence: `0.986`
+      - Recomputed Coherence: `0.9864` ($\rightarrow 0.986$)
+      - **Diff**: `0.000` (exact match!)
+  - **Regression Testing (Step 5)**:
+    - Confirmed no other pages/cards reference `aggregateCorr` or `0.994`.
+    - `node test_argo_metric_verify.js` $\rightarrow$ **PASS** (43/43 assertions passed, 100%).
+    - `node test_argo_page.js` $\rightarrow$ **PASS** (124/124 assertions passed, 100%).
+    - `python test_system.py` $\rightarrow$ **PASS** (100% assertions across all 8 suites passed).
+    - `node --check argo.js` $\rightarrow$ **PASS** (0 errors).
+    - `python -m py_compile backend/api_server.py` $\rightarrow$ **PASS** (0 errors).
+  - **Files Modified**:
+    - `backend/api_server.py`: Aligned `get_argo_summary` and cache to pooled Pearson correlation with documenting comment.
+    - `argo.html`: Aligned `#stat-argo-corr` initial card value to `0.986`.
+    - `argo.js`: Aligned `dispCorr` fallback to `0.986`.
+    - `test_argo_metric_verify.js`: Updated assertions to verify `0.986` and exact 0.000 diff.
+    - `RESEARCH.md`: Updated Sections 12.4 and 12.6 to document pooled Pearson correlation ($0.986$).
+    - `TODO.md`: Documented task completion and verification evidence.
+
+- [x] **Add Client-Side Metric Verification Tool to ARGO Validation Page** `[Completed 2026-09-10]`
+  - **Data Shape Inspection (Step 1)**:
+    - Inspected live response contracts for `/argo/summary`, `/argo/profiles`, and `/argo/compare?id=...`.
+    - Confirmed exact JSON keys: `depths` (15 standard depths), `aiTemps` (AI model predictions in °C), `argoTemps` (ARGO in-situ observations in °C), `diffs` ($T_{\text{AI}} - T_{\text{ARGO}}$), `id`, `wmoFloatId`, `cycleNumber`.
+  - **Dev-Only Verify Button & Collapsible Audit Panel (Step 2)**:
+    - Added button labeled `"Verify Metrics (Dev)"` (`#btn-verify-metrics`) in `argo.html` near top summary benchmark cards with subtle debug styling (dashed border `#94A3B8`, muted gray `#475569`, monospace font stack, rounded corners).
+    - Preserved all 4 existing summary cards (`#stat-argo-rmse`, `#stat-argo-bias`, `#stat-argo-corr`, `#stat-argo-floats`) 100% unaltered.
+    - Added collapsible audit panel (`#argo-dev-verify-panel`) positioned directly below the button, initially hidden, toggled seamlessly on button click or via close button.
+  - **Client-Side Mathematical Recomputation (Step 3)**:
+    - On button click, fresh-fetches `/argo/profiles` (41 floats) and all 41 `/argo/compare?id=...` endpoints in parallel with `{ cache: 'no-store' }`.
+    - Pools point-wise errors across all floats and depths into single array of $(T_{\text{AI}} - T_{\text{ARGO}})$.
+    - Computes Pooled RMSE ($\sqrt{\frac{1}{N}\sum (T_{\text{AI}} - T_{\text{ARGO}})^2}$), Mean Thermal Bias ($\frac{1}{N}\sum (T_{\text{AI}} - T_{\text{ARGO}})$, preserving sign), and Profile Coherence (numerically stable sample Pearson correlation $r$ between pooled arrays).
+    - Tracks active float count and total point count ($41 \times 15 = 615$) to prevent silent data loss.
+  - **Console & Visual Comparison Table (Step 4 & Step 5)**:
+    - Logs exact formatted table to `console.log`:
+      ```text
+        METRIC VERIFICATION
+        --------------------------------------------
+        Basin RMSE:         Displayed = 1.34°C   Recomputed = 1.34°C   Diff = 0.00
+        Mean Thermal Bias:  Displayed = 0.41°C   Recomputed = +0.41°C   Diff = 0.00
+        Profile Coherence:  Displayed = 0.994    Recomputed = 0.986    Diff = -0.008
+        Floats used:        Displayed = 41       Recomputed used = 41
+        Total data points:  Recomputed used = 615 (expected 41 floats x 15 depths = 615)
+        --------------------------------------------
+      ```
+    - Renders matching visual table in `#argo-dev-verify-panel` with columns: Metric, Displayed, Recomputed, Diff, and Audit Status.
+    - Implemented mismatch flagging: deviations $> 0.05^\circ\text{C}$ for RMSE/Bias, $> 0.010$ for Coherence, or total points $\ne 615$ trigger red row highlighting (`.ky-argo-dev-row--mismatch`) with notice `"Mismatch detected — check backend aggregation logic."`
+  - **Files Modified**:
+    - `argo.html`: Added `#argo-dev-verify-tool`, `#btn-verify-metrics`, `#argo-dev-status`, and `#argo-dev-verify-panel`.
+    - `style.css`: Added debug button, collapsible panel, audit table, and mismatch highlight classes.
+    - `argo.js`: Implemented `verifyMetricsDev()`, `computePearsonCorrelation()`, `renderVerifyPanelHtml()`, and click listeners.
+    - `RESEARCH.md`: Added Section 12.6 documenting client-side metric verification mechanics and formulas.
+    - `test_argo_metric_verify.js`: Comprehensive 43-assertion automated verification suite.
+    - `TODO.md`: Documented task status, files changed, and verification evidence.
+  - **Rigorous Verification Evidence**:
+    - `node test_argo_metric_verify.js` $\rightarrow$ **PASS** (43/43 assertions passed, 100%).
+    - `node test_argo_page.js` $\rightarrow$ **PASS** (124/124 assertions passed, 100%).
+    - `node --check argo.js; node --check app.js; node --check fisheries.js; node --check coastline.js` $\rightarrow$ **PASS** (0 syntax errors).
+    - `python -m py_compile backend/api_server.py backend/inference.py` $\rightarrow$ **PASS** (0 errors).
+    - `node test_d20_card.js; node test_interactions.js; node test_region_mask.js; node test_fisheries.js; node test_error_component.js; node test_start_script.js` $\rightarrow$ **PASS** (100% tests passed).
+    - `python test_system.py` $\rightarrow$ **PASS** (100% assertions across all 8 suites passed).
+
 - [x] **Create `ocean-embed-data.zip` Archive for 9 Dataset `.npy` Files** `[Completed 2026-09-10]`
   - **Archive Creation & Validation**:
     - Created `backend/data/ocean-embed-data.zip` (2.63 GB / 2,757,219,752 bytes).

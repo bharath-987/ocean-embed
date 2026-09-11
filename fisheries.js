@@ -7,7 +7,10 @@
 
 /* ── Operational Constants & Backend Config ───────────────── */
 
-const API_BASE = 'http://localhost:8000';
+const API_BASE_URL = (typeof window !== 'undefined' && window.API_BASE_URL)
+  ? window.API_BASE_URL
+  : 'http://localhost:8000';
+const API_BASE = API_BASE_URL;
 
 const BOUNDS = {
   north: 30.0,

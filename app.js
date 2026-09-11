@@ -27,8 +27,36 @@ const MUTED = '#94A3B8';  // slate-400
 
 /* ── Backend config ──────────────────────────────────────── */
 
-const API_BASE = 'http://localhost:8000';
+const API_BASE_URL = (typeof window !== 'undefined' && window.API_BASE_URL)
+  ? window.API_BASE_URL
+  : 'http://localhost:8000';
+const API_BASE = API_BASE_URL;
 const USE_MOCK = false;  // Set to true for offline frontend dev without the Python server
+
+/* ── Developer / Debug Mode Gating ──────────────────────── */
+
+/**
+ * Checks whether developer / debug mode is enabled.
+ * Supported triggers:
+ * - URL query parameter: ?debug=true, ?debug=1, ?dev=true, ?dev=1
+ * - Window-level global: window.__KYOGRE_DEV__ === true or window.DEBUG === true
+ */
+function isDevModeEnabled() {
+  if (typeof window === 'undefined') return false;
+  if (window.__KYOGRE_DEV__ === true || window.DEBUG === true) return true;
+  if (window.location && window.location.search) {
+    const params = new URLSearchParams(window.location.search);
+    const debugParam = params.get('debug');
+    const devParam = params.get('dev');
+    if (debugParam === 'true' || debugParam === '1' || devParam === 'true' || devParam === '1') {
+      return true;
+    }
+  }
+  return false;
+}
+if (typeof window !== 'undefined') {
+  window.isDevModeEnabled = isDevModeEnabled;
+}
 
 /* ── Land/Sea Mask (High-Resolution Natural Earth 50m Coastline) ─────────────── */
 
@@ -1681,7 +1709,9 @@ function checkAndRefreshHeatmap() {
         validateLayerMarkerSync();
       })
       .catch(err => {
-        console.warn('Real parameter grid backend unavailable, falling back:', err);
+        if (isDevModeEnabled()) {
+          console.warn('Real parameter grid backend unavailable, falling back:', err);
+        }
         if (reqId !== currentHeatmapRequestId) return;
         const fallbackUrl = generateFallbackParamCanvas(selectedParam);
         updateHeatmapOverlay(fallbackUrl);
@@ -1711,7 +1741,9 @@ function checkAndRefreshHeatmap() {
         validateLayerMarkerSync();
       })
       .catch(err => {
-        console.warn('Real temperature grid backend unavailable, falling back to ocean model calculations:', err);
+        if (isDevModeEnabled()) {
+          console.warn('Real temperature grid backend unavailable, falling back to ocean model calculations:', err);
+        }
         if (reqId !== currentHeatmapRequestId) return;
         const fallbackUrl = generateFallbackCanvas(dateStr, depth);
         updateHeatmapOverlay(fallbackUrl);
@@ -2156,6 +2188,27 @@ function setStatsLoading(isLoading) {
   }
 }
 
+/* ── D20 Isotherm Depth Calculation (Linear Interpolation) ── */
+
+function computeD20Isotherm(depths, temps) {
+  if (!temps || !depths || temps.length === 0) return null;
+  if (temps[0] <= 20.0) return depths[0];
+  for (let i = 1; i < depths.length; i++) {
+    if (temps[i] <= 20.0) {
+      const d0 = depths[i - 1];
+      const d1 = depths[i];
+      const t0 = temps[i - 1];
+      const t1 = temps[i];
+      const frac = (t0 - 20.0) / (t0 - t1 || 1);
+      return Math.round(d0 + frac * (d1 - d0));
+    }
+  }
+  return null;
+}
+if (typeof window !== 'undefined') {
+  window.computeD20Isotherm = computeD20Isotherm;
+}
+
 /* ── Update Stat Cards from cast result ──────────────────── */
 
 function updateStatCards(prediction) {
@@ -2263,24 +2316,7 @@ function updateStatCards(prediction) {
   // 4: D20 Isotherm Depth
   // Compute depth (in meters) at which temperature first drops to 20°C,
   // linearly interpolating between the depth level just above 20°C and the depth level just below 20°C.
-  let d20Isotherm = null;
-  if (temps && temps.length > 0) {
-    if (temps[0] <= 20.0) {
-      d20Isotherm = depths[0];
-    } else {
-      for (let i = 1; i < depths.length; i++) {
-        if (temps[i] <= 20.0) {
-          const d0 = depths[i - 1];
-          const d1 = depths[i];
-          const t0 = temps[i - 1];
-          const t1 = temps[i];
-          const frac = (t0 - 20.0) / (t0 - t1 || 1);
-          d20Isotherm = Math.round(d0 + frac * (d1 - d0));
-          break;
-        }
-      }
-    }
-  }
+  let d20Isotherm = computeD20Isotherm(depths, temps);
 
   const d20El = document.getElementById('stat-d20-val');
   if (d20El) {
@@ -2515,29 +2551,8 @@ function buildChart(prediction) {
   const { temps, depths, argo, indices } = prediction;
   const n = depths.length;
 
-  // Compute or extract dynamic thermocline depth for chart reference line
-  let thermoclineDepth = (indices && indices.thermocline_depth !== undefined && indices.thermocline_depth !== null)
-    ? indices.thermocline_depth
-    : null;
-
-  if (thermoclineDepth === null && temps && depths && temps.length > 1) {
-    let maxGrad = -999;
-    let tc = 60;
-    for (let i = 0; i < depths.length - 1; i++) {
-      const z1 = depths[i], z2 = depths[i + 1];
-      if (z2 > 250) break;
-      const dz = z2 - z1;
-      if (dz > 0) {
-        const grad = (temps[i] - temps[i + 1]) / dz;
-        if (grad > maxGrad) {
-          maxGrad = grad;
-          tc = Math.round((z1 + z2) / 2);
-        }
-      }
-    }
-    thermoclineDepth = tc;
-  }
-  const refDepth = thermoclineDepth !== null ? Math.round(thermoclineDepth) : 60;
+  // Compute D20 Isotherm Depth (20°C crossing point) matching the D20 summary card
+  const d20Depth = computeD20Isotherm(depths, temps);
 
   const segmentColors = depths.map((_, i) => {
     const t = i / (n - 1);
@@ -2602,6 +2617,14 @@ function buildChart(prediction) {
       interaction: {
         mode: 'index',
         intersect: false,
+      },
+      layout: {
+        padding: {
+          top: 4,
+          right: 8,
+          bottom: 0,
+          left: 0,
+        },
       },
       plugins: {
         legend: {
@@ -2679,13 +2702,15 @@ function buildChart(prediction) {
         },
       },
     },
-    plugins: [{
+    plugins: d20Depth !== null ? [{
       id: 'referenceDepthLine',
       afterDraw(chart) {
-        const { ctx, chartArea: { left, right }, scales: { y } } = chart;
-        const yPos = y.getPixelForValue(refDepth);
-        if (yPos >= chart.chartArea.top && yPos <= chart.chartArea.bottom) {
+        const { ctx, chartArea: { left, right, top, bottom }, scales: { y } } = chart;
+        const yPos = y.getPixelForValue(d20Depth);
+        if (yPos >= top && yPos <= bottom) {
           ctx.save();
+
+          // 1. Draw horizontal dashed reference line across the chart area
           ctx.beginPath();
           ctx.setLineDash([5, 4]);
           ctx.strokeStyle = '#94A3B8';
@@ -2694,15 +2719,30 @@ function buildChart(prediction) {
           ctx.lineTo(right, yPos);
           ctx.stroke();
 
-          // Label on the right edge
+          // 2. Full label text: e.g. "D20: 127 m"
+          const labelText = `D20: ${d20Depth} m`;
+          ctx.font = '600 11px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+          ctx.textAlign = 'right';
+
+          // Prevent top clipping: if reference line is near chart top, render label below line
+          const isNearTop = yPos < top + 18;
+          ctx.textBaseline = isNearTop ? 'top' : 'bottom';
+          const yOffset = isNearTop ? 3 : -3;
+
+          // Crisp background halo so text remains legible against grid lines and data curves
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+          ctx.lineWidth = 3;
+          ctx.setLineDash([]);
+          ctx.strokeText(labelText, right - 6, yPos + yOffset);
+
+          // Render foreground text in dark slate matching Kyogre palette
           ctx.fillStyle = '#1E293B';
-          ctx.font = 'bold 11px Inter, sans-serif';
-          ctx.textAlign = 'left';
-          ctx.fillText(`${refDepth} m`, right + 4, yPos + 4);
+          ctx.fillText(labelText, right - 6, yPos + yOffset);
+
           ctx.restore();
         }
       }
-    }]
+    }] : []
   });
 }
 
@@ -3000,7 +3040,9 @@ function validateLayerMarkerSync() {
   };
 
   lastValidationReport = report;
-  console.log(`[Validation Check] Layer: ${report.layer} | Pinned: (${lat.toFixed(2)}°N, ${lon.toFixed(2)}°E) -> Cell: (${snappedLat}°N, ${snappedLon}°E) | Grid: ${gridVal} | Card: ${cardVal} | Num Match: ${numMatch ? 'PASS' : 'FAIL'} (Δ=${numDiff !== null ? numDiff.toFixed(3) : 'N/A'}) | Pixel Match: ${pixelMatch ? 'PASS' : 'INFO'}`);
+  if (isDevModeEnabled()) {
+    console.log(`[Validation Check] Layer: ${report.layer} | Pinned: (${lat.toFixed(2)}°N, ${lon.toFixed(2)}°E) -> Cell: (${snappedLat}°N, ${snappedLon}°E) | Grid: ${gridVal} | Card: ${cardVal} | Num Match: ${numMatch ? 'PASS' : 'FAIL'} (Δ=${numDiff !== null ? numDiff.toFixed(3) : 'N/A'}) | Pixel Match: ${pixelMatch ? 'PASS' : 'INFO'}`);
+  }
 
   return report;
 }

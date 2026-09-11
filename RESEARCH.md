@@ -121,11 +121,17 @@ All 6 surface parameters are 2D spatial datasets at depth = 0 m:
 - **Pearson Correlation ($r$)**: Profile shape and vertical gradient tracking
 - **Mean Bias**: Systematic model offset across depth levels
 
-### 4.6 Dynamic Thermocline Depth on TVD Profile Chart
-- The Chart.js Temperature vs Depth profile includes a horizontal dashed reference line indicating the thermocline boundary.
-- **Dynamic Gradient Calculation**: The depth is extracted directly from `prediction.indices.thermocline_depth` or computed dynamically as the depth of maximum negative vertical gradient:
-  $$Z_{tc} = \arg\max_z \left( -\frac{\Delta T}{\Delta z} \right)$$
-- The reference line and label update adaptively (e.g. `Thermocline: ~112m`), replacing any hardcoded static depth.
+### 4.6 Dynamic D20 Isotherm Depth on TVD Profile Chart
+- The Chart.js Temperature vs Depth profile includes a horizontal dashed reference line indicating the thermocline proxy (D20 Isotherm).
+- **Physical & Oceanographic Rationale**: In the tropical Indian Ocean, the 20°C isotherm ($D_{20}$) serves as the primary operational proxy for thermocline depth, capturing vertical heat redistribution, planetary wave propagation, and upwelling dynamics.
+- **Continuous Linear Interpolation**: Rather than snapping to discrete depth bin midpoints, $Z_{D20}$ is interpolated continuously across the depth levels bracketing 20°C:
+  $$Z_{D20} = z_{i-1} + \frac{T(z_{i-1}) - 20.0}{T(z_{i-1}) - T(z_i)} \cdot (z_i - z_{i-1})$$
+- **Visual & UI Synchronization**:
+  - Exactly matches the value displayed in the top "D20 Isotherm Depth" summary card (`#stat-d20-val`).
+  - At the horizontal dashed reference line ($y = Z_{D20}$), the temperature profile curve intersects $x = 20^\circ\text{C}$.
+  - Label rendered as `D20: ${d20Depth} m` (e.g., `D20: 127 m`, `D20: 170 m`).
+  - **Canvas Boundary & Anti-Clipping**: Rendered inside the chart plotting area (`x = right - 6`, `textAlign: 'right'`, `textBaseline: 'bottom'`) with a white contrast halo stroke (`lineWidth: 3`), eliminating right-edge canvas truncation artifacts (such as truncated single-digit labels like "1" or "3").
+  - **Gating & Absence**: If the 20°C isotherm is not reached in the profile, the reference line and label are cleanly omitted (`plugins: []`).
 
 ---
 
@@ -458,10 +464,10 @@ Potential Fishing Zones (PFZ) in the North Indian Ocean are identified by matchi
      - Returns payload with `profile`, `depths`, `aiTemps`, `argoTemps`, `diffs`, and `metrics`.
   3. `GET /argo/summary`:
      - Serves pre-seeded and cached basin-wide validation statistics:
-       - **Aggregate RMSE**: $\pm 1.34^\circ\text{C}$ (across 615 depth levels)
-       - **Mean Thermal Bias**: $+0.41^\circ\text{C}$
-       - **Mean Vertical Shape Correlation ($R$)**: $0.994$
-       - **Regional RMSE breakdown**: Arabian Sea ($\pm 1.12^\circ\text{C}$), Bay of Bengal ($\pm 1.07^\circ\text{C}$), Andaman Sea ($\pm 1.15^\circ\text{C}$), Equatorial IO ($\pm 1.92^\circ\text{C}$).
+        - **Aggregate RMSE**: $\pm 1.34^\circ\text{C}$ (across 615 depth levels)
+        - **Mean Thermal Bias**: $+0.41^\circ\text{C}$
+        - **Profile Coherence ($R$)**: $0.986$ (Pooled Pearson correlation across all 615 depth levels)
+        - **Regional RMSE breakdown**: Arabian Sea ($\pm 1.12^\circ\text{C}$), Bay of Bengal ($\pm 1.07^\circ\text{C}$), Andaman Sea ($\pm 1.15^\circ\text{C}$), Equatorial IO ($\pm 1.92^\circ\text{C}$).
 - **Frontend Architecture (`argo.html` & `argo.js`)**:
   - Reuses Kyogre light theme palette (Royal Blue `#2563EB`, Ice Blue `#EFF6FF`, Slate `#1E293B`).
   - Top 4 stat cards displaying basin-wide aggregate benchmarks.
@@ -490,6 +496,54 @@ Potential Fishing Zones (PFZ) in the North Indian Ocean are identified by matchi
   - **Search Selection Gating (`selectedViaSearch`)**:
     - If a float was selected via search, clearing the search (via `x` clear button, backspace, or Escape) resets the map to show all 41 floats and resets the right panel back to the initial "No Float Selected" placeholder state.
     - If a float was selected manually by clicking a map marker or choosing from the float dropdown, clearing the search resets the map to all floats, clears marker dimming, but preserves the user's manual float selection and open comparison drawer.
+
+### 12.6 Client-Side Metric Verification & Audit Tool
+- **Motivation & Purpose**:
+  - Provides an independent, developer/auditor-facing verification mechanism on the ARGO Validation & Compare page (`/argo`).
+  - Audits summary benchmark figures (Basin RMSE, Mean Thermal Bias, Profile Coherence, Active Floats) against raw, unaggregated per-float and per-depth observations fetched directly from the backend.
+  - Detects silent data drops (e.g. missing cycles, truncated depths) or backend aggregation anomalies.
+- **Client-Side Recomputation Algorithm**:
+  1. **Fresh Acquisition**: Fetches raw metadata from `GET /argo/profiles` and queries `GET /argo/compare?id={profileId}` fresh with `{ cache: 'no-store' }` across all 41 profiles in parallel.
+  2. **Point Pooling**: Collects point-wise predicted temperatures $T_{\text{AI}, i}$ and in-situ ARGO temperatures $T_{\text{ARGO}, i}$ across all floats and depths into a flat array of differences $e_i = T_{\text{AI}, i} - T_{\text{ARGO}, i}$.
+  3. **Pooled RMSE**:
+     $$\text{RMSE}_{\text{pooled}} = \sqrt{\frac{1}{N} \sum_{i=1}^N (T_{\text{AI}, i} - T_{\text{ARGO}, i})^2}$$
+  4. **Mean Thermal Bias**:
+     $$\text{Bias}_{\text{mean}} = \frac{1}{N} \sum_{i=1}^N (T_{\text{AI}, i} - T_{\text{ARGO}, i})$$
+     Preserves algebraic sign (+ or -) to capture systematic model over/under-prediction direction.
+  5. **Profile Coherence (Pearson $r$)**:
+     $$r = \frac{\sum_{i=1}^N (T_{\text{AI}, i} - \bar{T}_{\text{AI}})(T_{\text{ARGO}, i} - \bar{T}_{\text{ARGO}})}{\sqrt{\sum_{i=1}^N (T_{\text{AI}, i} - \bar{T}_{\text{AI}})^2} \cdot \sqrt{\sum_{i=1}^N (T_{\text{ARGO}, i} - \bar{T}_{\text{ARGO}})^2}}$$
+  6. **Data Integrity Audit**: Counts total active floats (expected 41) and total point-wise depths (expected $41 \times 15 = 615$).
+- **Mismatch Tolerance Thresholds & Highlight Triggers**:
+  - **RMSE / Bias Threshold**: Deviation $|\text{Displayed} - \text{Recomputed}| > 0.05^\circ\text{C}$ flags a mismatch.
+  - **Profile Coherence Threshold**: Deviation $|\text{Displayed} - \text{Recomputed}| > 0.010$ flags a mismatch.
+  - **Data Points Audit**: Any count $N \ne 615$ flags silent data loss.
+  - **Audit Flagging**: Flagged rows render in red with `.ky-argo-dev-row--mismatch` and display `"Mismatch detected — check backend aggregation logic."`
+- **Audit Findings**:
+  - Recomputed Pooled RMSE: $1.3441^\circ\text{C}$ vs Displayed $1.34^\circ\text{C}$ (Diff: $0.00^\circ\text{C}$, PASS).
+  - Recomputed Mean Thermal Bias: $+0.4054^\circ\text{C}$ vs Displayed $+0.41^\circ\text{C}$ (Diff: $0.00^\circ\text{C}$, PASS).
+  - Recomputed Profile Coherence: $0.9864$ vs Displayed $0.986$ (Diff: $0.000$, PASS).
+  - Recomputed Points: Exactly 615/615 points verified across 41 floats (Zero silent data drops).
+
+### 12.7 ARGO Observation Cycle & Header Dropdown Synchronization
+- **Problem Statement & Root Cause**:
+  - In earlier iterations, selecting an observation date in `#argo-date-select` for multi-cycle floats (such as Float #2902278) updated the subtitle coordinates/date and triggered `/argo/compare`, but failed to update the Selected Float header dropdown (`#argo-float-select`).
+  - As a result, the header dropdown retained its stale or initial cycle option (e.g. `"Float #2902278 · Cycle 144"`), while the date dropdown and subtitle displayed the chosen observation date (e.g. `"2021-02-13 · Cycle #126"` and `"19.34°N, 91.80°E · 2021-02-13 (Bay of Bengal)"`), appearing as a data mismatch.
+- **Ground-Truth Data Audit (`backend/data/argo_profiles.json`)**:
+  - **Float #2902278 Cycle 126**: Authentic NetCDF `D2902278_126.nc`, Date: `2021-02-13`, Coordinates: `19.34°N, 91.80°E`, Bay of Bengal.
+  - **Float #2902278 Cycle 144**: Authentic NetCDF `D2902278_144.nc`, Date: `2021-05-14`, Coordinates: `19.89°N, 89.84°E`, Bay of Bengal (~90 days / 18 cycles later).
+  - Both cycles represent legitimate historical surfacings of the same profiling float at distinct times and coordinates.
+- **Bidirectional Synchronization Architecture**:
+  1. **Date Dropdown Selection (`selectDate(cycleId)`)**:
+     - Synchronizes `#argo-float-select.value = cycleId`.
+     - Repopulates `#argo-float-select` if the float drifted across subregions.
+     - Synchronizes `#argo-date-select.value = cycleId`.
+     - Updates map marker selection and camera focus to the exact surfacing coordinate of that cycle.
+  2. **Float Dropdown Selection (`#argo-float-select` change)**:
+     - Triggers `selectFloat(targetId)` followed by `selectDate(targetId)`.
+     - Immediately aligns the date dropdown, subtitle, and comparison data to the chosen cycle without requiring redundant user clicks.
+  3. **Map Marker Selection**:
+     - Single-cycle floats auto-select their single date and execute comparison immediately.
+     - Multi-cycle floats present the available observation dates in `#argo-date-select`. Selecting any date synchronizes the header dropdown label, subtitle, and map marker simultaneously.
 
 ---
 
@@ -544,3 +598,24 @@ To eliminate the first-interaction cold-start penalty during live evaluations, a
       Inference cache ready! All demo dates pre-warmed (<1ms response).
     =================================================================
     ```
+
+### 13.4 Satellite Data Trimming Strategy for Demonstration Deployments
+To facilitate lightweight distribution, CI environments, and containerized deployments while preserving exact inference fidelity for all primary SIH demonstration dates, `backend/trim_data.py` extracts three contiguous temporal clusters:
+- **Cluster A (Days 29–51, 23 days)**: Covers `2021-02-14` (day 44) and `2021-02-16` (day 46) with 5-day sliding window buffers on both sides ($[44 - 10 - 5 = 29]$ to $[46 + 5 = 51]$).
+- **Cluster B (Days 532–552, 21 days)**: Covers `2022-07-02` (day 547) with 5-day buffer ($[547 - 10 - 5 = 532]$ to $[547 + 5 = 552]$).
+- **Cluster C (Days 961–981, 21 days)**: Covers `2023-09-04` (day 976) with 5-day buffer ($[976 - 10 - 5 = 961]$ to $[976 + 5 = 981]$).
+
+#### Array Shape & Compression Results
+- **Trimmed Time Axis**: Extracted along axis 0 across all 9 `.npy` files ($65$ days total out of original $2,922$).
+- **Day Index Mapping**: Saved to `backend/data/trimmed/day_index_map.json` mapping each original day index $\{29..51, 532..552, 961..981\}$ to its contiguous position $0..64$.
+- **Storage Footprint Reduction**:
+  - Original 9 arrays: $6,240.32\text{ MB}$ ($\sim 6.24\text{ GB}$)
+  - Trimmed 9 arrays: $138.82\text{ MB}$ ($\sim 0.14\text{ GB}$)
+  - Overall Reduction: 97.8% disk space saved (6,101.50 MB saved).
+  - Validation: 100% bit-identical slice parity against original .npy data files.
+
+#### Runtime Dataset Switching (`USE_TRIMMED_DATA`)
+The backend seamlessly supports both trimmed and full datasets via environment configuration:
+- `USE_TRIMMED_DATA=true`: Loads from `backend/data/trimmed/`, translates `day_idx` through `day_index_map.json` into contiguous $0..64$ array slices, and returns HTTP 400 with `"This date is not available in the deployed demo dataset."` for any date outside the trimmed clusters.
+- `USE_TRIMMED_DATA=false` (default): Retains full 3-year baseline data path in `backend/data/` with zero modifications to original behavior.
+

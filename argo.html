@@ -6,6 +6,9 @@
   <title>Kyogre — ARGO Validation &amp; Compare</title>
   <meta name="description" content="Validate Kyogre deep learning ocean temperature predictions against real in-situ ARGO profiling floats in the North Indian Ocean." />
 
+  <!-- Deployment Config -->
+  <script src="config.js"></script>
+
   <!-- MapLibre GL -->
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
@@ -162,7 +165,7 @@
             </div>
             <div class="ky-argo-mini-card__body">
               <span class="ky-argo-mini-card__label">Profile Coherence</span>
-              <span class="ky-argo-mini-card__val" id="stat-argo-corr">0.994</span>
+              <span class="ky-argo-mini-card__val" id="stat-argo-corr">0.986</span>
             </div>
           </div>
 
@@ -180,6 +183,9 @@
             </div>
           </div>
         </div>
+
+        <!-- Dev-Only Metric Verification Tool Mount (Rendered dynamically only when ?debug=true or ?dev=true) -->
+        <div id="argo-dev-verify-tool"></div>
 
         <!-- 3 & 4. MIDDLE TWO-COLUMN ROW: Map (Left) + Vertical Profile Comparison (Right) -->
         <div class="ky-argo-content-split">

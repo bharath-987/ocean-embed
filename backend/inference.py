@@ -20,6 +20,7 @@ USAGE:
     #  700: 7.6, 1000: 6.3}
 """
 
+import json
 import os
 import numpy as np
 import pandas as pd
@@ -31,7 +32,20 @@ import torch.nn.functional as F
 # 1. CONFIG -- answers to items 5-10 from your checklist
 # ---------------------------------------------------------------------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.path.join(BASE_DIR, "data")          # folder holding the .npy files below
+USE_TRIMMED_DATA = os.environ.get("USE_TRIMMED_DATA", "false").lower() in ("true", "1", "yes")
+
+if USE_TRIMMED_DATA:
+    DATA_DIR = os.path.join(BASE_DIR, "data", "trimmed")
+    _map_path = os.path.join(DATA_DIR, "day_index_map.json")
+    if os.path.exists(_map_path):
+        with open(_map_path, "r", encoding="utf-8") as _f:
+            _day_index_map = {int(k): int(v) for k, v in json.load(_f).items()}
+    else:
+        _day_index_map = None
+else:
+    DATA_DIR = os.path.join(BASE_DIR, "data")          # folder holding the .npy files below
+    _day_index_map = None
+
 CHECKPOINT_PATH = os.path.join(BASE_DIR, "model_v4_dilated_checkpoint_epoch30.pt")
 
 MIN_LON, MAX_LON = 45, 105             # region: North Indian Ocean
@@ -42,6 +56,19 @@ DATASET_START_DATE = f"{YEARS_COVERED[0]}-01-01"
 SEQUENCE_LENGTH = 10                   # (item 7) model needs the PAST 10 DAYS of data, not just 1 day
 STANDARD_DEPTHS = [0, 5, 10, 20, 30, 50, 75, 100, 125, 150, 200, 300, 500, 700, 1000]  # (item 9)
 IN_CHANNELS = 13                       # (item 6) channel order below
+
+
+def translate_day_idx(day_idx: int) -> int | None:
+    """
+    Translates an original day index to the trimmed array index if running with
+    USE_TRIMMED_DATA=True. If USE_TRIMMED_DATA=False, returns day_idx as-is.
+    Returns None if day_idx is not in the trimmed map.
+    """
+    if not USE_TRIMMED_DATA:
+        return day_idx
+    if _day_index_map is None:
+        return None
+    return _day_index_map.get(day_idx)
 
 # Channel order (item 6) -- this is what the model's 13 input channels are, in order:
 #  0: SST anomaly          1: SSS anomaly          2: SSH anomaly
@@ -159,7 +186,12 @@ _lat_cos_t = np.tile(_lat_cos, (SEQUENCE_LENGTH, 1, 1))[:, None, :, :]
 _lon_sin_t = np.tile(_lon_sin, (SEQUENCE_LENGTH, 1, 1))[:, None, :, :]
 _lon_cos_t = np.tile(_lon_cos, (SEQUENCE_LENGTH, 1, 1))[:, None, :, :]
 
-_day_of_year = np.array([(pd.Timestamp(DATASET_START_DATE) + pd.Timedelta(days=i)).dayofyear for i in range(_total_days)])
+if USE_TRIMMED_DATA and _day_index_map is not None:
+    ordered_orig_indices = [orig for orig, trim in sorted(_day_index_map.items(), key=lambda x: x[1])]
+    _day_of_year = np.array([(pd.Timestamp(DATASET_START_DATE) + pd.Timedelta(days=i)).dayofyear for i in ordered_orig_indices])
+else:
+    _day_of_year = np.array([(pd.Timestamp(DATASET_START_DATE) + pd.Timedelta(days=i)).dayofyear for i in range(_total_days)])
+
 _t_season = 2 * np.pi * _day_of_year / 365.25
 _doy_sin = np.sin(_t_season).astype('float32')
 _doy_cos = np.cos(_t_season).astype('float32')
@@ -182,12 +214,24 @@ def predict_temperature_profile(latitude: float, longitude: float, date_str: str
     lon_idx = int(np.argmin(np.abs(_target_lons - longitude)))
 
     day_idx = (pd.Timestamp(date_str).normalize() - pd.Timestamp(DATASET_START_DATE)).days
-    if day_idx < SEQUENCE_LENGTH or day_idx >= _total_days:
-        return {"error": f"date out of range. Valid range: "
-                          f"{(pd.Timestamp(DATASET_START_DATE) + pd.Timedelta(days=SEQUENCE_LENGTH)).date()} "
-                          f"to {(pd.Timestamp(DATASET_START_DATE) + pd.Timedelta(days=_total_days - 1)).date()}"}
 
-    start, end = day_idx - SEQUENCE_LENGTH, day_idx
+    if USE_TRIMMED_DATA:
+        if (
+            _day_index_map is None
+            or day_idx not in _day_index_map
+            or (day_idx - SEQUENCE_LENGTH) not in _day_index_map
+            or (_day_index_map[day_idx] - _day_index_map[day_idx - SEQUENCE_LENGTH] != SEQUENCE_LENGTH)
+        ):
+            return {"error": "This date is not available in the deployed demo dataset."}
+        mapped_day_idx = _day_index_map[day_idx]
+        start, end = mapped_day_idx - SEQUENCE_LENGTH, mapped_day_idx
+    else:
+        if day_idx < SEQUENCE_LENGTH or day_idx >= _total_days:
+            return {"error": f"date out of range. Valid range: "
+                              f"{(pd.Timestamp(DATASET_START_DATE) + pd.Timedelta(days=SEQUENCE_LENGTH)).date()} "
+                              f"to {(pd.Timestamp(DATASET_START_DATE) + pd.Timedelta(days=_total_days - 1)).date()}"}
+        mapped_day_idx = day_idx
+        start, end = day_idx - SEQUENCE_LENGTH, day_idx
 
     raw_sst_window = _sst_arr[start:end]
     if np.abs(raw_sst_window).max() < 0.01:
@@ -215,7 +259,7 @@ def predict_temperature_profile(latitude: float, longitude: float, date_str: str
         with torch.no_grad():
             prediction_anom = _model(window_tensor)
 
-        clim_at_day = np.array(_temp_target_clim[day_idx])
+        clim_at_day = np.array(_temp_target_clim[mapped_day_idx])
         prediction_real = prediction_anom[0].cpu().numpy() + clim_at_day  # anomaly -> real temperature (item 8)
 
         _prediction_cache[date_str] = prediction_real
@@ -224,7 +268,7 @@ def predict_temperature_profile(latitude: float, longitude: float, date_str: str
 
     profile = prediction_real[:, lat_idx, lon_idx].copy()
     # Anchor surface depth 0 to exact satellite SST
-    profile[0] = float(_sst_arr[day_idx, lat_idx, lon_idx])
+    profile[0] = float(_sst_arr[mapped_day_idx, lat_idx, lon_idx])
 
     return {int(d): round(float(t), 2) for d, t in zip(STANDARD_DEPTHS, profile)}
 
@@ -233,7 +277,8 @@ def predict_temperature_profile(latitude: float, longitude: float, date_str: str
 # 5. QUICK TEST (item 13 -- run this file directly to sanity-check everything works)
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
-    lat, lon, date = 15.25, 85.75, "2023-06-15"
+    lat, lon = 15.25, 85.75
+    date = "2021-02-14" if USE_TRIMMED_DATA else "2023-06-15"
     result = predict_temperature_profile(lat, lon, date)
-    print(f"Prediction for ({lat}, {lon}) on {date}:")
+    print(f"Prediction for ({lat}, {lon}) on {date} (USE_TRIMMED_DATA={USE_TRIMMED_DATA}):")
     print(result)

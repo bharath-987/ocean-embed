@@ -16,6 +16,9 @@ backend/__pycache__/
 backend/data/*.npy
 *.npy
 *.npz
+!backend/data/trimmed/
+!backend/data/trimmed/*.npy
+!backend/data/trimmed/*.json
 *.zip
 backend/data/*.zip
 

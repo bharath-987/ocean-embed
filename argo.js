@@ -3,7 +3,10 @@
  * Connects to /argo/profiles, /argo/compare, and /argo/summary
  */
 
-const API_BASE = 'http://localhost:8000';
+const API_BASE_URL = (typeof window !== 'undefined' && window.API_BASE_URL)
+  ? window.API_BASE_URL
+  : 'http://localhost:8000';
+const API_BASE = API_BASE_URL;
 
 // Global State
 let map = null;
@@ -112,6 +115,7 @@ function setupEventListeners() {
     if (targetId) {
       selectedViaSearch = false; // Manual dropdown selection
       selectFloat(targetId, true, false);
+      selectDate(targetId);
     }
   });
 
@@ -183,6 +187,9 @@ function setupEventListeners() {
       searchResults.style.display = 'none';
     }
   });
+
+  // Dev-Only Metric Verification Tool (Rendered only when ?debug=true or ?dev=true)
+  initDevVerifyTool();
 }
 
 /* ── Load Summary Benchmark Statistics (/argo/summary) ─────── */
@@ -513,11 +520,32 @@ async function selectDate(cycleId) {
   // Update selected marker visuals if cycle coordinate differs
   const cycleProfile = allProfiles.find(p => p.id === cycleId);
   if (cycleProfile) {
+    if (cycleProfile.subRegion !== currentSubRegionFilter && currentSubRegionFilter !== 'all') {
+      applySubRegionFilter('all');
+    }
     updateSelectedMarkerVisuals(cycleId);
     const subEl = document.getElementById('argo-selected-sub');
     if (subEl) {
       subEl.textContent = `${cycleProfile.latitude.toFixed(2)}°N, ${cycleProfile.longitude.toFixed(2)}°E · ${cycleProfile.date} (${cycleProfile.subRegion})`;
     }
+  }
+
+  // Sync Float Dropdown so header float title & cycle always match the selected cycle
+  const selectEl = document.getElementById('argo-float-select');
+  if (selectEl) {
+    const hasOption = Array.from(selectEl.options).some(opt => opt.value === cycleId);
+    if (!hasOption) {
+      populateDropdown(allProfiles);
+    }
+    if (selectEl.value !== cycleId) {
+      selectEl.value = cycleId;
+    }
+  }
+
+  // Also ensure the Date dropdown value matches cycleId
+  const dateSelectEl = document.getElementById('argo-date-select');
+  if (dateSelectEl && dateSelectEl.value !== cycleId) {
+    dateSelectEl.value = cycleId;
   }
 
   // Hide placeholder and reveal chart canvas box
@@ -1037,3 +1065,422 @@ function clearFloatSelection() {
   // Clear marker visual selections
   updateSelectedMarkerVisuals(null);
 }
+
+/* ── Client-Side Metric Verification Tool (Dev / Audit) ──────── */
+
+/**
+ * Numerically stable Pearson correlation coefficient between two 1D arrays
+ */
+function computePearsonCorrelation(xArr, yArr) {
+  const n = xArr.length;
+  if (n === 0) return 1.0;
+
+  let sumX = 0;
+  let sumY = 0;
+  for (let i = 0; i < n; i++) {
+    sumX += xArr[i];
+    sumY += yArr[i];
+  }
+  const meanX = sumX / n;
+  const meanY = sumY / n;
+
+  let num = 0;
+  let denX = 0;
+  let denY = 0;
+  for (let i = 0; i < n; i++) {
+    const dx = xArr[i] - meanX;
+    const dy = yArr[i] - meanY;
+    num += dx * dy;
+    denX += dx * dx;
+    denY += dy * dy;
+  }
+
+  const denom = Math.sqrt(denX * denY);
+  if (denom < 1e-12) return 1.0;
+  return num / denom;
+}
+
+/**
+ * Format numeric difference with explicit sign or clean 0.00
+ */
+function formatMetricDiff(diff, decimals) {
+  if (Math.abs(diff) < 1e-6) {
+    return (0).toFixed(decimals);
+  }
+  return (diff > 0 ? '+' : '') + diff.toFixed(decimals);
+}
+
+/**
+ * Checks whether developer / debug mode is enabled.
+ * Supported triggers:
+ * - URL query parameter: ?debug=true, ?debug=1, ?dev=true, ?dev=1
+ * - Window-level global: window.__KYOGRE_DEV__ === true or window.DEBUG === true
+ */
+function isDevModeEnabled() {
+  if (typeof window === 'undefined') return false;
+  if (window.__KYOGRE_DEV__ === true || window.DEBUG === true) return true;
+  if (window.location && window.location.search) {
+    const params = new URLSearchParams(window.location.search);
+    const debugParam = params.get('debug');
+    const devParam = params.get('dev');
+    if (debugParam === 'true' || debugParam === '1' || devParam === 'true' || devParam === '1') {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Initializes the developer-only Metric Verification tool.
+ * By default (no debug flag), the button is NOT rendered in the DOM at all,
+ * preventing accidental clicks or exposure during demos.
+ * If ?debug=true or ?dev=true is present in the URL, the tool markup is dynamically
+ * rendered into #argo-dev-verify-tool and event listeners are wired.
+ */
+function initDevVerifyTool() {
+  const mount = document.getElementById('argo-dev-verify-tool');
+  if (!mount) return;
+
+  if (!isDevModeEnabled()) {
+    // Ensure clean empty state when debug mode is disabled (nothing rendered)
+    mount.innerHTML = '';
+    mount.className = '';
+    return;
+  }
+
+  // Debug flag is active: Render the verification tool into DOM
+  mount.className = 'ky-argo-dev-tool';
+  mount.innerHTML = `
+    <div class="ky-argo-dev-bar">
+      <span class="ky-argo-dev-status" id="argo-dev-status"></span>
+      <button type="button" id="btn-verify-metrics" class="ky-argo-dev-btn" aria-expanded="false" aria-controls="argo-dev-verify-panel">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="4 17 10 11 4 5"></polyline>
+          <line x1="12" y1="19" x2="20" y2="19"></line>
+        </svg>
+        Verify Metrics (Dev)
+      </button>
+    </div>
+    <div class="ky-argo-dev-panel" id="argo-dev-verify-panel" style="display: none;"></div>
+  `;
+
+  const verifyBtn = document.getElementById('btn-verify-metrics');
+  if (verifyBtn) {
+    verifyBtn.addEventListener('click', verifyMetricsDev);
+  }
+}
+
+/**
+ * Main verification routine: fetches raw per-float, per-depth data fresh
+ * and recomputes Basin RMSE, Mean Thermal Bias, and Profile Coherence.
+ */
+async function verifyMetricsDev() {
+  const btn = document.getElementById('btn-verify-metrics');
+  const panel = document.getElementById('argo-dev-verify-panel');
+  const statusEl = document.getElementById('argo-dev-status');
+
+  const originalBtnHtml = btn ? btn.innerHTML : 'Verify Metrics (Dev)';
+  if (btn) {
+    btn.disabled = true;
+    btn.setAttribute('aria-busy', 'true');
+    btn.innerHTML = `
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation: kyFloatPulse 1s linear infinite; margin-right: 4px;">
+        <circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="12"/>
+      </svg>
+      Recomputing...
+    `;
+  }
+  if (statusEl) {
+    statusEl.textContent = 'Fetching fresh profile data...';
+  }
+
+  const startTime = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+
+  try {
+    // 1. Fresh fetch of /argo/profiles (all 41 floats, no caching)
+    const profilesRes = await fetch(`${API_BASE}/argo/profiles`, { cache: 'no-store' });
+    if (!profilesRes.ok) throw new Error(`HTTP ${profilesRes.status} fetching /argo/profiles`);
+    const profiles = await profilesRes.json();
+
+    if (statusEl) {
+      statusEl.textContent = `Fetching comparisons for ${profiles.length} floats...`;
+    }
+
+    // 2. Fresh fetch of each float's per-depth comparison data (no caching)
+    const compareResults = await Promise.all(
+      profiles.map(p =>
+        fetch(`${API_BASE}/argo/compare?id=${encodeURIComponent(p.id)}`, { cache: 'no-store' })
+          .then(res => {
+            if (!res.ok) throw new Error(`HTTP ${res.status} on float profile ${p.id}`);
+            return res.json();
+          })
+      )
+    );
+
+    // 3. Pool ALL point-wise errors across all floats and depths
+    let floatsUsed = 0;
+    const pooledErrors = [];     // (predicted - actual)
+    const pooledSqErrors = [];   // (predicted - actual)^2
+    const pooledPred = [];       // AI model predictions
+    const pooledActual = [];     // ARGO in-situ observations
+
+    for (const item of compareResults) {
+      if (!item || !Array.isArray(item.aiTemps) || !Array.isArray(item.argoTemps) || !Array.isArray(item.depths)) {
+        continue;
+      }
+      floatsUsed++;
+      const { aiTemps, argoTemps, depths } = item;
+      for (let i = 0; i < depths.length; i++) {
+        const pred = aiTemps[i];
+        const actual = argoTemps[i];
+        if (typeof pred === 'number' && !isNaN(pred) && typeof actual === 'number' && !isNaN(actual)) {
+          const err = pred - actual;
+          pooledErrors.push(err);
+          pooledSqErrors.push(err * err);
+          pooledPred.push(pred);
+          pooledActual.push(actual);
+        }
+      }
+    }
+
+    const totalPoints = pooledErrors.length;
+    if (totalPoints === 0) {
+      throw new Error('No valid point-wise depth data found across floats.');
+    }
+
+    // 4. Compute pooled metrics
+    // Pooled RMSE = sqrt(mean of squared errors) across full pooled array
+    const meanSqError = pooledSqErrors.reduce((a, b) => a + b, 0) / totalPoints;
+    const pooledRmse = Math.sqrt(meanSqError);
+
+    // Mean Thermal Bias = mean of (predicted - actual), preserving sign
+    const meanBias = pooledErrors.reduce((a, b) => a + b, 0) / totalPoints;
+
+    // Profile Coherence = Pearson correlation coefficient between full pooled arrays
+    const coherence = computePearsonCorrelation(pooledPred, pooledActual);
+
+    // Read displayed values directly from summary cards in DOM
+    const dispRmseEl = document.getElementById('stat-argo-rmse');
+    const dispBiasEl = document.getElementById('stat-argo-bias');
+    const dispCorrEl = document.getElementById('stat-argo-corr');
+    const dispFloatsEl = document.getElementById('stat-argo-floats');
+
+    const dispRmse = dispRmseEl ? parseFloat(dispRmseEl.textContent) : 1.34;
+    const dispBias = dispBiasEl ? parseFloat(dispBiasEl.textContent) : 0.41;
+    const dispCorr = dispCorrEl ? parseFloat(dispCorrEl.textContent) : 0.986;
+    const dispFloats = dispFloatsEl ? parseInt(dispFloatsEl.textContent, 10) : 41;
+
+    // Rounded recomputed values for comparison display
+    const recompRmse = Number(pooledRmse.toFixed(2));
+    const recompBias = Number(meanBias.toFixed(2));
+    const recompCorr = Number(coherence.toFixed(3));
+
+    // Numerical differences (Recomputed - Displayed)
+    const diffRmse = Number((recompRmse - dispRmse).toFixed(2));
+    const diffBias = Number((recompBias - dispBias).toFixed(2));
+    const diffCorr = Number((recompCorr - dispCorr).toFixed(3));
+
+    // STEP 5: Mismatch criteria:
+    // |Displayed - Recomputed| > 0.05 for RMSE/Bias, > 0.01 for Coherence, points !== 615, floats !== 41
+    const isRmseMismatch = Math.abs(recompRmse - dispRmse) > 0.05;
+    const isBiasMismatch = Math.abs(recompBias - dispBias) > 0.05;
+    const isCorrMismatch = Math.abs(recompCorr - dispCorr) > 0.01;
+    const isPointsMismatch = (totalPoints !== 615);
+    const isFloatsMismatch = (floatsUsed !== dispFloats);
+
+    const hasAnyMismatch = isRmseMismatch || isBiasMismatch || isCorrMismatch || isPointsMismatch || isFloatsMismatch;
+
+    // STEP 4: Console.log formatted comparison table
+    const consoleOutput = [
+      '',
+      '  METRIC VERIFICATION',
+      '  --------------------------------------------',
+      `  Basin RMSE:         Displayed = ${dispRmse.toFixed(2)}°C   Recomputed = ${recompRmse.toFixed(2)}°C   Diff = ${formatMetricDiff(diffRmse, 2)}`,
+      `  Mean Thermal Bias:  Displayed = ${dispBias.toFixed(2)}°C   Recomputed = ${recompBias >= 0 ? '+' : ''}${recompBias.toFixed(2)}°C   Diff = ${formatMetricDiff(diffBias, 2)}`,
+      `  Profile Coherence:  Displayed = ${dispCorr.toFixed(3)}    Recomputed = ${recompCorr.toFixed(3)}    Diff = ${formatMetricDiff(diffCorr, 3)}`,
+      `  Floats used:        Displayed = ${dispFloats}       Recomputed used = ${floatsUsed}`,
+      `  Total data points:  Recomputed used = ${totalPoints} (expected 41 floats x 15 depths = 615)`,
+      '  --------------------------------------------',
+    ].join('\n');
+    console.log(consoleOutput);
+
+    if (hasAnyMismatch) {
+      console.warn('⚠️ Mismatch detected — check backend aggregation logic.');
+    } else {
+      console.log('✓ All recomputed metrics match displayed values within tolerance.');
+    }
+
+    const endTime = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+    const elapsedMs = Math.round(endTime - startTime);
+
+    // STEP 4 & 5: Render comparison table in collapsible panel
+    if (panel) {
+      panel.style.display = 'block';
+      panel.innerHTML = renderVerifyPanelHtml({
+        dispRmse,
+        dispBias,
+        dispCorr,
+        dispFloats,
+        recompRmse,
+        recompBias,
+        recompCorr,
+        floatsUsed,
+        totalPoints,
+        diffRmse,
+        diffBias,
+        diffCorr,
+        isRmseMismatch,
+        isBiasMismatch,
+        isCorrMismatch,
+        isPointsMismatch,
+        isFloatsMismatch,
+        hasAnyMismatch,
+        elapsedMs,
+      });
+
+      // Bind panel close button
+      const closeBtn = panel.querySelector('.ky-argo-dev-close-btn');
+      closeBtn?.addEventListener('click', () => {
+        panel.style.display = 'none';
+        if (btn) btn.setAttribute('aria-expanded', 'false');
+      });
+
+      if (btn) btn.setAttribute('aria-expanded', 'true');
+    }
+
+    if (statusEl) {
+      statusEl.textContent = `Recomputed ${totalPoints} data points in ${elapsedMs}ms`;
+    }
+  } catch (err) {
+    console.error('Error during ARGO metric verification:', err);
+    if (panel) {
+      panel.style.display = 'block';
+      panel.innerHTML = `
+        <div class="ky-argo-dev-alert ky-argo-dev-alert--error">
+          <strong>Verification Failed:</strong> ${err.message || err}
+        </div>
+      `;
+    }
+    if (statusEl) {
+      statusEl.textContent = 'Verification error';
+    }
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.removeAttribute('aria-busy');
+      btn.innerHTML = originalBtnHtml;
+    }
+  }
+}
+
+/**
+ * Builds HTML table for the collapsible audit panel
+ */
+function renderVerifyPanelHtml(data) {
+  const {
+    dispRmse, dispBias, dispCorr, dispFloats,
+    recompRmse, recompBias, recompCorr, floatsUsed, totalPoints,
+    diffRmse, diffBias, diffCorr,
+    isRmseMismatch, isBiasMismatch, isCorrMismatch, isPointsMismatch, isFloatsMismatch,
+    hasAnyMismatch, elapsedMs
+  } = data;
+
+  const mismatchNotice = 'Mismatch detected — check backend aggregation logic.';
+
+  const rows = [
+    {
+      metric: 'Basin RMSE',
+      displayed: `${dispRmse.toFixed(2)} °C`,
+      recomputed: `${recompRmse.toFixed(2)} °C`,
+      diff: `${formatMetricDiff(diffRmse, 2)} °C`,
+      isMismatch: isRmseMismatch,
+      note: isRmseMismatch ? mismatchNotice : '✓ Within tolerance (≤ 0.05°C)'
+    },
+    {
+      metric: 'Mean Thermal Bias',
+      displayed: `${dispBias.toFixed(2)} °C`,
+      recomputed: `${recompBias >= 0 ? '+' : ''}${recompBias.toFixed(2)} °C`,
+      diff: `${formatMetricDiff(diffBias, 2)} °C`,
+      isMismatch: isBiasMismatch,
+      note: isBiasMismatch ? mismatchNotice : '✓ Within tolerance (≤ 0.05°C)'
+    },
+    {
+      metric: 'Profile Coherence',
+      displayed: `${dispCorr.toFixed(3)}`,
+      recomputed: `${recompCorr.toFixed(3)}`,
+      diff: `${formatMetricDiff(diffCorr, 3)}`,
+      isMismatch: isCorrMismatch,
+      note: isCorrMismatch ? mismatchNotice : '✓ Within tolerance (≤ 0.010)'
+    },
+    {
+      metric: 'Floats used',
+      displayed: `${dispFloats}`,
+      recomputed: `${floatsUsed}`,
+      diff: `${floatsUsed - dispFloats}`,
+      isMismatch: isFloatsMismatch,
+      note: isFloatsMismatch ? mismatchNotice : '✓ All 41 floats processed'
+    },
+    {
+      metric: 'Total data points',
+      displayed: '615',
+      recomputed: `${totalPoints}`,
+      diff: `${totalPoints - 615}`,
+      isMismatch: isPointsMismatch,
+      note: isPointsMismatch
+        ? `Mismatch detected — check backend aggregation logic. (Missing data: expected 615, got ${totalPoints})`
+        : '✓ Expected 41 floats × 15 depths = 615 points'
+    }
+  ];
+
+  const rowsHtml = rows.map(r => `
+    <tr class="${r.isMismatch ? 'ky-argo-dev-row--mismatch' : 'ky-argo-dev-row--ok'}">
+      <td style="font-weight: 600;">${r.metric}</td>
+      <td>${r.displayed}</td>
+      <td>${r.recomputed}</td>
+      <td>${r.diff}</td>
+      <td>
+        <span class="${r.isMismatch ? 'ky-argo-dev-badge--mismatch' : 'ky-argo-dev-badge--ok'}">
+          ${r.note}
+        </span>
+      </td>
+    </tr>
+  `).join('');
+
+  return `
+    <div class="ky-argo-dev-panel-header">
+      <div class="ky-argo-dev-panel-title">
+        <span class="ky-argo-dev-tag">AUDIT</span>
+        <strong>Client-Side Metric Verification</strong>
+        <span class="ky-argo-dev-time">(${elapsedMs}ms fresh live recomputation)</span>
+      </div>
+      <button type="button" class="ky-argo-dev-close-btn" aria-label="Close audit panel">&times;</button>
+    </div>
+    <div class="ky-argo-dev-table-wrap">
+      <table class="ky-argo-dev-table">
+        <thead>
+          <tr>
+            <th>Metric</th>
+            <th>Displayed</th>
+            <th>Recomputed</th>
+            <th>Diff</th>
+            <th>Audit Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rowsHtml}
+        </tbody>
+      </table>
+    </div>
+    ${hasAnyMismatch ? `
+      <div class="ky-argo-dev-alert ky-argo-dev-alert--error">
+        <strong>⚠️ Mismatch detected — check backend aggregation logic.</strong>
+        One or more recomputed pooled values deviate from the displayed summary benchmark cards.
+      </div>
+    ` : `
+      <div class="ky-argo-dev-alert ky-argo-dev-alert--success">
+        <strong>✓ Verification Passed:</strong> Independently recomputed pooled RMSE, Mean Thermal Bias, and Pearson Profile Coherence match displayed values across all 41 floats and 615 depth points.
+      </div>
+    `}
+  `;
+}
+

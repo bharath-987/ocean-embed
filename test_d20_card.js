@@ -1,4 +1,4 @@
-﻿const fs = require('fs');
+const fs = require('fs');
 const assert = require('assert');
 
 console.log('============================================================');
@@ -11,16 +11,17 @@ const exploreHtml = fs.readFileSync('explore.html', 'utf8');
 assert(!exploreHtml.includes('id="stat-rmse-val"'), 'stat-rmse-val must be removed from explore.html');
 assert(!exploreHtml.includes('<div class="ky-stat-card__label">RMSE</div>'), 'RMSE label must be removed from explore.html');
 assert(exploreHtml.includes('id="stat-d20-val"'), 'stat-d20-val must be present in explore.html');
-assert(exploreHtml.includes('id="stat-d20-sub"'), 'stat-d20-sub must be present in explore.html');
+assert(!exploreHtml.includes('id="stat-d20-sub"'), 'stat-d20-sub must be removed from explore.html');
 assert(exploreHtml.includes('D20 Isotherm Depth'), 'Title "D20 Isotherm Depth" must be present');
-assert(exploreHtml.includes('Depth where temperature crosses 20°C — a proxy for thermocline depth.'), 'Subtext must match specification');
-console.log('  [PASS] explore.html markup and IDs match requirements');
+assert(!exploreHtml.includes('Depth where temperature crosses 20°C — a proxy for thermocline depth.'), 'Subtext must be removed so card matches visual weight of other cards');
+console.log('  [PASS] explore.html markup and IDs match requirements (subtext removed)');
 
 // 2. Check style.css
 console.log('\n[TEST 2] style.css Styling...');
 const css = fs.readFileSync('style.css', 'utf8');
-assert(css.includes('#stat-d20-sub'), 'style.css must style #stat-d20-sub');
-console.log('  [PASS] style.css contains #stat-d20-sub styling');
+assert(!css.includes('#stat-d20-sub'), 'style.css should not have obsolete #stat-d20-sub selector');
+assert(css.includes('align-items: center;'), 'style.css must have align-items: center for vertical balance in stat cards');
+console.log('  [PASS] style.css verified (subtext selector cleaned up, vertical centering intact)');
 
 // 3. Check app.js DOM Integration with Simulated Environment
 console.log('\n[TEST 3] DOM Simulation of updateStatCards & setStatsLoading...');
@@ -44,10 +45,8 @@ const domElements = {
   'stat-ohc-val': makeElement(),
   'stat-svad-val': makeElement(),
   'stat-svad-sub': makeElement(),
-  'stat-d20-val': makeElement(),
-  'stat-d20-sub': makeElement()
+  'stat-d20-val': makeElement()
 };
-domElements['stat-d20-sub'].textContent = 'Depth where temperature crosses 20°C — a proxy for thermocline depth.';
 
 global.document = {
   getElementById: (id) => domElements[id] || null
