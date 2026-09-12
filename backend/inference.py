@@ -39,22 +39,18 @@ untrimmed_sst = os.path.join(BASE_DIR, "data", "sst.npy")
 float16_sst = os.path.join(BASE_DIR, "data", "float16", "sst.npy")
 trimmed_sst = os.path.join(BASE_DIR, "data", "trimmed", "sst.npy")
 
-if _env_f16 is not None:
-    USE_FLOAT16_DATA = _env_f16.lower() in ("true", "1", "yes")
-else:
-    USE_FLOAT16_DATA = (not os.path.exists(untrimmed_sst)) and os.path.exists(float16_sst)
-
 if _env_trimmed is not None:
     USE_TRIMMED_DATA = _env_trimmed.lower() in ("true", "1", "yes")
 else:
-    # Auto-detect trimmed: if neither untrimmed nor float16 exists, but trimmed does
-    USE_TRIMMED_DATA = (not os.path.exists(untrimmed_sst)) and (not USE_FLOAT16_DATA) and os.path.exists(trimmed_sst)
+    # Auto-detect trimmed: if neither untrimmed nor float16 is explicitly requested, and trimmed data exists
+    USE_TRIMMED_DATA = (not os.path.exists(untrimmed_sst)) and os.path.exists(trimmed_sst) and (_env_f16 is None or _env_f16.lower() not in ("true", "1", "yes"))
 
-if USE_FLOAT16_DATA:
-    DATA_DIR = os.path.join(BASE_DIR, "data", "float16")
-    _day_index_map = None
-    USE_TRIMMED_DATA = False
-elif USE_TRIMMED_DATA:
+if _env_f16 is not None:
+    USE_FLOAT16_DATA = _env_f16.lower() in ("true", "1", "yes") and (not USE_TRIMMED_DATA)
+else:
+    USE_FLOAT16_DATA = (not os.path.exists(untrimmed_sst)) and os.path.exists(float16_sst) and (not USE_TRIMMED_DATA)
+
+if USE_TRIMMED_DATA:
     DATA_DIR = os.path.join(BASE_DIR, "data", "trimmed")
     _map_path = os.path.join(DATA_DIR, "day_index_map.json")
     if os.path.exists(_map_path):
@@ -62,6 +58,10 @@ elif USE_TRIMMED_DATA:
             _day_index_map = {int(k): int(v) for k, v in json.load(_f).items()}
     else:
         _day_index_map = None
+    USE_FLOAT16_DATA = False
+elif USE_FLOAT16_DATA:
+    DATA_DIR = os.path.join(BASE_DIR, "data", "float16")
+    _day_index_map = None
 else:
     DATA_DIR = os.path.join(BASE_DIR, "data")          # folder holding the .npy files below
     _day_index_map = None
@@ -82,9 +82,11 @@ def translate_day_idx(day_idx: int) -> int | None:
     """
     Translates an original day index to the trimmed array index if running with
     USE_TRIMMED_DATA=True. If USE_TRIMMED_DATA=False, returns day_idx as-is.
-    Returns None if day_idx is not in the trimmed map.
+    Returns None if day_idx is not in the trimmed map or out of range.
     """
     if not USE_TRIMMED_DATA:
+        if day_idx < 0 or day_idx >= _total_days:
+            return None
         return day_idx
     if _day_index_map is None:
         return None
@@ -248,9 +250,14 @@ def predict_temperature_profile(latitude: float, longitude: float, date_str: str
     lat_idx = int(np.argmin(np.abs(_target_lats - latitude)))
     lon_idx = int(np.argmin(np.abs(_target_lons - longitude)))
 
-    day_idx = (pd.Timestamp(date_str).normalize() - pd.Timestamp(DATASET_START_DATE)).days
+    try:
+        target_ts = pd.Timestamp(date_str).normalize()
+        start_ts = pd.Timestamp(DATASET_START_DATE).normalize()
+        day_idx = (target_ts - start_ts).days
+    except Exception:
+        return {"error": "This date is not available in the deployed demo dataset."}
 
-    if USE_TRIMMED_DATA:
+    if USE_TRIMMED_DATA or _day_index_map is not None:
         if (
             _day_index_map is None
             or day_idx not in _day_index_map
@@ -262,11 +269,12 @@ def predict_temperature_profile(latitude: float, longitude: float, date_str: str
         start, end = mapped_day_idx - SEQUENCE_LENGTH, mapped_day_idx
     else:
         if day_idx < SEQUENCE_LENGTH or day_idx >= _total_days:
-            return {"error": f"date out of range. Valid range: "
-                              f"{(pd.Timestamp(DATASET_START_DATE) + pd.Timedelta(days=SEQUENCE_LENGTH)).date()} "
-                              f"to {(pd.Timestamp(DATASET_START_DATE) + pd.Timedelta(days=_total_days - 1)).date()}"}
+            return {"error": "This date is not available in the deployed demo dataset."}
         mapped_day_idx = day_idx
         start, end = day_idx - SEQUENCE_LENGTH, day_idx
+
+    if start < 0 or end > _total_days or mapped_day_idx < 0 or mapped_day_idx >= _total_days:
+        return {"error": "This date is not available in the deployed demo dataset."}
 
     raw_sst_window = _sst_arr[start:end]
     if np.abs(raw_sst_window).max() < 0.01:

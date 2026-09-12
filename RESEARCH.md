@@ -638,3 +638,34 @@ The backend seamlessly supports both trimmed and full datasets via environment c
 - `USE_TRIMMED_DATA=true`: Loads from `backend/data/trimmed/`, translates `day_idx` through `day_index_map.json` into contiguous $0..64$ array slices, and returns HTTP 400 with `"This date is not available in the deployed demo dataset."` for any date outside the trimmed clusters.
 - `USE_TRIMMED_DATA=false` (default): Retains full 3-year baseline data path in `backend/data/` with zero modifications to original behavior.
 
+### 13.5 Out-of-Cache Date Gating, OOM Crash Prevention & Worker Recovery
+
+#### 1. Problem & Incident Analysis
+In constrained container environments (e.g. Render Free Tier with 512 MB RAM limit), dispatching requests for dates outside the 65 cached demo days (e.g. `2021-02-26`, day index 56) previously triggered a catastrophic cascade:
+1. **Gating Bypass**: If `USE_FLOAT16_DATA` was auto-detected from downloaded float16 arrays, `_day_index_map` was cleared to `None` and `USE_TRIMMED_DATA` was disabled. Consequently, `day_idx` (56) was treated as valid since $10 \le 56 < 1095$.
+2. **Uncached Basin Forward Pass**: Because `2021-02-26` was not among the 4 pre-warmed dates in `_prediction_cache`, the backend dispatched an uncached full-basin CNN-LSTM forward pass across all 24,341 points ($101 \times 241$) on CPU.
+3. **Container OOM Kill**: The PyTorch tensor allocations and LSTM sequence buffers during the request spike memory above 512 MB, triggering Linux Kernel Out-Of-Memory `SIGKILL` (signal 9).
+4. **502 Bad Gateway & Worker Hang**: The edge proxy (Nginx) lost connection to Uvicorn and returned `502 Bad Gateway`. Because the Python worker died, subsequent requests for previously working demo dates (e.g. `2022-07-02`) also immediately returned 502 until the container rebooted.
+
+#### 2. Architecture of the Solution
+To guarantee zero uncaught exceptions, zero memory spikes, and instant recovery:
+1. **Centralized Pre-Access Validation (`_validate_date_available`)**:
+   - Every endpoint (`/predict`, `/temperature-grid`, `/parameter-grid`, `extract_surface_inputs`) routes date validation through `_validate_date_available(date_str, need_history)`.
+   - **Order of Execution**:
+     1. Safely computes `day_idx` with try/except around timestamp parsing.
+     2. In trimmed mode (or when `_day_index_map` is active), validates `day_idx in _day_index_map`.
+     3. If `need_history=True`, validates `(day_idx - 10) in _day_index_map` AND contiguity: `_day_index_map[day_idx] - _day_index_map[day_idx - 10] == 10`.
+     4. Validates array bounds $0 \le \text{mapped\_arr\_idx} < \text{\_total\_days}$.
+     5. If any validation fails, **immediately raises HTTP 400 with detail `"This date is not available in the deployed demo dataset."` BEFORE ANY NUMPY ARRAY OR PYTORCH TENSOR IS ACCESSED**.
+2. **Safe Climatology & MDT Slicing**:
+   - `_get_mdt(arr_idx)` strictly validates $0 \le \text{arr\_idx} < \text{\_temp\_target\_clim.shape}[0]$, eliminating uncaught `IndexError` on out-of-range dates.
+   - `get_spatial_predictions()` eliminated the dangerous fallback `inf._temp_target_clim[day_idx]` which previously triggered an uncaught `IndexError`.
+3. **Environment & Priority Alignment**:
+   - Prioritized `USE_TRIMMED_DATA`: When `trimmed/sst.npy` exists and `untrimmed/sst.npy` does not, auto-detects `USE_TRIMMED_DATA=True` and loads `day_index_map.json` (65 demo days).
+   - If `USE_TRIMMED_DATA=true` is set via environment, it unconditionally overrides float16 auto-detection.
+
+#### 3. Verification & Recovery Matrix
+- **Unsupported Dates Tested**: `2021-02-26` (out of cache), `2020-12-31` (pre-dataset), `2021-01-01` (start date), `2021-01-30` (missing 10-day lookback), `2021-05-13` (ARGO date out of cluster), `2024-01-01` (post-dataset), `invalid-date`, `2021-02-30`.
+- **Result Across All Endpoints**: Clean HTTP 400 with `"This date is not available in the deployed demo dataset."` in $<1\text{ ms}$, 0 memory allocation, 0 crash.
+- **Worker Recovery**: Alternating bad dates (`2021-02-26` -> 400) immediately followed by demo dates (`2022-07-02` -> 200, `2021-02-14` -> 200, `2021-02-16` -> 200, `2023-09-04` -> 200) verified 100% operational continuity with zero worker restarts.
+

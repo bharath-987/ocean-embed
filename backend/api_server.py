@@ -81,19 +81,75 @@ def _grid_indices(latitude: float, longitude: float) -> tuple[int, int]:
 
 
 def _day_index(date_str: str) -> int:
-    return (
-        inf.pd.Timestamp(date_str).normalize() - inf.pd.Timestamp(inf.DATASET_START_DATE)
-    ).days
+    try:
+        return (
+            inf.pd.Timestamp(date_str).normalize() - inf.pd.Timestamp(inf.DATASET_START_DATE)
+        ).days
+    except Exception:
+        raise HTTPException(
+            status_code=400,
+            detail="This date is not available in the deployed demo dataset.",
+        )
 
 
-def _get_mdt(day_idx: int) -> inf.np.ndarray:
+def _validate_date_available(date_str: str, need_history: bool = True) -> tuple[int, int]:
+    """
+    Validates that date_str is available in the dataset before accessing any numpy array.
+    If running with trimmed data (or whenever day_index_map is active), verifies day_idx is
+    present in day_index_map, and if need_history=True, verifies that the 10-day lookback
+    history is also present and contiguous in day_index_map.
+    Raises HTTP 400 with 'This date is not available in the deployed demo dataset.' on any violation.
+    Returns (day_idx, mapped_arr_idx).
+    """
+    day_idx = _day_index(date_str)
+    if inf.USE_TRIMMED_DATA or inf._day_index_map is not None:
+        if inf._day_index_map is None or day_idx not in inf._day_index_map:
+            raise HTTPException(
+                status_code=400,
+                detail="This date is not available in the deployed demo dataset.",
+            )
+        if need_history:
+            lookback_idx = day_idx - inf.SEQUENCE_LENGTH
+            if (
+                lookback_idx not in inf._day_index_map
+                or (inf._day_index_map[day_idx] - inf._day_index_map[lookback_idx] != inf.SEQUENCE_LENGTH)
+            ):
+                raise HTTPException(
+                    status_code=400,
+                    detail="This date is not available in the deployed demo dataset.",
+                )
+        mapped_arr_idx = inf._day_index_map[day_idx]
+    else:
+        min_day = inf.SEQUENCE_LENGTH if need_history else 0
+        if day_idx < min_day or day_idx >= inf._total_days:
+            raise HTTPException(
+                status_code=400,
+                detail="This date is not available in the deployed demo dataset.",
+            )
+        mapped_arr_idx = day_idx
+
+    if mapped_arr_idx < 0 or mapped_arr_idx >= inf._total_days:
+        raise HTTPException(
+            status_code=400,
+            detail="This date is not available in the deployed demo dataset.",
+        )
+
+    return day_idx, mapped_arr_idx
+
+
+def _get_mdt(arr_idx: int) -> inf.np.ndarray:
     """
     Compute physical Mean Dynamic Topography (MDT) from climatological steric height.
     Steric height integrates thermal expansion in the upper 300m:
     Ranges physically from ~0.35m in western upwelling basin (Somalia/Oman)
     to ~0.85m in the warm pool / Bay of Bengal.
     """
-    clim = inf._temp_target_clim[day_idx]
+    if arr_idx < 0 or arr_idx >= inf._temp_target_clim.shape[0]:
+        raise HTTPException(
+            status_code=400,
+            detail="This date is not available in the deployed demo dataset.",
+        )
+    clim = inf._temp_target_clim[arr_idx]
     depths = [0, 5, 10, 20, 30, 50, 75, 100, 125, 150, 200, 300]
     steric = inf.np.zeros((101, 241), dtype=inf.np.float32)
     for i in range(1, len(depths)):
@@ -101,7 +157,7 @@ def _get_mdt(day_idx: int) -> inf.np.ndarray:
         t_avg = (clim[i] + clim[i - 1]) / 2.0
         steric += 2.1e-4 * inf.np.maximum(0.0, t_avg - 4.0) * dz
 
-    ocean = (inf._sst_arr[day_idx] > 0.5)
+    ocean = (inf._sst_arr[arr_idx] > 0.5)
     s_ocean = steric[ocean]
     s_min = float(s_ocean.min()) if len(s_ocean) > 0 else 0.0
     s_max = float(s_ocean.max()) if len(s_ocean) > 0 else 1.0
@@ -114,16 +170,7 @@ def _get_mdt(day_idx: int) -> inf.np.ndarray:
 def extract_surface_inputs(latitude: float, longitude: float, date_str: str) -> dict:
     """Read satellite surface values at the nearest grid cell for the target date."""
     lat_idx, lon_idx = _grid_indices(latitude, longitude)
-    day_idx = _day_index(date_str)
-    if inf.USE_TRIMMED_DATA:
-        if inf._day_index_map is None or day_idx not in inf._day_index_map:
-            raise HTTPException(
-                status_code=400,
-                detail="This date is not available in the deployed demo dataset.",
-            )
-        arr_idx = inf._day_index_map[day_idx]
-    else:
-        arr_idx = day_idx
+    day_idx, arr_idx = _validate_date_available(date_str, need_history=False)
 
     sst = float(inf._sst_arr[arr_idx, lat_idx, lon_idx])
     sst_anom = float(inf._sst_anom[arr_idx, lat_idx, lon_idx])
@@ -240,24 +287,7 @@ def health():
 
 @app.post("/predict")
 def predict(req: PredictRequest):
-    day_idx = _day_index(req.date)
-    if inf.USE_TRIMMED_DATA:
-        if (
-            inf._day_index_map is None
-            or day_idx not in inf._day_index_map
-            or (day_idx - inf.SEQUENCE_LENGTH) not in inf._day_index_map
-            or (inf._day_index_map[day_idx] - inf._day_index_map[day_idx - inf.SEQUENCE_LENGTH] != inf.SEQUENCE_LENGTH)
-        ):
-            raise HTTPException(
-                status_code=400,
-                detail="This date is not available in the deployed demo dataset.",
-            )
-    else:
-        if day_idx < inf.SEQUENCE_LENGTH:
-            raise HTTPException(
-                status_code=400,
-                detail="Date requires 10 days of prior satellite history. Earliest valid date: 2021-01-11.",
-            )
+    _validate_date_available(req.date, need_history=True)
 
     result = predict_temperature_profile(req.latitude, req.longitude, req.date)
 
@@ -280,26 +310,14 @@ def get_spatial_predictions(date_str: str):
     if date_str in _spatial_prediction_cache:
         return _spatial_prediction_cache[date_str]
 
-    day_idx = _day_index(date_str)
-    if inf.USE_TRIMMED_DATA:
-        if (
-            inf._day_index_map is None
-            or day_idx not in inf._day_index_map
-            or (day_idx - inf.SEQUENCE_LENGTH) not in inf._day_index_map
-            or (inf._day_index_map[day_idx] - inf._day_index_map[day_idx - inf.SEQUENCE_LENGTH] != inf.SEQUENCE_LENGTH)
-        ):
-            raise HTTPException(
-                status_code=400,
-                detail="This date is not available in the deployed demo dataset.",
-            )
-        mapped_day_idx = inf._day_index_map[day_idx]
-        start, end = mapped_day_idx - inf.SEQUENCE_LENGTH, mapped_day_idx
-    else:
-        if day_idx < inf.SEQUENCE_LENGTH or day_idx >= inf._total_days:
-            clim = inf._temp_target_clim[day_idx].astype(float)
-            return clim
-        mapped_day_idx = day_idx
-        start, end = day_idx - inf.SEQUENCE_LENGTH, day_idx
+    day_idx, mapped_day_idx = _validate_date_available(date_str, need_history=True)
+    start, end = mapped_day_idx - inf.SEQUENCE_LENGTH, mapped_day_idx
+
+    if start < 0 or end > inf._total_days or mapped_day_idx < 0 or mapped_day_idx >= inf._total_days:
+        raise HTTPException(
+            status_code=400,
+            detail="This date is not available in the deployed demo dataset.",
+        )
 
     if date_str in inf._prediction_cache:
         prediction_real = inf._prediction_cache[date_str].copy().astype("float32")
@@ -359,21 +377,7 @@ def temperature_grid(date: str, depth: int = 0):
         raise HTTPException(status_code=400, detail=f"Invalid depth {depth}. Must be one of {inf.STANDARD_DEPTHS}")
 
     depth_idx = inf.STANDARD_DEPTHS.index(depth)
-    day_idx = _day_index(date)
-    if inf.USE_TRIMMED_DATA:
-        if (
-            inf._day_index_map is None
-            or day_idx not in inf._day_index_map
-            or (day_idx - inf.SEQUENCE_LENGTH) not in inf._day_index_map
-            or (inf._day_index_map[day_idx] - inf._day_index_map[day_idx - inf.SEQUENCE_LENGTH] != inf.SEQUENCE_LENGTH)
-        ):
-            raise HTTPException(
-                status_code=400,
-                detail="This date is not available in the deployed demo dataset.",
-            )
-    else:
-        if day_idx < 0 or day_idx >= inf._total_days:
-            raise HTTPException(status_code=400, detail="Date out of range")
+    _validate_date_available(date, need_history=True)
 
     sub_lats = inf._target_lats.tolist()
     sub_lons = inf._target_lons.tolist()
@@ -403,18 +407,7 @@ def parameter_grid(param: str, date: str):
     Supported params: sst, ssh, sss, sla, current, wind
     For vector fields ('current' and 'wind'), also returns 'u' and 'v' grids.
     """
-    day_idx = _day_index(date)
-    if inf.USE_TRIMMED_DATA:
-        if inf._day_index_map is None or day_idx not in inf._day_index_map:
-            raise HTTPException(
-                status_code=400,
-                detail="This date is not available in the deployed demo dataset.",
-            )
-        arr_idx = inf._day_index_map[day_idx]
-    else:
-        if day_idx < 0 or day_idx >= inf._total_days:
-            raise HTTPException(status_code=400, detail="Date out of range")
-        arr_idx = day_idx
+    day_idx, arr_idx = _validate_date_available(date, need_history=False)
 
     p = param.lower()
     ocean_mask = (inf._sst_arr[arr_idx] >= 0.5)

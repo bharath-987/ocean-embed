@@ -4,6 +4,55 @@
 > **MANDATORY PROTOCOL**: This file **MUST** be updated after **EVERY SINGLE TASK** without exception or user reminder.
 > Record status, files changed, and verification evidence for every item.
 
+- [x] **Fix Out-of-Cache Date 502/Crash and Worker Recovery in Trimmed Mode** `[Completed 2026-09-12]`
+  - **Task Objective**:
+    1. Investigate all `day_idx` computation and lookups in `backend/inference.py` and `backend/api_server.py`. Ensure every lookup validates against `day_index_map` before indexing into numpy arrays, raising caught HTTP 400 with "This date is not available in the deployed demo dataset."
+    2. Reproduce the failure on out-of-cache date (e.g. 2021-02-26) and capture full traceback.
+    3. Fix root cause so unsupported dates cleanly return HTTP 400 and never crash/hang the worker.
+    4. Verify recovery: unsupported date returns 400, then immediately supported date returns 200 without restarting server.
+    5. Preserve ML model, trimmed dates, and supported date ranges.
+  - **Implementation Details**:
+    1. **Audited All Date & Day Index Lookups**:
+       - Audited all array slicing and mapping paths in `backend/inference.py` (`predict_temperature_profile`, `translate_day_idx`, array loaders) and `backend/api_server.py` (`_day_index`, `_get_mdt`, `extract_surface_inputs`, `/predict`, `get_spatial_predictions`, `/temperature-grid`, `/parameter-grid`, `/argo/compare`, `/argo/summary`).
+       - Discovered that on Render, `USE_FLOAT16_DATA` auto-detection had overridden `USE_TRIMMED_DATA = False` and set `_day_index_map = None`. This caused out-of-cache requests like `2021-02-26` (day 56) to bypass all gating, execute an uncached full-basin CNN-LSTM forward pass across all 24,341 points on CPU, exhaust Render's 512MB RAM limit, trigger a Linux kernel OOM `SIGKILL`, throw `502 Bad Gateway`, and kill the worker so subsequent requests failed until restart.
+       - Discovered an uncaught `IndexError` vulnerability in `get_spatial_predictions()` fallback: `clim = inf._temp_target_clim[day_idx].astype(float)` where `day_idx >= _total_days` would throw an uncaught `IndexError`.
+       - Discovered `_get_mdt(arr_idx)` was indexing `inf._temp_target_clim` and `inf._sst_arr` without array bounds validation.
+    2. **Centralized Pre-Access Date Validation (`_validate_date_available`)**:
+       - Implemented `_validate_date_available(date_str: str, need_history: bool = True) -> tuple[int, int]` in `backend/api_server.py`.
+       - Validates date string format with try/except, checks `day_idx in _day_index_map`, checks 10-day lookback `(day_idx - 10) in _day_index_map`, validates contiguous index span, and confirms array bounds.
+       - If any check fails, immediately raises `HTTPException(status_code=400, detail="This date is not available in the deployed demo dataset.")` BEFORE any numpy array or PyTorch tensor is accessed.
+       - Applied `_validate_date_available` across `/predict`, `get_spatial_predictions()`, `/temperature-grid`, `/parameter-grid`, and `extract_surface_inputs()`.
+    3. **Robust Direct Inference Gating (`backend/inference.py`)**:
+       - Updated `predict_temperature_profile()` to safely parse `date_str` in try/except and enforce `_day_index_map` and lookback window validation before indexing `_sst_arr` or allocating tensors, returning `{"error": "This date is not available in the deployed demo dataset."}`.
+       - Added bounds check to `translate_day_idx(day_idx)`.
+       - Fixed configuration priority: `USE_TRIMMED_DATA` auto-detects to `True` when `trimmed/sst.npy` exists and untrimmed does not, loading `backend/data/trimmed/day_index_map.json` (65 demo days) and never getting overridden by float16.
+    4. **Safe MDT Bounds Checking**:
+       - Added array bounds check in `_get_mdt(arr_idx)` to prevent `IndexError` on out-of-bounds array indices.
+  - **Verification Evidence**:
+    - **Incident Reproduction & Root Cause Identification**:
+      - Live Render dispatched with `date=2021-02-26`: Returned `HTTPError: 502 in 3.88s` (OOM kill of Uvicorn worker), followed by immediate `HTTPError: 502 in 0.83s` on `2022-07-02` (dead worker).
+      - Local IndexError on uncaught index: `IndexError: index 132 is out of bounds for axis 0 with size 65`.
+    - **Automated Regression & Recovery Suite (`test_recovery_and_bounds.py`)**:
+      - All 15/15 tests passed with 100% success.
+      - Unsupported date `2021-02-26` -> HTTP 400 with detail `"This date is not available in the deployed demo dataset."` across `/predict`, `/temperature-grid`, all 6 `/parameter-grid` parameters, `extract_surface_inputs`, and `predict_temperature_profile`.
+      - Boundary gating: Day 29 (`2021-01-30`, missing 10-day lookback) rejected with 400 on `/predict` and `/temperature-grid`, accepted with 200 on `/parameter-grid`. Day 39 (`2021-02-09`, valid 10-day lookback) accepted with 200.
+      - Invalid dates (`2021-02-30`, `invalid-date`) cleanly return HTTP 400 without crashing.
+      - Worker recovery verified: 5 consecutive cycles of unsupported date (400) immediately followed by supported demo date (200) without restarting server.
+    - **Live Backend Server Verification (`http://127.0.0.1:8000`)**:
+      - Started Uvicorn in trimmed mode (`USE_TRIMMED_DATA=true`).
+      - Verified `/health`: `{"status":"ok","device":"cpu","trimmed":true}`.
+      - Dispatched `2021-02-26`: HTTP 400 `{"detail":"This date is not available in the deployed demo dataset."}` in 0.8ms.
+      - Immediately dispatched `2022-07-02`: HTTP 200 with all 15 depths in 1.1ms.
+    - **Full System Integrity**:
+      - `python test_system.py`: 100% passed (all health, temperature-grid, parameter-grid, SST parity, and gating checks satisfied).
+      - Node test suites (`test_argo_page.js`, `test_d20_card.js`, `test_interactions.js`, `test_region_mask.js`, `test_fisheries.js`, `test_error_component.js`, `test_timeout_and_loading.js`): 100% passed.
+      - Python compilation: `python -m py_compile backend/inference.py backend/api_server.py` passed with 0 errors.
+  - **Files Modified**:
+    - `backend/inference.py`: Fixed data mode detection, `translate_day_idx`, and `predict_temperature_profile` gating.
+    - `backend/api_server.py`: Added `_validate_date_available`, updated `_day_index`, `_get_mdt`, `extract_surface_inputs`, `/predict`, `get_spatial_predictions`, `/temperature-grid`, `/parameter-grid`.
+    - `RESEARCH.md`: Added Section 13.5 documenting root cause, architecture, and verification matrix.
+    - `TODO.md`: Marked task as completed with verification evidence.
+
 - [x] **Fix Frontend Timeout & Loading State for Slow/Cold-Start Render Backend** `[Completed 2026-09-12]`
   - **Task Objective**:
     1. Identify all frontend fetch/XHR calls to `/predict`, `/temperature-grid`, and `/parameter-grid` with timeouts and increase to at least 90s (report exact current value and location).
