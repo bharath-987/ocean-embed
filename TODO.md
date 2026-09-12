@@ -4,6 +4,171 @@
 > **MANDATORY PROTOCOL**: This file **MUST** be updated after **EVERY SINGLE TASK** without exception or user reminder.
 > Record status, files changed, and verification evidence for every item.
 
+- [x] **Local Docker Build & Runtime Verification for Kyogre Backend Container** `[Completed 2026-09-12]`
+  - **Task Objective**:
+    1. Investigate and fix build stall: audit `.dockerignore` to completely exclude `backend/data/`, `backend/data/trimmed/`, `backend/data/float16/`, `.git/`, and ensure no dataset is in build context.
+    2. Confirm dataset fetch (`fetch_data.py`) runs at container startup (ENTRYPOINT) and not during build (`RUN`).
+    3. Build Docker image locally: `docker build -t kyogre-backend .` with verbose progress.
+    4. Run container: `docker run -p 7860:7860 -e USE_FULL_FLOAT16_DATA=true kyogre-backend`
+    5. Confirm container starts without errors as non-root user (`user`, UID 1000).
+    6. Confirm dataset downloads successfully on first run (10 files, ~1.23 GB).
+    7. Confirm `/health` returns HTTP 200.
+    8. Confirm `/predict` works for dates across 2021, 2022, and 2023 outside the old 65-day trimmed set (`2021-06-15`, `2022-11-20`, `2023-03-01`).
+    9. Confirm `/predict` for dates outside 2021-2023 returns clean HTTP 400 without crashing.
+    10. Measure and report container memory usage during a full-basin `/temperature-grid` request via `docker stats`.
+  - **Root Cause & Fix**:
+    - *Stall Root Cause*: Previous `.dockerignore` failed to exclude `backend/data/` (7.37 GB of local float32, float16 cache, and trimmed arrays), and included `!backend/data/trimmed/`, forcing Docker client to tar and stream 7.4 GB across WSL2 named pipes before starting build.
+    - *Exact Fix Applied*: Updated `.dockerignore` at repo root to explicitly exclude `backend/data/`, `backend/data/trimmed/`, `backend/data/float16/`, `*.npy`, `.git/`, `scratch/`, and cache directories.
+    - *Build Time*: With `.dockerignore` fixed, context transfer and `COPY backend/ /app/` completed in **0.5 seconds**.
+  - **Verification Evidence**:
+    1. **Non-Root User**: Verified `docker exec kyogre-test id` -> `uid=1000(user) gid=1000(user) groups=1000(user)`.
+    2. **Runtime Dataset Ingestion**: Container entrypoint downloaded all 10 files (1,169.28 MB) from `bharath-987/ocean-embed-data` in 204.4s at 2.0–9.7 MB/s, verified sizes, and initialized Uvicorn.
+    3. **Health Endpoint**: `GET /health` returned HTTP 200 `{"status":"ok","device":"cpu","trimmed":false,"full_float16":true}`.
+    4. **Continuous Predictions (Un-trimmed Dates)**:
+       - `2021-06-15`: HTTP 200 | SST: 30.20°C | 200m: 19.40°C | 1000m: 9.71°C across 15 depths.
+       - `2022-11-20`: HTTP 200 | SST: 28.11°C | 200m: 17.80°C | 1000m: 9.19°C across 15 depths.
+       - `2023-03-01`: HTTP 200 | SST: 26.66°C | 200m: 16.63°C | 1000m: 9.08°C across 15 depths.
+    5. **Pre-Access Gating (HTTP 400)**:
+       - `2020-12-31` (pre-dataset): Clean HTTP 400 (`"This date is not available in the deployed demo dataset."`).
+       - `2024-01-01` (post-dataset): Clean HTTP 400.
+       - `2024-05-15` (far future): Clean HTTP 400.
+       - `2021-01-05` (lacks 10-day lookback): Clean HTTP 400.
+    6. **Memory Footprint & Headroom (`docker stats`)**:
+       - Baseline Container Memory: **1.143 GiB**
+       - Memory during `/temperature-grid?date=2022-07-02&depth=200`: **1.145 GiB** (delta ~2 MB)
+       - Memory during `/temperature-grid?date=2021-06-15&depth=200`: **1.145 GiB** (latency 176 ms)
+       - Memory during 6 parameter grids: **1.147 GiB**
+       - Headroom: Container consumes only ~7.2% of Hugging Face Space's 16 GB RAM allocation, leaving >14.8 GB free.
+  - **Files Modified**:
+    - `.dockerignore`: Updated to exclude `backend/data/`, `backend/data/trimmed/`, `backend/data/float16/`, `*.npy`.
+    - `TODO.md`: Updated task completion and verification log.
+
+- [x] **Adapt Automated HF Dataset Fetcher for Startup Execution and Error Handling** `[Completed 2026-09-12]`
+  - **Task Objective**:
+    1. Inspect and adapt `backend/fetch_data.py` to check if full float16 dataset already exists locally in `backend/data/float16/` (all 9 .npy files + metadata with exact sizes); skip downloading if complete.
+    2. Download all 9 required .npy files + metadata (`day_index_map.json`) from `bharath-987/ocean-embed-data` (~1.23GB) if not present.
+    3. Ensure download runs automatically on container startup before FastAPI server accepts requests.
+    4. Log clear progress: files being downloaded, sizes in MB, elapsed time, and transfer speed.
+    5. Fail loudly with clear error in logs on failure (network/auth/missing repo) instead of starting server in a broken state.
+    6. Preserve `USE_TRIMMED_DATA` mode and `backend/data/trimmed/` untouched.
+    7. Test locally by deleting/moving `backend/data/float16/` and confirming clean re-download and verification.
+  - **Implementation Details**:
+    1. **Exact Byte Size Verification & Fast-Path Skip (`backend/fetch_data.py`)**:
+       - Added `KNOWN_SIZES` mapping for all 10 files (9 `.npy` arrays + `day_index_map.json`, exact byte counts: ~50.8 MB per 2D surface grid, 762.6 MB for `temp_target_clim.npy`, 16 KB for JSON metadata, totaling 1.23 GB).
+       - Implemented `is_data_complete(dest_dir)`: fast-checks file existence and exact size match in <0.01s.
+       - Implemented selective downloading: only missing or corrupt/truncated files are fetched from the Hugging Face Hub.
+       - Added real-time progress logging with file-by-file MB sizes, elapsed times, and transfer speeds (MB/s).
+       - Added `ensure_data_ready(dest_dir)` for programmatic import verification.
+       - Fail-loudly implementation: prints a high-visibility `FATAL DATASET INGESTION ERROR` banner, logs exact cause, and raises `RuntimeError` on any failure.
+    2. **Container Entrypoint Ingestion (`Dockerfile`, `entrypoint.sh`, `backend/entrypoint.sh`)**:
+       - Created executable `entrypoint.sh` executing `python fetch_data.py` when running in `USE_FULL_FLOAT16_DATA` or `USE_FLOAT16_DATA` mode.
+       - Fails with non-zero exit code (`exit 1`) immediately if download fails, preventing broken server startup.
+       - Updated root `Dockerfile` to configure `ENTRYPOINT ["/app/entrypoint.sh"]` and `CMD ["uvicorn", "api_server:app", "--host", "0.0.0.0", "--port", "7860"]`.
+    3. **Fail-Loudly Module Import & Server Lifespan Hooks (`backend/inference.py`, `backend/api_server.py`)**:
+       - Updated `backend/inference.py`: invokes `ensure_data_ready(DATA_DIR)` at module import in full float16 mode prior to calling `np.load()`. Allows runtime errors to propagate loudly instead of falling back to broken arrays.
+       - Updated `backend/api_server.py`: added dataset readiness validation in `lifespan` handler before cache pre-warming.
+  - **Verification Evidence**:
+    1. **Skip Verification**: Executed `python backend/fetch_data.py` on complete dataset -> verified all 10 files in 0.01s and skipped downloading.
+    2. **Live Hugging Face Hub Download**: Moved `backend/data/float16/` to temporary backup; executed `python backend/fetch_data.py` -> downloaded `.npy` arrays live from `bharath-987/ocean-embed-data` at ~1.4–2.0 MB/s with exact byte verification. Tested selective download with `day_index_map.json`. Restored verified dataset and removed backup.
+    3. **Loud Failure Handling**: Executed `fetch_data.py` pointing to invalid repo `nonexistent-user-xyz/nonexistent-repo-999` -> triggered `FATAL DATASET INGESTION ERROR` banner, raised `RuntimeError`, and exited with non-zero code.
+    4. **Float16 & Trimmed Mode Regression Tests**: `python test_float16_migration.py` passed 100% across both `USE_FULL_FLOAT16_DATA` and `USE_TRIMMED_DATA` modes.
+    5. **System Verification**: `python test_system.py` passed 100%.
+  - **Files Created/Modified**:
+    - `backend/fetch_data.py`: Added size verification, selective download, progress telemetry, `ensure_data_ready()`, and loud failure.
+    - `backend/inference.py`: Added startup dataset verification hook before `np.load()`.
+    - `backend/api_server.py`: Added dataset readiness check in server lifespan.
+    - `Dockerfile`: Added `ENTRYPOINT ["/app/entrypoint.sh"]`.
+    - `entrypoint.sh` & `backend/entrypoint.sh`: Created container startup hook.
+
+- [x] **Prepare Backend for Hugging Face Spaces Docker SDK Deployment** `[Completed 2026-09-12]`
+  - **Task Objective**:
+    1. Inspect `backend/api_server.py`, `requirements.txt`, and codebase structure to ensure clean containerization.
+    2. Create a root `Dockerfile` using `python:3.11-slim`, non-root user UID 1000, port 7860 exposure, and start command `uvicorn api_server:app --host 0.0.0.0 --port 7860`.
+    3. Create a root `README.md` with the required Hugging Face Spaces YAML frontmatter (`title`, `emoji`, `colorFrom`, `colorTo`, `sdk: docker`, `app_port: 7860`, `pinned: false`) and description.
+    4. Configure environment variables in `Dockerfile`: `USE_FULL_FLOAT16_DATA=true` and `HF_DATASET_REPO_ID="bharath-987/ocean-embed-data"`.
+    5. Confirm CORS middleware in `backend/api_server.py` allows deployed frontend origin.
+    6. Report exact contents and file references without pushing.
+  - **Implementation Details**:
+    1. **Audited Module Imports & Layout**:
+       - Verified `backend/api_server.py` imports `inference` directly and injects `os.path.dirname(__file__)` into `sys.path`.
+       - Setting `WORKDIR /app` and `COPY --chown=user:user backend/ /app/` places `api_server.py`, `inference.py`, and `fetch_data.py` at `/app`, allowing direct command `uvicorn api_server:app --host 0.0.0.0 --port 7860`.
+    2. **Created Root `Dockerfile`**:
+       - Base Image: `python:3.11-slim`.
+       - Security & Non-Root Execution: Creates user `user` with UID 1000 (`useradd -m -u 1000 user`) and switches to `USER user`.
+       - Dependencies: Installs from `requirements.txt` (`torch`, `numpy`, `pandas`, `fastapi`, `uvicorn[standard]`, `pydantic`, `huggingface_hub`).
+       - Environment: Configured `USE_FULL_FLOAT16_DATA=true`, `HF_DATASET_REPO_ID="bharath-987/ocean-embed-data"`, `PORT=7860`, `PYTHONDONTWRITEBYTECODE=1`, `PYTHONUNBUFFERED=1`.
+       - Storage: Created `/app/data/float16` directory owned by `user:user` for streaming dataset caching.
+       - Port & Entrypoint: Exposes port 7860 and executes `CMD ["uvicorn", "api_server:app", "--host", "0.0.0.0", "--port", "7860"]`.
+    3. **Created Root `README.md`**:
+       - Included mandatory Hugging Face Spaces YAML frontmatter specifying `title: Kyogre Backend`, `emoji: 🌊`, `colorFrom: blue`, `colorTo: green`, `sdk: docker`, `app_port: 7860`, `pinned: false`.
+       - Documented system architecture, environment variables, optional Space secret `HF_TOKEN`, and public API endpoints.
+    4. **Created `.dockerignore`**:
+       - Excluded local virtual environment (`backend/venv/`), `node_modules/`, `__pycache__`, `.git/`, and multi-GB binary `.npy` arrays, while preserving `argo_profiles.json` and model checkpoint.
+    5. **Verified CORS & Repo ID Support**:
+       - Confirmed `backend/api_server.py` configures `CORSMiddleware` with `allow_origins=["*"]`, allowing any frontend host origin.
+       - Updated `backend/fetch_data.py` to read `REPO_ID = os.environ.get("HF_DATASET_REPO_ID", "bharath-987/ocean-embed-data")`.
+  - **Files Created/Modified**:
+    - `Dockerfile`: Created at repo root.
+    - `README.md`: Created at repo root with HF Spaces YAML frontmatter.
+    - `.dockerignore`: Created at repo root.
+    - `backend/fetch_data.py`: Read `HF_DATASET_REPO_ID` from environment.
+    - `TODO.md`: Updated task status and verification log.
+
+- [x] **Add USE_FULL_FLOAT16_DATA Mode for Hugging Face Spaces Migration** `[Completed 2026-09-12]`
+  - **Task Objective**:
+    1. Add `USE_FULL_FLOAT16_DATA` mode (e.g., `USE_FULL_FLOAT16_DATA=true`) to treat dataset as continuous and complete for every day from 2021-01-01 to 2023-12-31 (1095 days total) with no `day_index_map.json` translation required (`day_idx = (date - 2021-01-01).days`).
+    2. Keep existing `USE_TRIMMED_DATA` mode fully intact and working, controlled independently for localhost/Render fallback to 65-day trimmed set.
+    3. Update date validation logic so in `USE_FULL_FLOAT16_DATA` mode, any date between 2021-01-01 and 2023-12-31 (inclusive) with a valid 10-day lookback window passes validation without consulting `day_index_map`, while dates outside range or lacking lookback return HTTP 400 "This date is not available in the deployed demo dataset.".
+    4. Confirm OOM-prevention validation (bounds checking before array indexing or model execution) applies fully in this mode.
+    5. Do not modify frontend, CORS config, or PORT handling.
+    6. Rigorously test and report: (1) date in Jan 2021 works, (2) date in Dec 2023 works, (3) date before 2021-01-01 or after 2023-12-31 returns clean 400, (4) `USE_TRIMMED_DATA` mode is unaffected and passes all tests.
+  - **Implementation Details**:
+    1. **Configuration & Data Mode Resolution (`backend/inference.py`)**:
+       - Added explicit `USE_FULL_FLOAT16_DATA` environment variable handling (`os.environ.get("USE_FULL_FLOAT16_DATA")`).
+       - Supported independent control: If `USE_TRIMMED_DATA=true`, trimmed mode takes precedence for Render/local 65-day demo set. If `USE_FULL_FLOAT16_DATA=true` (or `USE_FLOAT16_DATA=true`), sets `USE_FULL_FLOAT16_DATA = True`, `USE_TRIMMED_DATA = False`, points `DATA_DIR` to `backend/data/float16`, and sets `_day_index_map = None`.
+       - Added auto-fetch hook: if running in float16 mode and `float16/sst.npy` is absent, automatically invokes `fetch_data.fetch_all_data(DATA_DIR)` from Hugging Face dataset `bharath-987/ocean-embed-data`.
+       - Updated `translate_day_idx(day_idx)` to bounds-check against `min(_total_days, 1095)` and return `day_idx` directly without dictionary lookup in full float16 mode.
+    2. **Centralized Pre-Access Date Validation (`backend/api_server.py`)**:
+       - Updated `_validate_date_available(date_str, need_history)`: in `USE_FULL_FLOAT16_DATA` mode, bypasses `_day_index_map` and directly validates `min_day <= day_idx < max_day` where `max_day = min(TOTAL_DAYS_FULL_FLOAT16, _total_days)` (1095) and `min_day = SEQUENCE_LENGTH (10)` if `need_history=True` (or 0 for single-day surface parameter grids).
+       - Confirms pre-access array bounds: raises HTTP 400 `"This date is not available in the deployed demo dataset."` before any NumPy array or PyTorch tensor is touched.
+       - Updated `/health` endpoint to return both `"trimmed": inf.USE_TRIMMED_DATA` and `"full_float16": inf.USE_FULL_FLOAT16_DATA`.
+    3. **Hugging Face Dataset Fetcher Adaptation (`backend/fetch_data.py`)**:
+       - Updated `DATA_DIR` to support environment variable override `os.environ.get("DATA_DIR", ...)` and made `fetch_all_data(dest_dir)` cleanly callable on import.
+  - **Verification Evidence**:
+    1. **January 2021 Prediction**:
+       - Date `2021-01-15`: `/predict` returns HTTP 200 (SST: 26.55°C, 200m: 16.86°C across 15 depths).
+       - `/temperature-grid?date=2021-01-15&depth=200`: HTTP 200 OK (101x241 grid).
+       - `/parameter-grid?param=sst&date=2021-01-15`: HTTP 200 OK.
+    2. **December 2023 Prediction**:
+       - Date `2023-12-15`: `/predict` returns HTTP 200 (SST: 27.05°C, 200m: 17.21°C).
+       - Date `2023-12-31` (upper dataset boundary): `/predict` returns HTTP 200 (SST: 26.19°C, 200m: 16.85°C).
+       - `/temperature-grid?date=2023-12-31&depth=0`: HTTP 200 OK.
+       - `/parameter-grid?param=ssh&date=2023-12-31`: HTTP 200 OK.
+    3. **Out-of-Range & Lookback Boundary Gating (Clean HTTP 400)**:
+       - Pre-dataset `2020-12-31`: Clean HTTP 400 (`"This date is not available in the deployed demo dataset."`).
+       - Post-dataset boundary `2024-01-01`: Clean HTTP 400.
+       - Far future `2024-05-15`: Clean HTTP 400.
+       - Insufficient lookback `2021-01-05` on `/predict`: Clean HTTP 400.
+       - Single-day surface parameter `2021-01-05` on `/parameter-grid`: Clean HTTP 200.
+    4. **ARGO Comparisons in Full Float16 Mode**:
+       - Observation on `2021-05-14` (Cycle 144, previously out of trimmed clusters): `/argo/compare?id=2902278_144` returned HTTP 200 with RMSE=0.71°C.
+    5. **USE_TRIMMED_DATA Independence & Regression**:
+       - All 4 demo dates (`2021-02-14`, `2022-07-02`, `2021-02-16`, `2023-09-04`) return HTTP 200 with exact SST and 15 depths.
+       - Out-of-cache dates (`2021-02-26`, `2023-06-15`) cleanly return HTTP 400 without crashing.
+       - 3 consecutive cycles of alternating bad date (400) -> good date (200) verified 100% instant worker recovery.
+    6. **Live Uvicorn Server Test (`port 8009`)**:
+       - Spawned live Uvicorn subprocess with `USE_FULL_FLOAT16_DATA=true`.
+       - Verified `/health`: `{"status": "ok", "device": "cpu", "trimmed": false, "full_float16": true}`.
+       - Verified live `/predict` requests for `2021-01-15` (200), `2023-12-31` (200), `2020-12-31` (400), `2024-01-01` (400).
+    7. **Full System Regression (`python test_system.py`)**:
+       - 100% passed (all frontend hooks, gating decoupling, /health, /predict, /temperature-grid across 4 depths, /parameter-grid across 6 parameters, vector components, spatial variance, and SST cross-endpoint parity checks satisfied).
+  - **Files Modified/Created**:
+    - `backend/inference.py`: Added `USE_FULL_FLOAT16_DATA`, `TOTAL_DAYS_FULL_FLOAT16`, auto-fetch hook, bounds checking, and direct day index translation.
+    - `backend/api_server.py`: Updated `_validate_date_available` for continuous 1095-day float16 date validation and updated `/health`.
+    - `backend/fetch_data.py`: Added `DATA_DIR` environment support.
+    - `test_float16_migration.py`: Automated verification suite for both data modes.
+    - `RESEARCH.md`: Added Section 13.6 documenting architecture, date indexing, and validation contracts.
+
 - [x] **Fix Out-of-Cache Date 502/Crash and Worker Recovery in Trimmed Mode** `[Completed 2026-09-12]`
   - **Task Objective**:
     1. Investigate all `day_idx` computation and lookups in `backend/inference.py` and `backend/api_server.py`. Ensure every lookup validates against `day_index_map` before indexing into numpy arrays, raising caught HTTP 400 with "This date is not available in the deployed demo dataset."

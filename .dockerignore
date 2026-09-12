@@ -1,0 +1,31 @@
+# Version control & git
+.git/
+.gitignore
+.github/
+
+# Python caches and virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+backend/venv/
+.venv/
+venv/
+
+# Node & frontend build artifacts
+node_modules/
+
+# Logs and scratch
+scratch/
+*.log
+
+# Large local oceanographic datasets (MUST be downloaded at runtime, never baked into image)
+backend/data/
+backend/data/trimmed/
+backend/data/float16/
+*.npy
+
+# Temporary files
+.DS_Store
+Thumbs.db

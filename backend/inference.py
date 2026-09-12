@@ -32,6 +32,7 @@ import torch.nn.functional as F
 # 1. CONFIG -- answers to items 5-10 from your checklist
 # ---------------------------------------------------------------------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+_env_full_f16 = os.environ.get("USE_FULL_FLOAT16_DATA")
 _env_f16 = os.environ.get("USE_FLOAT16_DATA") or os.environ.get("USE_FLOAT16")
 _env_trimmed = os.environ.get("USE_TRIMMED_DATA")
 
@@ -39,16 +40,37 @@ untrimmed_sst = os.path.join(BASE_DIR, "data", "sst.npy")
 float16_sst = os.path.join(BASE_DIR, "data", "float16", "sst.npy")
 trimmed_sst = os.path.join(BASE_DIR, "data", "trimmed", "sst.npy")
 
-if _env_trimmed is not None:
-    USE_TRIMMED_DATA = _env_trimmed.lower() in ("true", "1", "yes")
+# Determine mode based on environment flags and dataset availability
+if _env_trimmed is not None and _env_trimmed.lower() in ("true", "1", "yes"):
+    USE_TRIMMED_DATA = True
+    USE_FULL_FLOAT16_DATA = False
+    USE_FLOAT16_DATA = False
+elif _env_full_f16 is not None and _env_full_f16.lower() in ("true", "1", "yes"):
+    USE_TRIMMED_DATA = False
+    USE_FULL_FLOAT16_DATA = True
+    USE_FLOAT16_DATA = True
+elif _env_f16 is not None and _env_f16.lower() in ("true", "1", "yes"):
+    USE_TRIMMED_DATA = False
+    USE_FULL_FLOAT16_DATA = True
+    USE_FLOAT16_DATA = True
+elif _env_trimmed is not None and _env_trimmed.lower() in ("false", "0", "no"):
+    USE_TRIMMED_DATA = False
+    USE_FULL_FLOAT16_DATA = False
+    USE_FLOAT16_DATA = False
 else:
-    # Auto-detect trimmed: if neither untrimmed nor float16 is explicitly requested, and trimmed data exists
-    USE_TRIMMED_DATA = (not os.path.exists(untrimmed_sst)) and os.path.exists(trimmed_sst) and (_env_f16 is None or _env_f16.lower() not in ("true", "1", "yes"))
-
-if _env_f16 is not None:
-    USE_FLOAT16_DATA = _env_f16.lower() in ("true", "1", "yes") and (not USE_TRIMMED_DATA)
-else:
-    USE_FLOAT16_DATA = (not os.path.exists(untrimmed_sst)) and os.path.exists(float16_sst) and (not USE_TRIMMED_DATA)
+    # Auto-detection when no environment variable is explicitly set
+    if (not os.path.exists(untrimmed_sst)) and os.path.exists(trimmed_sst):
+        USE_TRIMMED_DATA = True
+        USE_FULL_FLOAT16_DATA = False
+        USE_FLOAT16_DATA = False
+    elif (not os.path.exists(untrimmed_sst)) and os.path.exists(float16_sst):
+        USE_TRIMMED_DATA = False
+        USE_FULL_FLOAT16_DATA = True
+        USE_FLOAT16_DATA = True
+    else:
+        USE_TRIMMED_DATA = False
+        USE_FULL_FLOAT16_DATA = False
+        USE_FLOAT16_DATA = False
 
 if USE_TRIMMED_DATA:
     DATA_DIR = os.path.join(BASE_DIR, "data", "trimmed")
@@ -58,13 +80,19 @@ if USE_TRIMMED_DATA:
             _day_index_map = {int(k): int(v) for k, v in json.load(_f).items()}
     else:
         _day_index_map = None
+    USE_FULL_FLOAT16_DATA = False
     USE_FLOAT16_DATA = False
-elif USE_FLOAT16_DATA:
+elif USE_FULL_FLOAT16_DATA or USE_FLOAT16_DATA:
     DATA_DIR = os.path.join(BASE_DIR, "data", "float16")
     _day_index_map = None
 else:
     DATA_DIR = os.path.join(BASE_DIR, "data")          # folder holding the .npy files below
     _day_index_map = None
+
+# Auto-fetch and verify float16 dataset if missing when running in float16 mode
+if USE_FULL_FLOAT16_DATA or USE_FLOAT16_DATA:
+    from fetch_data import ensure_data_ready
+    ensure_data_ready(DATA_DIR)
 
 CHECKPOINT_PATH = os.path.join(BASE_DIR, "model_v4_dilated_checkpoint_epoch30.pt")
 
@@ -76,6 +104,7 @@ DATASET_START_DATE = f"{YEARS_COVERED[0]}-01-01"
 SEQUENCE_LENGTH = 10                   # (item 7) model needs the PAST 10 DAYS of data, not just 1 day
 STANDARD_DEPTHS = [0, 5, 10, 20, 30, 50, 75, 100, 125, 150, 200, 300, 500, 700, 1000]  # (item 9)
 IN_CHANNELS = 13                       # (item 6) channel order below
+TOTAL_DAYS_FULL_FLOAT16 = 1095         # Total continuous days in 2021-01-01 through 2023-12-31
 
 
 def translate_day_idx(day_idx: int) -> int | None:
@@ -85,7 +114,9 @@ def translate_day_idx(day_idx: int) -> int | None:
     Returns None if day_idx is not in the trimmed map or out of range.
     """
     if not USE_TRIMMED_DATA:
-        if day_idx < 0 or day_idx >= _total_days:
+        max_days = TOTAL_DAYS_FULL_FLOAT16 if USE_FULL_FLOAT16_DATA else _total_days
+        max_days = min(max_days, _total_days)
+        if day_idx < 0 or day_idx >= max_days:
             return None
         return day_idx
     if _day_index_map is None:
@@ -268,7 +299,9 @@ def predict_temperature_profile(latitude: float, longitude: float, date_str: str
         mapped_day_idx = _day_index_map[day_idx]
         start, end = mapped_day_idx - SEQUENCE_LENGTH, mapped_day_idx
     else:
-        if day_idx < SEQUENCE_LENGTH or day_idx >= _total_days:
+        max_days = TOTAL_DAYS_FULL_FLOAT16 if USE_FULL_FLOAT16_DATA else _total_days
+        max_days = min(max_days, _total_days)
+        if day_idx < SEQUENCE_LENGTH or day_idx >= max_days:
             return {"error": "This date is not available in the deployed demo dataset."}
         mapped_day_idx = day_idx
         start, end = day_idx - SEQUENCE_LENGTH, day_idx

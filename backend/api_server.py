@@ -38,7 +38,12 @@ REPRESENTATIVE_LON = 70.0
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Pre-warming inference cache for demo dates at server startup
+    # 1. Verify dataset readiness before server accepts requests
+    if inf.USE_FULL_FLOAT16_DATA or inf.USE_FLOAT16_DATA:
+        from fetch_data import ensure_data_ready
+        ensure_data_ready(inf.DATA_DIR)
+
+    # 2. Pre-warming inference cache for demo dates at server startup
     import gc
     print("=" * 65, flush=True)
     print("  OceanEmbed — Pre-warming inference cache for SIH demo dates...", flush=True)
@@ -98,6 +103,8 @@ def _validate_date_available(date_str: str, need_history: bool = True) -> tuple[
     If running with trimmed data (or whenever day_index_map is active), verifies day_idx is
     present in day_index_map, and if need_history=True, verifies that the 10-day lookback
     history is also present and contiguous in day_index_map.
+    In USE_FULL_FLOAT16_DATA mode, validates that day_idx is within the continuous 1095-day span
+    (2021-01-01 through 2023-12-31) and that >= 10 days of history exist if need_history=True.
     Raises HTTP 400 with 'This date is not available in the deployed demo dataset.' on any violation.
     Returns (day_idx, mapped_arr_idx).
     """
@@ -120,8 +127,10 @@ def _validate_date_available(date_str: str, need_history: bool = True) -> tuple[
                 )
         mapped_arr_idx = inf._day_index_map[day_idx]
     else:
+        max_day = inf.TOTAL_DAYS_FULL_FLOAT16 if inf.USE_FULL_FLOAT16_DATA else inf._total_days
+        max_day = min(max_day, inf._total_days)
         min_day = inf.SEQUENCE_LENGTH if need_history else 0
-        if day_idx < min_day or day_idx >= inf._total_days:
+        if day_idx < min_day or day_idx >= max_day:
             raise HTTPException(
                 status_code=400,
                 detail="This date is not available in the deployed demo dataset.",
@@ -282,6 +291,7 @@ def health():
         "status": "ok",
         "device": str(inf.device),
         "trimmed": inf.USE_TRIMMED_DATA,
+        "full_float16": inf.USE_FULL_FLOAT16_DATA,
     }
 
 

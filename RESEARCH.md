@@ -669,3 +669,82 @@ To guarantee zero uncaught exceptions, zero memory spikes, and instant recovery:
 - **Result Across All Endpoints**: Clean HTTP 400 with `"This date is not available in the deployed demo dataset."` in $<1\text{ ms}$, 0 memory allocation, 0 crash.
 - **Worker Recovery**: Alternating bad dates (`2021-02-26` -> 400) immediately followed by demo dates (`2022-07-02` -> 200, `2021-02-14` -> 200, `2021-02-16` -> 200, `2023-09-04` -> 200) verified 100% operational continuity with zero worker restarts.
 
+---
+
+### 13.6 Hugging Face Spaces Migration & Continuous Full Float16 Mode (`USE_FULL_FLOAT16_DATA`)
+
+#### 1. Architectural Motivation
+To transcend the 512 MB memory constraint of Render Free Tier and unlock continuous full-epoch predictions across the entire 3-year scientific evaluation period (`2021-01-01` to `2023-12-31`), the inference backend architecture supports deployment on **Hugging Face Spaces (16 GB RAM)**:
+- **Render Deployment (512 MB RAM)**: Employs `USE_TRIMMED_DATA=true` pointing to `backend/data/trimmed/` (65 days across 3 clusters with `day_index_map.json`).
+- **Hugging Face Spaces Deployment (16 GB RAM)**: Employs `USE_FULL_FLOAT16_DATA=true` pointing to `backend/data/float16/` (1,095 continuous days, 1.14 GB total disk footprint).
+- **Local Development**: Supports automatic fallback to original untrimmed float32 data (`backend/data/`, 2,922 days) when present.
+
+#### 2. Continuous Day Indexing & Map Elimination
+In `USE_FULL_FLOAT16_DATA` mode:
+- The dataset covers every day from `2021-01-01` to `2023-12-31` with zero gaps.
+- `_day_index_map` is set to `None`. No translation table lookup is performed.
+- `day_idx` directly represents the offset from the epoch start:
+  $$\text{day\_idx} = (\text{date} - 2021\text{-}01\text{-}01).\text{days}$$
+- `mapped_day_idx = day_idx`, enabling direct array slicing `_sst_arr[day_idx - 10 : day_idx]`.
+
+#### 3. Date Validation & Lookback Window
+The centralized pre-access validation `_validate_date_available(date_str, need_history)` enforces:
+1. **Target Date Availability**:
+   - Must fall within the continuous 1,095-day domain ($0 \le \text{day\_idx} < 1095$).
+   - Dates before `2021-01-01` ($\text{day\_idx} < 0$) or after `2023-12-31` ($\text{day\_idx} \ge 1095$) cleanly raise HTTP 400 with detail `"This date is not available in the deployed demo dataset."`.
+2. **Model History Lookback**:
+   - For endpoints requiring the 10-day CNN-LSTM input sequence (`/predict`, `/temperature-grid`, `get_spatial_predictions`), requires $\text{day\_idx} \ge 10$.
+   - Early dates in January 2021 lacking prior history (`2021-01-01` to `2021-01-10`) cleanly return HTTP 400.
+   - For single-day surface grids (`/parameter-grid`), $\text{day\_idx} \ge 0$ is accepted.
+3. **Physical Array Bounds**:
+   - Guaranteed $0 \le \text{day\_idx} < \min(1095, \text{\_total\_days})$, preventing any `IndexError` before NumPy or PyTorch operations.
+
+#### 4. Automatic Dataset Ingestion (`fetch_data.py`)
+If deployed to a fresh Hugging Face Space where the binary float16 files are not yet present in the container volume, `fetch_data.py` automates the ingestion from `bharath-987/ocean-embed-data` into `backend/data/float16/` using verified byte size checks (`KNOWN_SIZES`).
+
+---
+
+### 13.7 Multi-Tier Container Ingestion Architecture & Fail-Loudly Protocol
+
+#### 1. Ingestion Timing & Container Lifecycle
+When deploying with Hugging Face Spaces Docker SDK, the container must download ~1.23 GB of binary NumPy arrays before FastAPI begins accepting traffic:
+1. **Container Entrypoint (`entrypoint.sh`)**:
+   - `entrypoint.sh` executes first inside the container before `uvicorn` is started.
+   - When `USE_FULL_FLOAT16_DATA=true` or `USE_FLOAT16_DATA=true`, it runs `python fetch_data.py`.
+   - If downloading fails (due to network timeout, missing repo, or rate limit), the script logs a clear fatal error and exits with `exit 1`. This immediately stops container startup and alerts Hugging Face Spaces logs rather than booting into an unrecoverable crash state.
+2. **Python Import-Level Verification (`inference.py`)**:
+   - Because `inference.py` loads memory-mapped NumPy arrays at module import (prior to FastAPI `lifespan`), `inference.py` directly executes `ensure_data_ready(DATA_DIR)` before calling `np.load()`.
+   - Any missing or truncated files raise `RuntimeError` immediately with full details.
+3. **Server Lifespan Verification (`api_server.py`)**:
+   - During FastAPI `lifespan` startup, `ensure_data_ready(DATA_DIR)` validates complete data readiness before cache pre-warming occurs.
+
+#### 2. Exact Byte Size Verification Table (`KNOWN_SIZES`)
+| Filename | Dimensions / Type | Exact Byte Size |
+| :--- | :--- | :--- |
+| `ssh_anom.npy` | $(1095, 101, 241)$ float16 | 53,306,918 bytes (~50.8 MB) |
+| `sss_anom.npy` | $(1095, 101, 241)$ float16 | 53,306,918 bytes (~50.8 MB) |
+| `sst.npy` | $(1095, 101, 241)$ float16 | 53,306,918 bytes (~50.8 MB) |
+| `sst_anom.npy` | $(1095, 101, 241)$ float16 | 53,306,918 bytes (~50.8 MB) |
+| `u_curr.npy` | $(1095, 101, 241)$ float16 | 53,306,918 bytes (~50.8 MB) |
+| `v_curr.npy` | $(1095, 101, 241)$ float16 | 53,306,918 bytes (~50.8 MB) |
+| `u_wind.npy` | $(1095, 101, 241)$ float16 | 53,306,918 bytes (~50.8 MB) |
+| `v_wind.npy` | $(1095, 101, 241)$ float16 | 53,306,918 bytes (~50.8 MB) |
+| `temp_target_clim.npy` | $(1095, 15, 101, 241)$ float16 | 799,601,978 bytes (~762.6 MB) |
+| `day_index_map.json` | JSON mapping dictionary | 16,398 bytes (~16 KB) |
+| **Total** | 10 files | **1,226,073,720 bytes (~1.23 GB)** |
+
+#### 4. Container Runtime Memory Benchmarks (`docker stats`)
+Local container execution of `kyogre-backend` with continuous float16 arrays on CPU yielded the following memory metrics:
+
+| Operational State | Endpoint / Workload | Latency | Container RSS Memory | Limit | RAM % | Headroom on 16 GB Space |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Idle Baseline** | Post-startup & demo cache pre-warming | — | **1.143 GiB** | 7.58 GiB | 15.09% | ~14.85 GiB (92.8%) |
+| **Pre-warmed Full Grid** | `/temperature-grid?date=2022-07-02&depth=200` | 1359 ms | **1.145 GiB** | 7.58 GiB | 15.11% | ~14.85 GiB (92.8%) |
+| **Uncached Basin Forward Pass** | `/temperature-grid?date=2021-06-15&depth=200` | 176 ms | **1.145 GiB** | 7.58 GiB | 15.11% | ~14.85 GiB (92.8%) |
+| **Surface Grids (All 6 Params)** | `/parameter-grid` (`sst`, `ssh`, `sss`, `sla`, `current`, `wind`) | <50 ms/param | **1.147 GiB** | 7.58 GiB | 15.14% | ~14.85 GiB (92.8%) |
+
+**Conclusion**: Memory usage remains steady at ~1.15 GiB throughout heavy continuous full-basin inference with zero leakage or spikes, confirming optimal headroom for deployment on Hugging Face Spaces (16 GB RAM).
+
+
+
+
