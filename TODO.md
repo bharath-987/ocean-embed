@@ -43,6 +43,25 @@
       - Verified `/health`: `{"status":"ok","device":"cpu","trimmed":true}`.
       - Dispatched `2021-02-26`: HTTP 400 `{"detail":"This date is not available in the deployed demo dataset."}` in 0.8ms.
       - Immediately dispatched `2022-07-02`: HTTP 200 with all 15 depths in 1.1ms.
+    - **Production Render Cloud Deployment & Live Verification (`https://kyogre-zk7p.onrender.com`)**:
+      - Synchronized `origin/master` to `origin/main` (`git push origin master:main`) to ensure Render auto-deployment receives commit `68b6006`.
+      - Polled Render service until deployment completed; verified `/health` returned `{"status":"ok","device":"cpu","trimmed":true}`.
+      - Executed automated live suite (`verify_live_render.py`, 14 test cases) directly against the live Render server:
+        - Valid Demo Date (Cluster B: `2022-07-02`): HTTP 200 in 0.97s (15 depths returned).
+        - Valid Demo Date (Cluster A: `2021-02-14`): HTTP 200 in 0.87s.
+        - Valid Demo Date (Cluster A: `2021-02-16`): HTTP 200 in 0.36s.
+        - Valid Demo Date (Cluster C: `2023-09-04`): HTTP 200 in 0.38s.
+        - Out-of-Cache Date (`2021-02-26`): Cleanly intercepted with HTTP 400 in 0.84s (`{"detail":"This date is not available in the deployed demo dataset."}`).
+        - Boundary Date lacking lookback (`2021-01-30`, day 29): Cleanly intercepted with HTTP 400 in 0.41s.
+        - Out-of-range Date (`2024-05-15`): Cleanly intercepted with HTTP 400 in 0.42s.
+        - Invalid Date string (`not-a-date`): Intercepted with HTTP 422 in 0.42s.
+        - Subsurface Temperature Grid (`2022-07-02`, 200m): HTTP 200 in 0.69s.
+        - Out-of-Cache Temperature Grid (`2021-02-26`): HTTP 400 in 0.47s.
+        - Parameter Grid SSH (`2022-07-02`): HTTP 200 in 0.41s.
+        - Parameter Grid SST (`2022-07-02`): HTTP 200 in 0.74s.
+        - Out-of-Cache Parameter Grid (`2021-02-26`): HTTP 400 in 0.34s.
+        - Post-test Health Check: HTTP 200 in 0.35s (`status: ok`, `trimmed: true`).
+      - Confirmed zero 502 Bad Gateway responses, zero OOM container crashes, and 100% instant recovery between invalid and valid dates.
     - **Full System Integrity**:
       - `python test_system.py`: 100% passed (all health, temperature-grid, parameter-grid, SST parity, and gating checks satisfied).
       - Node test suites (`test_argo_page.js`, `test_d20_card.js`, `test_interactions.js`, `test_region_mask.js`, `test_fisheries.js`, `test_error_component.js`, `test_timeout_and_loading.js`): 100% passed.
