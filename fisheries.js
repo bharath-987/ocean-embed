@@ -11,6 +11,7 @@ const API_BASE_URL = (typeof window !== 'undefined' && window.API_BASE_URL)
   ? window.API_BASE_URL
   : 'http://localhost:8000';
 const API_BASE = API_BASE_URL;
+const API_REQUEST_TIMEOUT_MS = 90000;
 
 const BOUNDS = {
   north: 30.0,
@@ -588,6 +589,10 @@ async function selectLocation(lat, lon, zoomTo = false) {
 
   // Fetch real model prediction & oceanographic indices from backend API
   let temps, nutrients, thermocline, upwelling, pfzScore, nutrientVal, highlightDepth;
+  const startTime = Date.now();
+  console.log(`[Fisheries API] POST /predict started for (${lat.toFixed(3)}, ${lon.toFixed(3)}) on ${currentDateStr}`);
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timeoutId = controller ? setTimeout(() => controller.abort(), API_REQUEST_TIMEOUT_MS) : null;
 
   try {
     const res = await fetch(`${API_BASE}/predict`, {
@@ -598,7 +603,9 @@ async function selectLocation(lat, lon, zoomTo = false) {
         longitude: lon,
         date: currentDateStr,
       }),
+      signal: controller ? controller.signal : undefined,
     });
+    if (timeoutId) clearTimeout(timeoutId);
 
     if (!res.ok) {
       const errBody = await res.json().catch(() => ({}));
@@ -606,6 +613,8 @@ async function selectLocation(lat, lon, zoomTo = false) {
     }
 
     const data = await res.json();
+    const elapsed = Date.now() - startTime;
+    console.log(`[Fisheries API] POST /predict succeeded in ${elapsed}ms (${(elapsed / 1000).toFixed(2)}s)`);
     const modelDepths = data.depths || [0, 5, 10, 20, 30, 50, 75, 100, 125, 150, 200, 300, 500, 700, 1000];
     const modelTemps = data.temps;
     const indices = data.indices || {};
@@ -652,6 +661,9 @@ async function selectLocation(lat, lon, zoomTo = false) {
     }
 
   } catch (err) {
+    if (timeoutId) clearTimeout(timeoutId);
+    const elapsed = Date.now() - startTime;
+    console.error(`[Fisheries API] POST /predict failed after ${elapsed}ms (${(elapsed / 1000).toFixed(2)}s):`, err.message || err);
     console.warn('Backend /predict unavailable, using physical fallback:', err.message);
     const fallback = calculateSubsurfaceProfile(lat, lon);
     temps = fallback.temps;

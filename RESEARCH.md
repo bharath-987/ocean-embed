@@ -367,11 +367,30 @@ Potential Fishing Zones (PFZ) in the North Indian Ocean are identified by matchi
 
 ---
 
-## 10. TVD Offline Error Component Architecture & Visual Hierarchy
+## 10. TVD Offline Error Component Architecture & Timeout Lifecycle
 
-### 10.1 Presentation & State Management
+### 10.1 Presentation, Gating & State Management
 - **Target Component**: `.cast-error-msg` inside the "Temperature vs Depth" (TVD) panel (`#result-idle`).
-- **Trigger Conditions**: Network failure, backend timeout (8s `AbortController`), or offline FastAPI server (`http://localhost:8000`) on `/predict` dispatch when no prior prediction exists (`lastSuccessfulPrediction === null`).
+- **Trigger Conditions**: Network failure, backend timeout (90s `AbortController` via `API_REQUEST_TIMEOUT_MS = 90000`), or offline server on `/predict` dispatch.
+- **Render Cold-Start Tolerance**: Free-tier cloud instances (e.g. Render) spin down during idle periods and can require 30–60 seconds for container initialization, PyTorch runtime startup, and array memory mapping. The frontend timeout is set to **90 seconds** (increased from legacy 8 seconds) across `/predict`, `/temperature-grid`, and `/parameter-grid` to prevent premature aborts while cold starts resolve.
+- **In-Flight Loading State & Stale Data Clearing**:
+  - As soon as a prediction request is dispatched, `clearPreviousPredictionUI()` runs:
+    - Sets `lastSuccessfulPrediction = null`.
+    - Resets all 4 top stat cards (MLD, OHC₃₀₀, Sound Velocity Depth, D20 Isotherm) to `'···'` with the `.ky-stat-card__val--loading` pulse class, immediately clearing previous numbers.
+    - Resets all 6 ocean parameter tiles (`param-sst-val`, `param-ssh-val`, `param-sss-val`, `param-sla-val`, `param-current-val`, `param-wind-val`) to `'—'`.
+    - Empties `#tvd-table-body` and destroys any active Chart.js `profileChart` instance.
+    - Hides any existing `#region-notice` banner.
+    - Displays `#result-loading` with explicit `"Generating prediction..."` status text (`#result-loading-text`).
+- **Environment-Aware Error Messaging**:
+  - `isLocalBackend()` detects whether `API_BASE` resolves to `localhost` or `127.0.0.1`.
+  - **Localhost Backend**: Surfaces specific troubleshooting text: `"Live model unavailable. Make sure Python backend is running on port 8000."` and `"Ensure Python server is running on port 8000."`.
+  - **Remote / Deployed Render Backend**: Strictly suppresses any mention of "port 8000", presenting clean oceanographic status text: `"Model Unavailable. Inference service could not be reached."` and `"Inference backend service is currently unreachable."`.
+- **Timing Telemetry**:
+  - Console logs benchmark each request:
+    - Start: `[OceanEmbed API] POST /predict started for (lat, lon) on date`
+    - Success: `[OceanEmbed API] POST /predict succeeded in <ms>ms (<sec>s)`
+    - Failure: `[OceanEmbed API] POST /predict failed after <ms>ms: <reason>`
+    - Heatmap grids (`/parameter-grid`, `/temperature-grid`) and Fisheries mode log corresponding telemetry.
 - **State Isolation**: When an error occurs, `.ky-tvd-idle:has(.cast-error-msg)` automatically suppresses the generic idle radar SVG and instructions (`"Click any point in the Indian Ocean to inspect profile"`), presenting a focused, distraction-free error card centered vertically and horizontally within the 340px right panel.
 
 ### 10.2 Visual Design & Hierarchy Specifications

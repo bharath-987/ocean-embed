@@ -4,6 +4,72 @@
 > **MANDATORY PROTOCOL**: This file **MUST** be updated after **EVERY SINGLE TASK** without exception or user reminder.
 > Record status, files changed, and verification evidence for every item.
 
+- [x] **Fix Frontend Timeout & Loading State for Slow/Cold-Start Render Backend** `[Completed 2026-09-12]`
+  - **Task Objective**:
+    1. Identify all frontend fetch/XHR calls to `/predict`, `/temperature-grid`, and `/parameter-grid` with timeouts and increase to at least 90s (report exact current value and location).
+    2. Show clear "Generating prediction..." loading state during requests, clearing stale data, stat cards, table, and graph as soon as request starts so old data is never shown alongside loading.
+    3. Show "Model Unavailable" only after genuine failure (network error, non-200, or 90s timeout), not early.
+    4. Do NOT reference "Make sure Python backend is running on port 8000" when connected to Render or any non-localhost URL; only reference localhost/port 8000 if `API_BASE_URL` resolves to localhost.
+    5. Add console logs for request started, succeeded (with response time in ms), and failed (with reason).
+    6. Preserve all backend inference logic, caching, and supported date ranges.
+    7. Test and verify against deployed Render backend and local environment.
+  - **Implementation Details**:
+    1. **Audited Timeouts Across Codebase**:
+       - Identified explicit timeout in `app.js:2838`: `setTimeout(() => controller.abort(), 8000)` (**8000 ms / 8 seconds**).
+       - Identified unconfigured/implicit timeouts on `/parameter-grid` (`app.js:1694`), `/temperature-grid` (`app.js:1731`), and `/predict` (`fisheries.js:593`).
+       - Defined `const API_REQUEST_TIMEOUT_MS = 90000;` (90 seconds / 90,000 ms) in `app.js` and `fisheries.js`.
+       - Attached 90-second `AbortController` timeout across `/predict`, `/temperature-grid`, `/parameter-grid`, and fisheries `/predict`.
+    2. **"Generating prediction..." Loading State & Stale Data Clearing**:
+       - Updated `explore.html` line 460 to render `<p class="ky-tvd-loading__text" id="result-loading-text">Generating prediction...</p>`.
+       - Created `clearPreviousPredictionUI()` in `app.js` invoked immediately on new request dispatch:
+         - Resets `lastSuccessfulPrediction = null` so old prediction is never retained alongside loading or restored on failure.
+         - Calls `setStatsLoading(true)` which unconditionally replaces all 4 stat card values with `'···'` (with pulsing `.ky-stat-card__val--loading` class).
+         - Calls `clearSurfaceInputs()` resetting all 6 parameter tiles (`param-sst-val`, `param-ssh-val`, `param-sss-val`, `param-sla-val`, `param-current-val`, `param-wind-val`) to `'—'`.
+         - Empties `#tvd-table-body` innerHTML.
+         - Destroys active `profileChart` Chart.js instance.
+         - Clears right-panel coordinate/region/date labels and hides `#region-notice`.
+         - Displays `#result-loading` (`display: flex`) with text `"Generating prediction..."`.
+         - Hides `#result-idle`, `#result-content`, and `#tvd-empty-view`.
+    3. **Environment-Aware Error Messaging ("port 8000" Gating)**:
+       - Created `isLocalBackend()` in `app.js` inspecting `API_BASE` hostname for `'localhost'` or `'127.0.0.1'`.
+       - When `API_BASE` resolves to Render (`https://kyogre-zk7p.onrender.com`):
+         - Warning banner displays `"Model Unavailable. Inference service could not be reached."` (never mentions port 8000).
+         - TVD idle error card displays `Inference backend at <code>${API_BASE}</code> could not be reached. Inference backend service is currently unreachable.` (never mentions port 8000).
+         - Timeout catch message displays `"Inference request timed out after 90s. Remote inference service took too long to respond."` (never mentions port 8000).
+       - When `API_BASE` resolves to localhost:
+         - Preserves troubleshooting guidance: `"Make sure Python backend is running on port 8000."`
+    4. **Console Timing Telemetry**:
+       - Added benchmark logging for all requests:
+         - Started: `[OceanEmbed API] POST /predict started for (lat, lon) on date`
+         - Succeeded: `[OceanEmbed API] POST /predict succeeded in <ms>ms (<sec>s)`
+         - Failed: `[OceanEmbed API] POST /predict failed after <ms>ms (<sec>s): <reason>`
+         - Corresponding logs added for `GET /parameter-grid`, `GET /temperature-grid`, and `[Fisheries API] POST /predict`.
+    5. **Backend & Date Integrity**:
+       - Preserved 100% of ML inference logic, caching, and trimmed dates without modifying backend files.
+  - **Verification Evidence**:
+    - `node test_timeout_and_loading.js`: 6/6 test groups passed (90s timeout, "Generating prediction..." loading text, stale data wiping, port 8000 gating, timing logs, and live Render fetch).
+    - **Live Cold-Start Render Benchmark (Idle >19 minutes, Unwarmed)**:
+      - Endpoint: `https://kyogre-zk7p.onrender.com/predict` (Date `2022-07-02`, Lat 15.5°N, Lon 65.0°E).
+      - Single unwarmed cold dispatch after 19m12s of container inactivity.
+      - **Elapsed Time**: **73,350 ms (73.35 seconds)**.
+      - **Result**: **HTTP 200 OK** (Depths: 15, SST: 28.62°C, 200m: 18.72°C, 1000m: 9.33°C, MLD: 112.5m).
+      - **Behavior**: With the new 90s timeout, the request did NOT abort at 8s, did NOT throw premature "Model Unavailable", maintained the "Generating prediction..." loading state cleanly throughout the 73.35s cold start, and rendered the complete prediction upon completion.
+    - Live Warm Render API testing:
+      - Date `2021-02-14`: HTTP 200 (SST 26.80°C, MLD 112.5m, 999ms)
+      - Date `2021-02-16`: HTTP 200 (SST 26.67°C, MLD 112.5m, 305ms)
+      - Date `2022-07-02`: HTTP 200 (SST 28.62°C, MLD 112.5m, 332ms)
+      - Date `2023-09-04`: HTTP 200 (SST 26.30°C, MLD 2.5m, 278ms)
+    - Full system regression suite `python test_system.py`: 100% assertions satisfied.
+    - Full client regression suites (`node test_error_component.js; node test_d20_card.js; node test_argo_cycle_sync.js; node test_argo_metric_verify.js; node test_argo_page.js; node test_interactions.js; node test_region_mask.js; node test_fisheries.js`): 100% passed.
+    - Syntax verification: `node --check app.js fisheries.js test_timeout_and_loading.js` (0 syntax errors).
+  - **Files Modified/Created**:
+    - `app.js`: Increased timeout to 90s, added `isLocalBackend`, `clearPreviousPredictionUI`, timing logs, and Render error gating.
+    - `explore.html`: Set default loading text to `"Generating prediction..."` with `#result-loading-text`.
+    - `fisheries.js`: Added `API_REQUEST_TIMEOUT_MS = 90000`, 90s `AbortController`, and console timing logs.
+    - `test_timeout_and_loading.js`: Automated regression test suite.
+    - `RESEARCH.md`: Updated Section 10 with timeout lifecycle, loading state, and error gating documentation.
+
+
 - [x] **Execute Date Trimming (2021-2023), Parity Verification & Float16 Promotion** `[Completed 2026-09-11]`
   - **Task Objective**: Run `backend/trim_dates.py` to create `backend/data/float16_2021_2023/` (1095 days). Confirm all 9 files exist and report sizes. Run `diagnostic_tests.py` and `test_system.py` against `float16_2021_2023` to verify bit-identical and parity match against untrimmed data. Replace `backend/data/float16/` contents with trimmed files. Update `KNOWN_SIZES` in `backend/fetch_data.py`. Show `git status`.
   - **Implementation Details**:

@@ -31,7 +31,24 @@ const API_BASE_URL = (typeof window !== 'undefined' && window.API_BASE_URL)
   ? window.API_BASE_URL
   : 'http://localhost:8000';
 const API_BASE = API_BASE_URL;
+const API_REQUEST_TIMEOUT_MS = 90000; // 90 seconds timeout for Render cold starts / slow inference
 const USE_MOCK = false;  // Set to true for offline frontend dev without the Python server
+
+/**
+ * Checks whether the configured backend is running locally on localhost/127.0.0.1.
+ */
+function isLocalBackend() {
+  try {
+    const url = new URL(API_BASE, (typeof window !== 'undefined' && window.location) ? window.location.href : 'http://localhost');
+    return url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+  } catch (e) {
+    return API_BASE.includes('localhost') || API_BASE.includes('127.0.0.1');
+  }
+}
+if (typeof window !== 'undefined') {
+  window.API_REQUEST_TIMEOUT_MS = API_REQUEST_TIMEOUT_MS;
+  window.isLocalBackend = isLocalBackend;
+}
 
 /* ── Developer / Debug Mode Gating ──────────────────────── */
 
@@ -644,6 +661,8 @@ const HEATMAP_BOUNDS = {
 };
 
 let currentHeatmapRequestId = 0;
+let currentHeatmapController = null;
+let currentHeatmapTimeoutId = null;
 
 // ── Zoom Earth-Style 11-Stop Temperature Palette & Precomputed C1-Smooth LUT ──
 const ZOOM_EARTH_GRADIENT_CSS = 'linear-gradient(to right, #2A0845 0%, #1B267E 10%, #1976D2 20%, #00B4D8 32%, #00E1B4 42%, #10B981 52%, #84CC16 63%, #FACC15 74%, #F97316 84%, #EF4444 93%, #8C1028 100%)';
@@ -1677,9 +1696,22 @@ function checkAndRefreshHeatmap() {
     map.setLayoutProperty('sst-heatmap-layer', 'visibility', 'visible');
   }
 
+  if (currentHeatmapController) {
+    currentHeatmapController.abort();
+    currentHeatmapController = null;
+  }
+  if (currentHeatmapTimeoutId) {
+    clearTimeout(currentHeatmapTimeoutId);
+    currentHeatmapTimeoutId = null;
+  }
+
   const dayIdx = parseInt(dateSlider.value, 10);
   const dateStr = dateToISO(dayIndexToDate(dayIdx));
   const reqId = ++currentHeatmapRequestId;
+  const heatmapController = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  currentHeatmapController = heatmapController;
+  const heatmapTimeoutId = heatmapController ? setTimeout(() => heatmapController.abort(), API_REQUEST_TIMEOUT_MS) : null;
+  currentHeatmapTimeoutId = heatmapTimeoutId;
 
   if (selectedParam) {
     // Render 2D Surface Ocean Parameter
@@ -1691,13 +1723,22 @@ function checkAndRefreshHeatmap() {
     if (legendBar)   legendBar.style.background = cfg.bar;
     if (legendTicks) legendTicks.innerHTML = cfg.ticks.map(t => `<span>${t}</span>`).join('');
 
-    fetch(`${API_BASE}/parameter-grid?param=${selectedParam}&date=${dateStr}`)
+    const startParamTime = Date.now();
+    console.log(`[OceanEmbed API] GET /parameter-grid started for param=${selectedParam}&date=${dateStr}`);
+
+    fetch(`${API_BASE}/parameter-grid?param=${selectedParam}&date=${dateStr}`, {
+      signal: heatmapController ? heatmapController.signal : undefined
+    })
       .then(res => {
+        if (heatmapTimeoutId) clearTimeout(heatmapTimeoutId);
         if (!res.ok) throw new Error(`Param Grid API HTTP ${res.status}`);
         return res.json();
       })
       .then(data => {
+        if (heatmapTimeoutId) clearTimeout(heatmapTimeoutId);
         if (reqId !== currentHeatmapRequestId) return;
+        const elapsed = Date.now() - startParamTime;
+        console.log(`[OceanEmbed API] GET /parameter-grid succeeded in ${elapsed}ms (${(elapsed / 1000).toFixed(2)}s)`);
         currentGridData = data;
         const url = generateParamGridCanvas(data, selectedParam);
         updateHeatmapOverlay(url);
@@ -1709,10 +1750,13 @@ function checkAndRefreshHeatmap() {
         validateLayerMarkerSync();
       })
       .catch(err => {
+        if (heatmapTimeoutId) clearTimeout(heatmapTimeoutId);
+        if (reqId !== currentHeatmapRequestId) return;
+        const elapsed = Date.now() - startParamTime;
+        console.error(`[OceanEmbed API] GET /parameter-grid failed after ${elapsed}ms (${(elapsed / 1000).toFixed(2)}s):`, err.message || err);
         if (isDevModeEnabled()) {
           console.warn('Real parameter grid backend unavailable, falling back:', err);
         }
-        if (reqId !== currentHeatmapRequestId) return;
         const fallbackUrl = generateFallbackParamCanvas(selectedParam);
         updateHeatmapOverlay(fallbackUrl);
         if (selectedParam === 'current' || selectedParam === 'wind') {
@@ -1728,23 +1772,35 @@ function checkAndRefreshHeatmap() {
     const depth = selectedDepth !== null ? selectedDepth : 0;
     updateHeatmapLegend(depth);
 
-    fetch(`${API_BASE}/temperature-grid?date=${dateStr}&depth=${depth}`)
+    const startTempTime = Date.now();
+    console.log(`[OceanEmbed API] GET /temperature-grid started for date=${dateStr}&depth=${depth}`);
+
+    fetch(`${API_BASE}/temperature-grid?date=${dateStr}&depth=${depth}`, {
+      signal: heatmapController ? heatmapController.signal : undefined
+    })
       .then(res => {
+        if (heatmapTimeoutId) clearTimeout(heatmapTimeoutId);
         if (!res.ok) throw new Error(`Grid API HTTP ${res.status}`);
         return res.json();
       })
       .then(data => {
+        if (heatmapTimeoutId) clearTimeout(heatmapTimeoutId);
         if (reqId !== currentHeatmapRequestId) return;
+        const elapsed = Date.now() - startTempTime;
+        console.log(`[OceanEmbed API] GET /temperature-grid succeeded in ${elapsed}ms (${(elapsed / 1000).toFixed(2)}s)`);
         currentGridData = data;
         const url = generateRealGridCanvas(data, depth);
         updateHeatmapOverlay(url);
         validateLayerMarkerSync();
       })
       .catch(err => {
+        if (heatmapTimeoutId) clearTimeout(heatmapTimeoutId);
+        if (reqId !== currentHeatmapRequestId) return;
+        const elapsed = Date.now() - startTempTime;
+        console.error(`[OceanEmbed API] GET /temperature-grid failed after ${elapsed}ms (${(elapsed / 1000).toFixed(2)}s):`, err.message || err);
         if (isDevModeEnabled()) {
           console.warn('Real temperature grid backend unavailable, falling back to ocean model calculations:', err);
         }
-        if (reqId !== currentHeatmapRequestId) return;
         const fallbackUrl = generateFallbackCanvas(dateStr, depth);
         updateHeatmapOverlay(fallbackUrl);
         validateLayerMarkerSync();
@@ -2174,9 +2230,7 @@ function setStatsLoading(isLoading) {
     if (!el) return;
     if (isLoading) {
       el.classList.add('ky-stat-card__val--loading');
-      if (el.textContent === '—' || el.textContent.trim() === '') {
-        el.textContent = '···';
-      }
+      el.textContent = '···';
     } else {
       el.classList.remove('ky-stat-card__val--loading');
     }
@@ -2186,6 +2240,13 @@ function setStatsLoading(isLoading) {
     const svadSubEl = document.getElementById('stat-svad-sub');
     if (svadSubEl) svadSubEl.style.display = 'none';
   }
+}
+
+function clearSurfaceInputs() {
+  ['param-sst-val', 'param-ssh-val', 'param-sss-val', 'param-sla-val', 'param-current-val', 'param-wind-val'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = '—';
+  });
 }
 
 /* ── D20 Isotherm Depth Calculation (Linear Interpolation) ── */
@@ -2752,6 +2813,58 @@ let lastSuccessfulPrediction = null;
 let lastSuccessfulLat = null;
 let lastSuccessfulLon = null;
 let lastSuccessfulDate = null;
+let currentPredictController = null;
+let currentPredictTimeoutId = null;
+let currentPredictRequestId = 0;
+
+function clearPreviousPredictionUI() {
+  lastSuccessfulPrediction = null;
+  lastSuccessfulLat = null;
+  lastSuccessfulLon = null;
+  lastSuccessfulDate = null;
+
+  setStatsLoading(true);
+  clearSurfaceInputs();
+
+  const idleEl    = document.getElementById('result-idle');
+  const contentEl = document.getElementById('result-content');
+  const loadingEl = document.getElementById('result-loading');
+  const emptyView = document.getElementById('tvd-empty-view');
+  const tableView = document.getElementById('tvd-table-view');
+  const graphView = document.getElementById('tvd-graph-view');
+
+  if (idleEl)    idleEl.style.display    = 'none';
+  if (contentEl) contentEl.style.display = 'none';
+  if (emptyView) emptyView.style.display = 'none';
+  if (tableView) tableView.style.display = 'none';
+  if (graphView) graphView.style.display = 'none';
+
+  const tableBody = document.getElementById('tvd-table-body');
+  if (tableBody) tableBody.innerHTML = '';
+
+  if (profileChart) {
+    try {
+      profileChart.destroy();
+    } catch (e) {}
+    profileChart = null;
+  }
+
+  const coordsValEl = document.getElementById('result-coords-val');
+  const regionValEl = document.getElementById('result-region-val');
+  const dateValEl   = document.getElementById('result-date-val');
+  if (coordsValEl) coordsValEl.textContent = '';
+  if (regionValEl) regionValEl.textContent = '';
+  if (dateValEl)   dateValEl.textContent   = '';
+
+  const regionNotice = document.getElementById('region-notice');
+  if (regionNotice) regionNotice.style.display = 'none';
+
+  if (loadingEl) {
+    loadingEl.style.display = 'flex';
+    const loadingText = document.getElementById('result-loading-text') || loadingEl.querySelector('.ky-tvd-loading__text');
+    if (loadingText) loadingText.textContent = 'Generating prediction...';
+  }
+}
 
 function handleBackendFailure(msg) {
   setStatsLoading(false);
@@ -2762,33 +2875,44 @@ function handleBackendFailure(msg) {
   const emptyView = document.getElementById('tvd-empty-view');
 
   if (loadingEl) loadingEl.style.display = 'none';
+  if (contentEl) contentEl.style.display = 'none';
+  if (emptyView) emptyView.style.display = 'none';
 
-  if (lastSuccessfulPrediction) {
-    // Graceful fallback: retain last known data and inform user via warning banner
-    showRegionNotice('Live model unavailable — showing last known data', 'warning');
-    if (contentEl) contentEl.style.display = 'flex';
-    if (idleEl) idleEl.style.display = 'none';
-    if (emptyView) emptyView.style.display = 'none';
-  } else {
-    // No previous prediction: honest unavailable UI state without fabricated numbers
-    showRegionNotice('Live model unavailable. Make sure Python backend is running on port 8000.', 'error');
-    if (contentEl) contentEl.style.display = 'none';
-    if (idleEl) {
-      idleEl.style.display = 'flex';
-      const existingErr = idleEl.querySelector('.cast-error-msg');
-      if (existingErr) existingErr.remove();
-      const errDiv = document.createElement('div');
-      errDiv.className = 'cast-error-msg';
-      errDiv.innerHTML = `<strong>Live Model Unavailable</strong><br><span>Inference backend at <code>${API_BASE}</code> could not be reached. Ensure Python server is running.</span>`;
-      idleEl.appendChild(errDiv);
-    }
-    // Set honest placeholders rather than displaying fabricated numbers
-    ['stat-mld-val', 'stat-ohc-val', 'stat-svad-val', 'stat-d20-val'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.textContent = '—';
-    });
-    const svadSubEl = document.getElementById('stat-svad-sub');
-    if (svadSubEl) svadSubEl.style.display = 'none';
+  const defaultBanner = isLocalBackend()
+    ? 'Live model unavailable. Make sure Python backend is running on port 8000.'
+    : 'Model Unavailable. Inference service could not be reached.';
+  const bannerText = msg || defaultBanner;
+  showRegionNotice(bannerText, 'error');
+
+  if (idleEl) {
+    idleEl.style.display = 'flex';
+    const existingErr = idleEl.querySelector('.cast-error-msg');
+    if (existingErr) existingErr.remove();
+    const errDiv = document.createElement('div');
+    errDiv.className = 'cast-error-msg';
+    const serverHint = isLocalBackend()
+      ? 'Ensure Python server is running on port 8000.'
+      : 'Inference backend service is currently unreachable.';
+    errDiv.innerHTML = `<strong>Live Model Unavailable</strong><br><span>Inference backend at <code>${API_BASE}</code> could not be reached. ${serverHint}</span>`;
+    idleEl.appendChild(errDiv);
+  }
+
+  // Set honest placeholders rather than displaying fabricated numbers
+  ['stat-mld-val', 'stat-ohc-val', 'stat-svad-val', 'stat-d20-val'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = '—';
+  });
+  const svadSubEl = document.getElementById('stat-svad-sub');
+  if (svadSubEl) svadSubEl.style.display = 'none';
+  clearSurfaceInputs();
+
+  const tableBody = document.getElementById('tvd-table-body');
+  if (tableBody) tableBody.innerHTML = '';
+  if (profileChart) {
+    try {
+      profileChart.destroy();
+    } catch (e) {}
+    profileChart = null;
   }
 }
 
@@ -2811,31 +2935,36 @@ document.getElementById('btn-cast').addEventListener('click', function () {
     return;
   }
 
-  // Show in-flight loading across stat cards and TVD panel
-  setStatsLoading(true);
+  // Abort any previous pending request
+  if (currentPredictController) {
+    currentPredictController.abort();
+    currentPredictController = null;
+  }
+  if (currentPredictTimeoutId) {
+    clearTimeout(currentPredictTimeoutId);
+    currentPredictTimeoutId = null;
+  }
+  const reqId = ++currentPredictRequestId;
 
-  const idleEl    = document.getElementById('result-idle');
-  const contentEl = document.getElementById('result-content');
-  const loadingEl = document.getElementById('result-loading');
-  const emptyView = document.getElementById('tvd-empty-view');
-
-  if (idleEl) idleEl.style.display = 'none';
-  if (contentEl) contentEl.style.display = 'none';
-  if (emptyView) emptyView.style.display = 'none';
-  if (loadingEl) loadingEl.style.display = 'flex';
+  // Clear stale prediction data and show in-flight "Generating prediction..." loading state
+  clearPreviousPredictionUI();
 
   if (USE_MOCK) {
     // ── Offline dev fallback ─────────────────────────────────
     setTimeout(function () {
+      if (reqId !== currentPredictRequestId) return;
       const prediction = mockPredict(lat, lon, dateStr);
       renderPrediction(prediction, lat, lon, dateObj);
     }, 620);
     return;
   }
 
-  // ── Real inference via FastAPI backend with 8s timeout ──────
-  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-  const timeoutId = controller ? setTimeout(() => controller.abort(), 8000) : null;
+  // ── Real inference via FastAPI backend with 90s timeout ──────
+  const startTime = Date.now();
+  console.log(`[OceanEmbed API] POST /predict started for (${lat.toFixed(3)}, ${lon.toFixed(3)}) on ${dateStr}`);
+
+  currentPredictController = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  currentPredictTimeoutId = currentPredictController ? setTimeout(() => currentPredictController.abort(), API_REQUEST_TIMEOUT_MS) : null;
 
   // Simulation hook: ?simulateBackendDown=1 or window.simulateBackendDown = true
   const shouldSimulateDown = typeof window !== 'undefined' && (
@@ -2848,10 +2977,13 @@ document.getElementById('btn-cast').addEventListener('click', function () {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ latitude: lat, longitude: lon, date: dateStr }),
-    signal: controller ? controller.signal : undefined,
+    signal: currentPredictController ? currentPredictController.signal : undefined,
   })
     .then(function (res) {
-      if (timeoutId) clearTimeout(timeoutId);
+      if (currentPredictTimeoutId) {
+        clearTimeout(currentPredictTimeoutId);
+        currentPredictTimeoutId = null;
+      }
       if (!res.ok) {
         return res.json().then(function (body) {
           throw new Error(body.detail || `Server error ${res.status}`);
@@ -2863,14 +2995,36 @@ document.getElementById('btn-cast').addEventListener('click', function () {
       return res.json();
     })
     .then(function (prediction) {
+      if (reqId !== currentPredictRequestId) return;
+      const elapsed = Date.now() - startTime;
+      console.log(`[OceanEmbed API] POST /predict succeeded in ${elapsed}ms (${(elapsed / 1000).toFixed(2)}s)`);
       renderPrediction(prediction, lat, lon, dateObj);
     })
     .catch(function (err) {
-      if (timeoutId) clearTimeout(timeoutId);
-      let msg = err.message || 'Inference service unavailable.';
-      if (!navigator.onLine || err.name === 'AbortError' || msg.toLowerCase().includes('failed to fetch') || msg.toLowerCase().includes('networkerror')) {
-        msg = 'Inference service unavailable. Make sure the Python backend is running on port 8000.';
+      if (currentPredictTimeoutId) {
+        clearTimeout(currentPredictTimeoutId);
+        currentPredictTimeoutId = null;
       }
+      // If superseded by another newer request, ignore quietly
+      if (reqId !== currentPredictRequestId) return;
+
+      const elapsed = Date.now() - startTime;
+      console.error(`[OceanEmbed API] POST /predict failed after ${elapsed}ms (${(elapsed / 1000).toFixed(2)}s):`, err.message || err);
+
+      let msg = err.message || 'Inference service unavailable.';
+      const isAbort = err.name === 'AbortError' || msg.toLowerCase().includes('aborted');
+      const isNetwork = !navigator.onLine || msg.toLowerCase().includes('failed to fetch') || msg.toLowerCase().includes('networkerror');
+
+      if (isAbort) {
+        msg = isLocalBackend()
+          ? 'Inference request timed out after 90s. Make sure Python backend is running on port 8000.'
+          : 'Inference request timed out after 90s. Remote inference service took too long to respond.';
+      } else if (isNetwork) {
+        msg = isLocalBackend()
+          ? 'Inference service unavailable. Make sure the Python backend is running on port 8000.'
+          : 'Inference service unavailable. Remote inference backend could not be reached.';
+      }
+
       handleBackendFailure(msg);
     });
 });
