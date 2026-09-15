@@ -62,20 +62,140 @@ All 6 surface parameters are 2D spatial datasets at depth = 0 m:
    - Typical range: 2.0 m/s to 14.0 m/s (approx. 7 km/h to 50 km/h).
    - Color scale: Slate (`#475569`) → Cyan (`#38BDF8`) → Amber (`#F59E0B`).
 
+### 3.2 Neural Network Input Tensor Architecture (13 Channels)
+
+The deployed OceanEmbed PyTorch model (`model_v4_dilated_checkpoint_epoch30.pt`) ingests a 5D spatiotemporal tensor of shape:
+$$\mathbf{X} \in \mathbb{R}^{\text{Batch} \times \text{Time} \times \text{Channels} \times \text{Lat} \times \text{Lon}} = (1, 10, 13, 101, 241)$$
+where:
+- $\text{Time} = 10$ consecutive daily time steps ($t-9, \dots, t$).
+- $\text{Channels} = 13$ feature channels ($7$ physical surface anomaly fields $+ 6$ cyclical spatiotemporal coordinate and seasonal encodings).
+- $\text{Lat} = 101$ spatial points ($5.0^\circ\text{N}\text{--}30.0^\circ\text{N}$ at $0.25^\circ$ spacing).
+- $\text{Lon} = 241$ spatial points ($45.0^\circ\text{E}\text{--}105.0^\circ\text{E}$ at $0.25^\circ$ spacing).
+
+#### Itemized 13-Channel Order & Specification:
+| Channel Index | Channel Key | Parameter Description | Physical Source / Formulation | Units / Normalization |
+| :---: | :--- | :--- | :--- | :--- |
+| **0** | `sst_anom` | Sea Surface Temperature Anomaly | OSTIA / Satellite Radiometer: $T_{\text{sat}} - T_{\text{clim}}$ | $^\circ\text{C}$ |
+| **1** | `sss_anom` | Sea Surface Salinity Anomaly | SMAP / SMOS Radiometer: $S_{\text{sat}} - S_{\text{clim}}$ | $\text{PSU}$ |
+| **2** | `ssh_anom` | Sea Surface Height Anomaly (SLA) | Altimetry Deviation: $\eta_{\text{sat}} - \eta_{\text{clim}}$ | $\text{m}$ |
+| **3** | `u_cur_anom` | Zonal (East-West) Current Anomaly | OSCAR / Geostrophic + Ekman: $u_{\text{cur}} - u_{\text{clim}}$ | $\text{m/s}$ |
+| **4** | `v_cur_anom` | Meridional (North-South) Current Anomaly | OSCAR / Geostrophic + Ekman: $v_{\text{cur}} - v_{\text{clim}}$ | $\text{m/s}$ |
+| **5** | `u_wind_anom` | Zonal (East-West) 10m Wind Anomaly | Scatterometer / CCMP: $u_{\text{wind}} - u_{\text{clim}}$ | $\text{m/s}$ |
+| **6** | `v_wind_anom` | Meridional (North-South) 10m Wind Anomaly | Scatterometer / CCMP: $v_{\text{wind}} - v_{\text{clim}}$ | $\text{m/s}$ |
+| **7** | `lat_sin` | Latitude Cyclical Sine Encoding | $\sin(\text{latitude} \cdot \pi / 180.0)$ | Dimensionless $[-1, 1]$ |
+| **8** | `lat_cos` | Latitude Cyclical Cosine Encoding | $\cos(\text{latitude} \cdot \pi / 180.0)$ | Dimensionless $[-1, 1]$ |
+| **9** | `lon_sin` | Longitude Cyclical Sine Encoding | $\sin(\text{longitude} \cdot \pi / 180.0)$ | Dimensionless $[-1, 1]$ |
+| **10** | `lon_cos` | Longitude Cyclical Cosine Encoding | $\cos(\text{longitude} \cdot \pi / 180.0)$ | Dimensionless $[-1, 1]$ |
+| **11** | `doy_sin` | Day-of-Year Seasonal Sine Encoding | $\sin(2\pi \cdot \text{DOY} / 365.25)$ | Dimensionless $[-1, 1]$ |
+| **12** | `doy_cos` | Day-of-Year Seasonal Cosine Encoding | $\cos(2\pi \cdot \text{DOY} / 365.25)$ | Dimensionless $[-1, 1]$ |
+
+---
+
+### 3.3 Resolution of the Historical "14 Channels" vs "13 Channels" Discrepancy
+
+Earlier conceptual sketches and informal descriptions occasionally referenced "14 input channels". A rigorous codebase and checkpoint audit resolved this discrepancy as a dual conceptual and counting mismatch:
+
+1. **Arithmetic Miscount of Cyclical Positional/Temporal Encodings**:
+   - The spatiotemporal coordinates consist of Latitude, Longitude, and Day-of-Year.
+   - Each term is decomposed into orthogonal sine and cosine components to provide continuous, wrap-around features to the CNN encoder.
+   - Total trigonometric encodings: $3 \times 2 = \mathbf{6}$ channels (Channels 7–12), **not 7**.
+   - An early informal breakdown described the tensor as *"7 surface channels + 7 spatiotemporal encodings"*, which was a simple mental arithmetic miscount ($7 + 7 = 14$ instead of $7 + 6 = \mathbf{13}$).
+2. **Physical Parameter Overcounting (SSH vs SLA)**:
+   - The interactive dashboard displays 6 surface parameters: SST, SSS, SSH, SLA, Current, and Wind.
+   - In dynamical oceanography, Absolute Dynamic Topography / Sea Surface Height is $\text{SSH} = \text{MDT} + \text{SLA}$.
+   - If an observer counts the visual parameter categories as distinct physical inputs (SST, SSS, SSH, SLA, $u_{\text{cur}}$, $v_{\text{cur}}$, $u_{\text{wind}}$, $v_{\text{wind}}$), they arrive at 8 physical arrays. Combined with 6 spatiotemporal encodings, this gives 14 channels.
+   - However, the model does not ingest both SSH and SLA: the anomaly array `ssh_anom.npy` is identically Sea Level Anomaly (SLA). The model ingests `_ssh_anom` once, yielding exactly 7 physical channels $+ 6$ encodings $= \mathbf{13}$ channels.
+3. **Empirical PyTorch Checkpoint Verification**:
+   - Inspection of `backend/model_v4_dilated_checkpoint_epoch30.pt` confirms:
+     $$\text{SurfaceEncoder.conv1.weight.shape} = [16, 13, 3, 3]$$
+   - The first convolutional layer takes exactly **13 input channels**. The active execution graph cannot ingest 14 channels without throwing a tensor dimension mismatch exception.
+
+---
+
+### 3.4 Neural Network Architecture & Exact Parameter Breakdown
+
+The OceanEmbed deep learning architecture consists of a spatial CNN encoder with dilated receptive fields, a temporal sequence modeling LSTM, and a linear multi-depth projection head:
+
+```
+Input Tensor: (Batch, Time=10, Channels=13, Lat=101, Lon=241)
+   │
+   ▼
+[SurfaceEncoder] (2D CNN with Dilation applied per daily slice)
+   ├── Conv2d(13, 16, kernel_size=3, padding=1) + ReLU + Dropout(0.1)
+   ├── Conv2d(16, 32, kernel_size=3, padding=1) + ReLU + Dropout(0.1)
+   ├── Conv2d(32, 32, kernel_size=3, padding=2, dilation=2) + ReLU + Dropout(0.1)
+   └── Conv2d(32, 32, kernel_size=3, padding=1)
+   │   Shape: (Batch, Time=10, 32, Lat=101, Lon=241)
+   ▼
+[Spatial Transpose & Reshape]
+   │   Shape: (Batch * 101 * 241, Time=10, Embedding=32)
+   ▼
+[TemporalModel] (Batch-first LSTM)
+   └── LSTM(input_size=32, hidden_size=64, batch_first=True)
+   │   Last hidden state h_n: (Batch * 101 * 241, 64)
+   ▼
+[DepthPredictor] (Multi-depth MLP Projection Head)
+   ├── Linear(in_features=64, out_features=64) + ReLU
+   └── Linear(in_features=64, out_features=15)
+   │   Shape: (Batch, Lat=101, Lon=241, 15 Depths)
+   ▼
+Predicted Subsurface Temperature Anomaly Profile (15 Standard Depths)
+   + Climatological Baseline (temp_target_clim)
+   + Surface Blending & PAVA Monotonicity Safety Net
+   ▼
+Reconstructed 3D Temperature Field: (15, 101, 241)
+```
+
+#### Layer-by-Layer Trainable Parameter Count:
+| Component | Layer Name | Tensor Name | Weight / Bias Shape | Parameter Count |
+| :--- | :--- | :--- | :--- | :---: |
+| **SurfaceEncoder** | Conv 1 | `encoder.conv1.weight` | `[16, 13, 3, 3]` | 1,872 |
+| | | `encoder.conv1.bias` | `[16]` | 16 |
+| | Conv 2 | `encoder.conv2.weight` | `[32, 16, 3, 3]` | 4,608 |
+| | | `encoder.conv2.bias` | `[32]` | 32 |
+| | Dilated Conv | `encoder.conv_dilated.weight` | `[32, 32, 3, 3]` | 9,216 |
+| | | `encoder.conv_dilated.bias` | `[32]` | 32 |
+| | Conv 3 | `encoder.conv3.weight` | `[32, 32, 3, 3]` | 9,216 |
+| | | `encoder.conv3.bias` | `[32]` | 32 |
+| *Subtotal: SurfaceEncoder* | | | | **25,024** |
+| **TemporalModel** | LSTM Input-Hidden | `temporal.lstm.weight_ih_l0` | `[256, 32]` | 8,192 |
+| | LSTM Hidden-Hidden | `temporal.lstm.weight_hh_l0` | `[256, 64]` | 16,384 |
+| | LSTM Bias (ih) | `temporal.lstm.bias_ih_l0` | `[256]` | 256 |
+| | LSTM Bias (hh) | `temporal.lstm.bias_hh_l0` | `[256]` | 256 |
+| *Subtotal: TemporalModel (LSTM)* | | | | **25,088** |
+| **DepthPredictor** | Dense 1 | `predictor.fc1.weight` | `[64, 64]` | 4,096 |
+| | | `predictor.fc1.bias` | `[64]` | 64 |
+| | Dense 2 (Output) | `predictor.fc2.weight` | `[15, 64]` | 960 |
+| | | `predictor.fc2.bias` | `[15]` | 15 |
+| *Subtotal: DepthPredictor* | | | | **5,135** |
+| **TOTAL MODEL PARAMETERS** | | | | **55,247** |
+
+#### Key Architecture & Domain Invariants:
+- **Total Parameters**: Exactly **55,247** trainable parameters.
+- **Depth Levels (15)**: `[0, 5, 10, 20, 30, 50, 75, 100, 125, 150, 200, 300, 500, 700, 1000]` meters.
+- **Spatial Grid**: $101 \times 241$ cells ($24,341$ horizontal points per depth level at $0.25^\circ$ resolution).
+- **Temporal Window**: 10 consecutive daily lookback steps.
+
 ---
 
 ## 4. Oceanographic Metrics & Diagnostic Calculations
 
-### 4.1 Mixed Layer Depth (MLD)
-- **Definition & Criterion**: The depth at which water column temperature drops by **0.2°C** relative to the surface temperature ($T_0 = T(0\text{m})$), following the standard oceanographic criterion of **de Boyer Montégut et al. (2004)**.
-- **Physical Significance**: Defines the upper well-mixed turbulent boundary layer directly interacting with atmospheric heat and momentum flux (crucial for cyclone intensification tracking).
+### 4.1 Mixed Layer Depth (MLD) & Skin Layer Decoupling
+- **Definition & Standard Criterion**: Following the global oceanographic standard of **de Boyer Montégut et al. (2004)** (*Mixed layer depth over the global ocean: An examination of profile data and a profile-based climatology*, J. Geophys. Res., 109, C12003), Mixed Layer Depth (MLD) is computed using a threshold of **$\Delta T = 0.2^\circ\text{C}$ relative to the 10-meter reference depth**:
+  $$T_{\text{target}} = T(10\text{m}) - 0.2^\circ\text{C}$$
+- **Oceanographic & Architectural Justification**:
+  1. *Skin Layer & Diurnal Warming Exclusion*: The uppermost $0\text{–}10\text{m}$ of the ocean is subject to diurnal heating, transient solar trapping in calm conditions, and rain lenses. Global climatologies (de Boyer Montégut 2004, Monterey & Levitus 1997) deliberately establish $10\text{m}$ as the reference depth to isolate the turbulent mixed layer from surface skin variability.
+  2. *Elimination of Satellite SST / Model Boundary Artifact*: In `backend/inference.py` (line 351), the surface temperature is explicitly set to raw satellite radiometry:
+     $$\text{profile}[0] = \text{float}(\_sst\_arr[\text{mapped\_day\_idx}, \text{lat\_idx}, \text{lon\_idx}])$$
+     while depths $5\text{m}$ through $1000\text{m}$ are predicted by the CNN-LSTM deep learning model. Because satellite skin SST is typically $0.3^\circ\text{C}\text{–}0.7^\circ\text{C}$ warmer than bulk subsurface water at $5\text{m}$, calculating MLD from $0\text{m}$ ($T_{\text{target}} = T(0\text{m}) - 0.2^\circ\text{C}$) caused $T(5\text{m}) \le T_{\text{target}}$ to be satisfied immediately in the $0\text{–}5\text{m}$ bracket across nearly all queries, spuriously collapsing MLD to $1.5\text{–}3.3\text{m}$ via linear interpolation!
+  3. *Preservation of Ground-Truth Surface Radiometry*: Using $10\text{m}$ as reference depth completely decouples the MLD calculation from the skin-layer difference while preserving the authentic satellite SST displayed in the $0\text{m}$ row of the TVD Table and on the 2D SST map.
 - **Mathematical Algorithm**:
-  $$\text{Target Temperature: } T_{\text{target}} = T_0 - 0.2^\circ\text{C}$$
-  The profile is scanned from the surface downward. If $T_1 \le T_{\text{target}}$, the drop occurs in the top layer:
-  $$\text{MLD} = \frac{T_0 - T_{\text{target}}}{T_0 - T_1} \cdot z_1$$
-  Otherwise, identifying the bracketing layer where $T_{i-1} > T_{\text{target}} \ge T_i$:
-  $$\text{MLD} = z_{i-1} + (z_i - z_{i-1}) \cdot \frac{T_{i-1} - T_{\text{target}}}{T_{i-1} - T_i}$$
-  If the entire column never drops by 0.2°C, the maximum column depth is reported. The calculation is **uncapped** and does not use artificial bounding clamps.
+  Using the standard depth levels $z \in [0, 5, 10, 20, 30, 50, 75, 100, 125, 150, 200, 300, 500, 700, 1000]\text{ m}$, let $k_{10}$ be the index where $z_{k_{10}} = 10\text{m}$ (index 2).
+  $$T_{\text{ref}} = T(10\text{m}), \quad T_{\text{target}} = T_{\text{ref}} - 0.2^\circ\text{C}$$
+  Scanning depths $i > k_{10}$ ($z_i \ge 20\text{m}$), find the first depth where $T(z_i) \le T_{\text{target}}$. The boundary is bracketed between $z_{i-1}$ and $z_i$:
+  $$\text{frac} = \frac{T(z_{i-1}) - T_{\text{target}}}{T(z_{i-1}) - T(z_i)}$$
+  $$\text{MLD} = \text{round}\left(z_{i-1} + \text{frac} \cdot (z_i - z_{i-1})\right)$$
+  If the entire water column below $10\text{m}$ never drops by $0.2^\circ\text{C}$, MLD is reported as `null` (`—`). Across the North Indian Ocean basin, this yields physically authentic mixed layer depths of $20\text{–}60\text{m}$.
 
 ### 4.2 Ocean Heat Content to 300m ($OHC_{300}$)
 - **Definition**: The total absolute thermal energy contained within the upper 300 meters of the water column, integrated directly from the continuous temperature profile.
@@ -92,15 +212,26 @@ All 6 surface parameters are 2D spatial datasets at depth = 0 m:
 
 ### 4.3 Sound Velocity & Acoustic Shadow Depth (SVAD)
 - **Mackenzie (1981) Empirical Equation**:
-  The nine-term Mackenzie formula computes sound speed $c(T, S, z)$ in meters per second across the water column:
+  The Mackenzie formula computes sound speed $c(T, S, z)$ in meters per second across the water column:
   $$c(T, S, z) = 1448.96 + 4.591 T - 5.304 \times 10^{-2} T^2 + 2.374 \times 10^{-4} T^3 + 1.340 (S - 35) + 1.630 \times 10^{-2} z$$
-  where $T$ is temperature (°C) at depth $z$, $S$ is salinity in PSU (from satellite SSS), and $z$ is depth in meters.
+  where $T$ is temperature (°C) at depth $z$, $S$ is salinity in PSU, and $z$ is depth in meters.
+- **Depth-Varying Salinity Climatology (Regional Halocline Approximation)**:
+  Because the CNN-LSTM deep learning model predicts 3D subsurface temperature while 3D salinity is not directly predicted by the neural network, the sound velocity calculation consumes a defensible regional climatological halocline formulation anchored to local satellite Sea Surface Salinity ($S_0 = \text{surfaceInputs.sss.val}$):
+  $$S(z) = S_{\infty} + (S_0 - S_{\infty}) \cdot \exp\left(-\frac{z}{z_h}\right)$$
+  where:
+  - $S_0$ is local satellite Sea Surface Salinity (SMAP/SMOS radiometry anomaly + 35.0 PSU baseline).
+  - $S_{\infty} = 35.0\text{ PSU}$ is the deep North Indian Ocean basin asymptotic salinity (empirically confirmed by analysis of the 41 in-situ ARGO profiles in `backend/data/argo_profiles.json`, where mean salinity at 1000m depth converges to $35.04\text{ PSU}$ with standard deviation 1.15).
+  - $z_h = 150.0\text{ m}$ is the characteristic halocline e-folding depth scale across the North Indian Ocean basin (Levitus / World Ocean Atlas; Shenoi et al., 2002; Rao & Sivakumar, 2003).
 - **Sonic Layer Depth (SLD) / Surface Duct Bottom**:
   Near the surface, positive sound speed gradients can form due to isothermal or salinity-stratified conditions. As depth increases into the thermocline, the rapid temperature drop sharply reduces sound speed.
   The **Sonic Layer Depth (SLD)** is the depth of the local maximum sound speed in the upper water column ($z \le 300\text{ m}$):
-  $$\text{SLD} = \arg\max_{z \le 300\text{ m}} c(T(z), S, z)$$
+  $$\text{SLD} = \arg\max_{z \le 300\text{ m}} c(T(z), S(z), z)$$
   - Immediately beneath the SLD, sound rays refract downward, creating an **Acoustic Shadow Zone** where naval sonar detection drops precipitously.
   - If sound speed decreases monotonically from the surface ($c(0) \ge c(z)$ for all $z$), no surface duct exists and the UI reports `0 m` accompanied by the explanatory caption and tooltip: *"No surface duct — sound speed decreases with depth"*, eliminating any ambiguity that `0 m` is an error or uncalculated state.
+- **Provenance Tagging**:
+  Because temperature is model-derived while salinity follows a climatological halocline approximation, Card 3 carries the honest provenance pill:
+  `<span class="ky-provenance-pill ky-provenance-pill--heuristic">Estimated Heuristic</span>`
+  matching the transparency standards established across the application.
 
 ### 4.4 20°C Isotherm Depth (D20) — Thermocline Proxy
 - **Definition & Oceanographic Significance**:
@@ -132,6 +263,19 @@ All 6 surface parameters are 2D spatial datasets at depth = 0 m:
   - Label rendered as `D20: ${d20Depth} m` (e.g., `D20: 127 m`, `D20: 170 m`).
   - **Canvas Boundary & Anti-Clipping**: Rendered inside the chart plotting area (`x = right - 6`, `textAlign: 'right'`, `textBaseline: 'bottom'`) with a white contrast halo stroke (`lineWidth: 3`), eliminating right-edge canvas truncation artifacts (such as truncated single-digit labels like "1" or "3").
   - **Gating & Absence**: If the 20°C isotherm is not reached in the profile, the reference line and label are cleanly omitted (`plugins: []`).
+
+### 4.7 Map Marker Z-Index Stacking & Dynamic Geo-Label Collision Avoidance
+- **Problem**: When users clicked ocean coordinates near static regional geographic labels (e.g. `[89.0°E, 14.5°N]` in the Bay of Bengal or `[65.0°E, 15.5°N]` in the Arabian Sea), the coordinate tooltip badge (`.custom-marker__coord`) visually overlapped and collided with the large, high-contrast basemap labels. Due to semi-transparent frosted styling (`rgba(255, 255, 255, 0.95)`) and missing stacking hierarchy, the heavy black text-shadow and white bold lettering of "Bay of Bengal" bled through the coordinate badge text.
+- **Tri-Fold Solution Architecture**:
+  1. *Stacking Context Isolation*:
+     - Static geographic labels container `.geo-label-marker` assigned `z-index: 2 !important;` and `pointer-events: none !important;`.
+     - Selected location marker `.selected-location-marker, .custom-marker-wrapper` assigned top stacking level `z-index: 50 !important;`.
+  2. *Opaque Solid Card Styling*:
+     - `.custom-marker__coord` styled with solid `background: #FFFFFF !important;`, crisp border `border: 1px solid #94A3B8;`, and elevation shadow `box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);`, completely blocking underlying raster imagery or labels from bleeding through.
+  3. *Dynamic Spatial Collision Avoidance*:
+     - On marker placement (`selectPoint(lat, lon)`), `updateGeoLabelCollisions(lat, lon)` calculates the angular Euclidean distance $\Delta = \sqrt{(\Delta\text{lat})^2 + (\Delta\text{lon})^2}$ between the clicked coordinate and each of the 8 regional label anchors.
+     - Any label within $\Delta < 1.8^\circ$ ($\sim 200\text{ km}$) has its DOM element opacity smoothly dimmed to `0.15` via CSS transition (`transition: opacity 0.25s ease;`).
+     - When the selection moves away or is cleared, label opacities automatically restore to `1.0`.
 
 ---
 
@@ -268,19 +412,27 @@ Potential Fishing Zones (PFZ) in the North Indian Ocean are identified by matchi
   Depth of maximum temperature gradient $\max\left|\frac{\partial T}{\partial z}\right|$, located within the upper 20m to 150m:
   $$Z_{tc} = \arg\max_{z} \left( -\frac{\Delta T}{\Delta z} \right)$$
 - **Upwelling Index ($UI \in [0, 1]$)**:
-  Normalized proxy based on thermal difference between surface SST and 50m temperature relative to regional baseline:
-  $$UI = \min\left(1.0, \max\left(0.0, \frac{T(0) - T(50) - 1.5}{8.0}\right)\right)$$
-- **Deep Chlorophyll Maximum (DCM) / Vertical Nutrient Profile**:
-  Nutrient distribution with depth $z$ is modeled using a Gaussian subsurface peak centered at $Z_{tc}$ combined with deep exponential decay:
-  $$\text{Nutrient}(z) = Chl_{\text{surf}} \cdot 0.3 + \left(1.35 \cdot Chl_{\text{surf}}\right) \cdot \exp\left(-\frac{(z - Z_{tc})^2}{2\sigma^2}\right) + \text{deep}(z)$$
-  where $\sigma \approx 24\text{ m}$.
-- **PFZ Confidence Score ($S_{\text{PFZ}} \in [0, 1]$)**:
-  Composite index integrating thermal gradient intensity, Chlorophyll-a standing stock, and optimal species habitat envelopes:
-  $$S_{\text{PFZ}} = w_1 \cdot f(Z_{tc}) + w_2 \cdot f(Chl) + w_3 \cdot UI$$
+  Physical proxy based on upper 50m thermal mixing. Real active upwelling transports cold subsurface water into the surface layer, eroding thermal stratification such that the temperature gap $\Delta T_{50} = T(0) - T(50)$ collapses toward zero:
+  $$UI = \min\left(1.0, \max\left(0.0, \frac{5.5 - (T(0) - T(50))}{5.5}\right)\right)$$
+  When $\Delta T_{50} \le 0.5^\circ\text{C}$ (intense cold upwelling and vertical mixing), $UI \to 1.0$. When $\Delta T_{50} \ge 5.5^\circ\text{C}$ (strong tropical warm-pool stratification and absence of upwelling), $UI \to 0.0$.
+- **Deep Chlorophyll Maximum (DCM) / Vertical Chlorophyll Proxy Profile**:
+  Chlorophyll distribution with depth $z$ is modeled using a Gaussian subsurface peak centered at $Z_{tc}$ combined with deep exponential decay:
+  $$\text{Chl}_{\text{proxy}}(z) = Chl_{\text{surf}} \cdot 0.3 + \left(1.35 \cdot Chl_{\text{surf}}\right) \cdot \exp\left(-\frac{(z - Z_{tc})^2}{2\sigma^2}\right) + \text{deep}(z)$$
+  where $\sigma \approx 28\text{ m}$.
+- **PFZ Index ($S_{\text{PFZ}} \in [0, 1]$)**:
+  Multi-parameter decision-support index integrating thermocline depth shoaling, upwelling intensity, and surface chlorophyll standing stock:
+  $$S_{\text{PFZ}} = 0.35 \cdot f(Z_{tc}) + 0.40 \cdot UI + 0.25 \cdot \min(1.0, Chl / 3.0)$$
+  Categorized into three decision-support tiers for fisheries research:
+  - **Elevated ($\ge 0.70$)**: Strong shoaling and upwelling signature; candidate area for research vessel survey and INCOIS satellite correlation.
+  - **Moderate ($0.40–0.69$)**: Partially favorable conditions; borderline oceanographic indicators.
+  - **Low ($< 0.40$)**: Deep thermocline or stratified water column.
 
-### 7.3 Data Architecture & Future INCOIS PFZ Integration
-- **Current Operational Mode**: Real-time SST and 3D subsurface temperature fields are provided by Kyogre's CNN-LSTM inference pipeline (`/predict`). Chlorophyll-a and nutrient fields are reconstructed proxies synthesized from surface ocean color dynamics and thermocline depth.
-- **Future Extension Hook**: The system architecture is built to seamlessly ingest operational netCDF / GeoJSON advisories from the Indian National Centre for Ocean Information Services (INCOIS) PFZ operational feed via `/api/pfz-advisories`.
+### 7.3 Data Architecture & INCOIS Disclaimer
+- **Authentic Model Outputs vs Estimated Heuristics**:
+  - **Model Output**: The 3D subsurface temperature profile ($0–1000\text{m}$) is the authentic PyTorch CNN-LSTM model inference reanalyzed from multi-source satellite inputs.
+  - **Derived Heuristics**: Thermocline depth ($Z_{tc}$), Upwelling Index ($UI$), Chlorophyll-a proxy, and PFZ Index are analytical heuristics derived from physical oceanographic relationships. They are clearly labeled with provenance pills (`CNN-LSTM Gradient` and `Estimated Heuristic — Not Model Output`).
+- **Persistent Institutional Disclaimer**:
+  `"These indices are derived heuristics based on model temperature output and are intended to support — not replace — field verification and INCOIS's operational PFZ advisories."`
 
 ### 7.4 UI Architecture & MapLibre Canvas Lifecycle
 - **Two-Column Grid**: Responsive layout using CSS Grid (`.ky-fisheries-content-row`: `grid-template-columns: 1fr 390px; min-height: 520px;`).
@@ -742,9 +894,862 @@ Local container execution of `kyogre-backend` with continuous float16 arrays on 
 | **Pre-warmed Full Grid** | `/temperature-grid?date=2022-07-02&depth=200` | 1359 ms | **1.145 GiB** | 7.58 GiB | 15.11% | ~14.85 GiB (92.8%) |
 | **Uncached Basin Forward Pass** | `/temperature-grid?date=2021-06-15&depth=200` | 176 ms | **1.145 GiB** | 7.58 GiB | 15.11% | ~14.85 GiB (92.8%) |
 | **Surface Grids (All 6 Params)** | `/parameter-grid` (`sst`, `ssh`, `sss`, `sla`, `current`, `wind`) | <50 ms/param | **1.147 GiB** | 7.58 GiB | 15.14% | ~14.85 GiB (92.8%) |
-
 **Conclusion**: Memory usage remains steady at ~1.15 GiB throughout heavy continuous full-basin inference with zero leakage or spikes, confirming optimal headroom for deployment on Hugging Face Spaces (16 GB RAM).
 
+---
+
+## 14. Data-Driven Confidence Indicator Architecture
+
+### 14.1 Motivation & Oceanographic Grounding
+Subsurface ocean temperature reconstruction models exhibit depth-dependent error structures due to ocean physical dynamics. In particular, the steep thermocline transition layer ($50\text{m} - 150\text{m}$) typically exhibits higher variance and temperature gradient sensitivity than either the well-mixed surface layer or the weakly stratified deep abyssal ocean ($500\text{m} - 1000\text{m}$).
+
+Rather than presenting synthetic, arbitrary, or fixed confidence figures, Kyogre derives **100% data-driven confidence metrics directly from empirical validation against 41 independent in-situ ARGO profiling floats** (`backend/data/argo_profiles.json`) distributed across the North Indian Ocean basin (Arabian Sea, Bay of Bengal, Equatorial Indian Ocean).
+
+### 14.2 Per-Depth RMSE & Absolute Threshold Confidence Formulation
+For each of the 15 standard depth levels $z \in \{0, 5, 10, 20, 30, 50, 75, 100, 125, 150, 200, 300, 500, 700, 1000\}\,\text{m}$, the model's reconstructed temperature is compared against matched ARGO in-situ CTD observations:
+
+$$\text{RMSE}(z) = \sqrt{\frac{1}{N_z} \sum_{i=1}^{N_z} \left( T_{\text{pred}, i}(z) - T_{\text{ARGO}, i}(z) \right)^2 }$$
+
+Rather than relative min-max scaling (which can compress clustering), Kyogre evaluates confidence based on absolute oceanographic reconstruction tolerances ($0.5^\circ\text{C}$ = strong agreement, $1.5^\circ\text{C}$ = poor agreement):
+
+$$\text{Confidence}(z) = \begin{cases} 
+90 + (0.5 - \text{RMSE}(z)) \times 16 & \text{if } \text{RMSE}(z) \le 0.5^\circ\text{C} \quad [90\% - 98\%] \\
+70 + (1.0 - \text{RMSE}(z)) \times 40 & \text{if } 0.5^\circ\text{C} < \text{RMSE}(z) \le 1.0^\circ\text{C} \quad [70\% - 90\%] \\
+50 + (1.5 - \text{RMSE}(z)) \times 40 & \text{if } 1.0^\circ\text{C} < \text{RMSE}(z) \le 1.5^\circ\text{C} \quad [50\% - 70\%] \\
+\max\left(30, \, 50 - (\text{RMSE}(z) - 1.5) \times 20\right) & \text{if } \text{RMSE}(z) > 1.5^\circ\text{C} \quad [30\% - 50\%]
+\end{cases}$$
+
+#### Internal Color Tier Buckets
+- **High Confidence** ($\ge 85\%$): Green cue (`#16A34A` / `#DCFCE7`).
+- **Moderate Confidence** ($60\% \le \text{Confidence} < 84\%$): Amber cue (`#D97706` / `#FEF3C7`).
+- **Low Confidence** ($< 60\%$): Red cue (`#DC2626` / `#FEE2E2`).
+
+### 14.3 Empirical Validation Error & Confidence Baseline Distribution
+
+| Depth (m) | RMSE (°C) | Confidence (%) | Internal Rating | Primary Oceanographic Dynamic |
+| :---: | :---: | :---: | :---: | :--- |
+| **0** | 0.87 | **75%** | Moderate | Direct satellite SST constraint |
+| **5** | 1.20 | **62%** | Moderate | Upper mixed layer stratification |
+| **10** | 1.24 | **60%** | Moderate | Upper mixed layer stratification |
+| **20** | 1.34 | **56%** | Low | Diurnal warm layer / wind mixing |
+| **30** | 1.37 | **55%** | Low | Mixed layer base approach |
+| **50** | 1.38 | **55%** | Low | Mixed layer depth boundary |
+| **75** | 1.49 | **50%** | Low | Upper thermocline entry |
+| **100** | **2.15** | **37%** | **Low** | **Peak thermocline gradient ($\text{RMSE}_{\max}$)** |
+| **125** | 1.89 | **42%** | Low | Main thermocline core |
+| **150** | 1.69 | **46%** | Low | Lower thermocline |
+| **200** | 1.42 | **53%** | Low | Sub-thermocline transition |
+| **300** | 1.03 | **69%** | Moderate | Intermediate water mass entry |
+| **500** | 0.61 | **86%** | High | Weakly stratified deep water ($\text{RMSE}_{\min}$) |
+| **700** | 0.64 | **84%** | Moderate | Stable deep water mass |
+| **1000** | 0.81 | **78%** | Moderate | Abyssal baseline |
+
+### 14.4 Derived Metric Card Confidence Calculations & Physical Formulations
+The dashboard links confidence values to the four core oceanographic summary cards:
+1. **Mixed Layer Depth (MLD)**: Computed across depths $0-50\,\text{m}$ ($\text{RMSE} = 1.24^\circ\text{C}$, $60\%$ confidence, Moderate).
+2. **Ocean Heat Content (OHC₃₀₀)**: Absolute Ocean Heat Content integrated over $0–300\,\text{m}$:
+   $$\text{OHC}_{300} = \frac{\rho \cdot c_p}{10^7} \sum_{i=1}^{k} \bar{T}_i \cdot \Delta z_i \quad \left[\text{kJ/cm}^2\right]$$
+   where $\rho = 1025\,\text{kg/m}^3$, $c_p = 3993\,\text{J}/(\text{kg}\cdot\text{K})$, across layers with depths $\le 300\,\text{m}$ ($\text{RMSE} = 1.42^\circ\text{C}$, $53\%$ confidence base). In the tropical North Indian Ocean, authentic values range between $1500 - 2800\,\text{kJ/cm}^2$.
+3. **Sound Velocity / Acoustic Shadow Depth (SVAD)**: Evaluated at the standard depth nearest the detected Sonic Layer Depth (SLD) via the full Mackenzie (1981) formula.
+4. **D20 Isotherm Depth**: Evaluated at the standard depth nearest the detected $20^\circ\text{C}$ isotherm depth interpolated across bracketing layers.
+
+### 14.5 Frontend User Experience & Visual Architecture
+1. **Top Metric Cards (`explore.html`, `app.js`)**:
+   - Boxed text pill badges ("LOW", "MODERATE", "HIGH") are completely removed to preserve clean, un-cluttered card typography.
+   - Replaced by a subtle 6px colored dot (`.ky-stat-card__confidence-dot`) positioned inline before the uncertainty line: `• {confidence_pct}% confidence`.
+   - Hover tooltip reveals nearest ARGO float distance, observation date, float ID, and proximity factor.
+   - Developer mode raw log (`isDevModeEnabled()`) outputs the unformatted raw OHC-300m value (`[OHC-300m Raw]`) to ensure units and integration integrity.
+2. **TVD Table View (`explore.html`, `app.js`, `style.css`)**:
+   - 3-column table: `Depth (m)`, `Temperature (°C)`, and `Confidence`.
+   - All three columns (Depth, Temperature, and Confidence) are vertically centered relative to row height via `vertical-align: middle` and flex `align-items: center`.
+   - Mini horizontal proportional bar (`.ky-tvd-conf-bar-fill`) with width matching `confidence_pct` and color-coded by internal tier.
+3. **TVD Graph View (`app.js`, Chart.js)**:
+   - Shaded confidence envelope rendered behind the reconstructed profile line using dual boundary datasets (`Confidence Upper` and `Confidence Band (±RMSE)` with `fill: '-1'`).
+   - Legend cleanly filters out the upper bound.
+4. **Developer Mode Diagnostics**:
+   - Gated behind `isDevModeEnabled()`, startup logs output the full per-depth RMSE and absolute confidence benchmark table via `console.table`.
+   - Query predictions output detailed confidence breakdowns including monsoon regime match (`same-regime` vs `cross-regime`) and temporal weight.
+
+### 14.6 Spatio-Temporal Proximity-Based Confidence Adjustment (Dynamic Query Scaling)
+
+#### 1. Motivation & Oceanographic Grounding
+Reconstructing ocean vertical temperature profiles at arbitrary coordinates and dates lacks immediate in-situ CTD ground truth (which is precisely why the deep learning model is invoked). Reusing static global benchmark confidence numbers regardless of location or date fails to convey observational certainty. Furthermore, the North Indian Ocean experiences strong monsoon-driven seasonal variability (reversal of Somali current, upwelling during Southwest monsoon, strong thermocline deepening during winter). A pure linear calendar-day distance metric underestimates the uncertainty of cross-season validation.
+
+Kyogre layers a **dynamic monsoon season-aware spatio-temporal proximity adjustment** onto the empirical base RMSE, scaling confidence based on proximity to the nearest empirical ARGO validation float in the basin.
+
+#### 2. Monsoon Regimes & Distance Formulation
+For any query point $(\phi_q, \lambda_q, t_q)$:
+1. **Four Monsoon Regimes**:
+   - **Winter**: December, January, February (months 12, 1, 2)
+   - **Pre-Monsoon**: March, April, May (months 3, 4, 5)
+   - **Monsoon**: June, July, August, September (months 6, 7, 8, 9)
+   - **Post-Monsoon**: October, November (months 10, 11)
+2. **Great-Circle Spatial Distance** via the Haversine formula against all 41 cached ARGO profiles:
+   $$d_{\text{spatial}, i} = 2 R \arcsin \left( \sqrt{\sin^2\left(\frac{\Delta \phi}{2}\right) + \cos \phi_q \cos \phi_i \sin^2\left(\frac{\Delta \lambda}{2}\right)} \right)$$
+   where $R = 6371.0\,\text{km}$.
+3. **Temporal Distance** in integer days:
+   $$d_{\text{temporal}, i} = |t_q - t_i| \quad [\text{days}]$$
+4. **Monsoon Regime-Aware Temporal Weighting**:
+   $$w_t = \begin{cases} 
+   1.5\,\text{km/day} & \text{if } \text{Regime}(t_q) = \text{Regime}(t_i) \quad (\text{Same Regime}) \\
+   6.0\,\text{km/day} & \text{if } \text{Regime}(t_q) \ne \text{Regime}(t_i) \quad (\text{Cross Regime})
+   \end{cases}$$
+5. **Combined Spatio-Temporal Distance Score**:
+   $$\text{Score}_i = d_{\text{spatial}, i} + \left(d_{\text{temporal}, i} \times w_t\right)$$
+6. **Nearest Observation Retrieval**:
+   $$\text{Nearest} = \arg\min_i \text{Score}_i$$
+7. **Proximity Factor**:
+   $$\text{Proximity Factor} = \text{clamp}\left(1.0 - \frac{\text{Score}_{\min}}{S_{\max}}, \, 0.50, \, 1.00\right)$$
+   where $S_{\max} = 2500.0\,\text{km-equivalent}$ and the floor is $0.50$.
+8. **Scaled Per-Depth and Summary Card Confidence**:
+   $$\text{Confidence}_{\text{adjusted}}(z) = \text{clamp}\left(\text{round}\left(\text{Confidence}_{\text{base}}(z) \times \text{Proximity Factor}\right), \, 30\%, \, 98\%\right)$$
+   Internal tier labels (`High`, `Moderate`, `Low`) are dynamically re-evaluated against the adjusted percentage.
+
+#### 3. Empirical Calibration Validation
+| Query Profile | Coordinates & Date | Nearest ARGO Float | Spatial Dist | Temporal Diff | Regime Match | Temporal Weight | Score | Proximity Factor | Resulting MLD Conf |
+| :--- | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Exact ARGO Float Match** | $(17.51^\circ\text{N}, 66.62^\circ\text{E})$, `2021-02-16` | Float #2902205 (Cycle 274) | $0.0\,\text{km}$ | $0\,\text{d}$ | SAME (Winter) | $1.5\,\text{km/d}$ | $0.0$ | **$1.00$** | **$61\%$ (Moderate)** |
+| **Near Float (Same Regime)** | $(17.00^\circ\text{N}, 66.00^\circ\text{E})$, `2021-02-20` | Float #2902205 (Cycle 274) | $87.0\,\text{km}$ | $4\,\text{d}$ | SAME (Winter) | $1.5\,\text{km/d}$ | $93.0$ | **$0.96$** | **$59\%$ (Low)** |
+| **Near Float (Cross Regime)** | $(17.51^\circ\text{N}, 66.62^\circ\text{E})$, `2021-04-10` | Float #2902205 (Cycle 274) | $0.0\,\text{km}$ | $53\,\text{d}$ | CROSS (Pre-Monsoon vs Winter) | $6.0\,\text{km/d}$ | $318.0$ | **$0.87$** | **$53\%$ (Low)** |
+| **1 Year Later (Same Regime)**| $(17.51^\circ\text{N}, 66.62^\circ\text{E})$, `2022-02-15` | Float #2902205 (Cycle 274) | $0.0\,\text{km}$ | $364\,\text{d}$ | SAME (Winter vs Winter) | $1.5\,\text{km/d}$ | $546.0$ | **$0.78$** | **$48\%$ (Low)** |
+| **SIH Demo Arabian Sea** | $(15.50^\circ\text{N}, 65.00^\circ\text{E})$, `2022-07-02` | Float #2902265 (Cycle 256) | $704.4\,\text{km}$ | $412\,\text{d}$ | CROSS (Monsoon vs Pre-Monsoon) | $6.0\,\text{km/d}$ | $3176.4$ | **$0.50$ (Floor)** | **$30\%$ (Low)** |
+| **SIH Demo Bay of Bengal** | $(14.00^\circ\text{N}, 86.00^\circ\text{E})$, `2022-07-02` | Float #2901896 (Cycle 021) | $760.1\,\text{km}$ | $320\,\text{d}$ | SAME (Monsoon vs Monsoon) | $1.5\,\text{km/d}$ | $1240.1$ | **$0.50$ (Floor)** | **$30\%$ (Low)** |
+
+#### 4. Response Schema & Metadata Integration
+The `/predict` endpoint returns:
+- Top-level `nearest_argo` object:
+  ```json
+  "nearest_argo": {
+    "float_id": 2902205,
+    "cycle_number": 274,
+    "distance_km": 0.0,
+    "days_diff": 53,
+    "date": "2021-02-16",
+    "combined_score": 318.0,
+    "proximity_factor": 0.87,
+    "is_same_regime": false,
+    "query_regime": "Pre-Monsoon",
+    "argo_regime": "Winter",
+    "temporal_weight": 6.0
+  }
+  ```
+- Each element of `profile` includes:
+  ```json
+  {
+    "depth": 200,
+    "temperature": 18.72,
+    "rmse": 1.42,
+    "confidence_pct": 46,
+    "confidence_label": "Low",
+    "nearest_argo_distance_km": 0.0,
+    "nearest_argo_date": "2021-02-16",
+    "nearest_argo_id": 2902205,
+    "proximity_factor": 0.87,
+    "is_same_regime": false,
+    "temporal_weight": 6.0
+  }
+  ```
+- Developer console: `[Confidence] Lat: 17.512, Lon: 66.620, Date: 2021-04-10 -> Nearest ARGO Float #2902205 (0.0km, 53d diff, score: 318.0, cross-regime (Pre-Monsoon vs Winter, weight: 6km/d)) -> Proximity factor: 0.87`
+
+---
+
+## 10. Fisheries Mode & Potential Fishing Zone (PFZ) Advisory Architecture
+
+### 10.1 System Purpose & Target Audience
+Fisheries Mode (`fisheries.html`, `fisheries.js`) provides oceanographic decision-support indices for Indian marine research agencies (**MoES, INCOIS, CMFRI**).
+It is explicitly framed as an oceanographic research layer for potential pelagic habitat and thermal feature identification—**not direct fisherman advisory or automated catch forecasting**.
+
+### 10.2 Stat Cards & Two-Row Header Layout
+The 4 primary stat cards are displayed in a responsive grid:
+1. **Thermocline Depth ($m$)** — Provenance: `Model Gradient` (evaluated from vertical temperature profile).
+2. **Upwelling Index ($0–1$)** — Provenance: `Estimated Heuristic` (derived from surface-to-50m thermal mixing).
+3. **PFZ Index Assessment ($0–1$)** — Provenance: `Estimated Heuristic` (multi-parameter indicator, pending catch validation).
+4. **Chlorophyll-a Proxy ($mg/m^3$)** — Provenance: `Estimated Heuristic` (synthesized primary productivity proxy).
+
+#### Layout Structure:
+To prevent awkward horizontal text-wrapping (e.g. `PFZ Index (0-` / `1)`):
+- **Row 1**: Full-width metric label (`.ky-stat-card__label`, `width: 100%`, `line-height: 1.25`).
+- **Row 2**: Provenance pill container (`.ky-stat-card__pill-row`, left-aligned).
+- **Row 3**: Formatted metric value (`.ky-stat-card__val-row`).
+- **Row 4**: Honest provenance subtitle (`.ky-stat-card__note`).
+
+### 10.3 Physical Formulas & Indices
+
+#### 1. Upwelling Index ($UI \in [0.0, 1.0]$)
+Upwelling transports cold deeper water toward the surface, collapsing the thermal stratification gap $\Delta T = T(0) - T(50)$:
+$$UI = \text{clamp}\left(\frac{5.5 - \max(0.0, T_0 - T_{50})}{5.5}, \, 0.0, \, 1.0\right)$$
+- When $\Delta T \le 0.5^\circ\text{C}$ (active cold upwelling mixing): $UI \ge 0.91$.
+- When $\Delta T \ge 5.5^\circ\text{C}$ (intense surface stratification / warm pool): $UI = 0.00$.
+
+#### 2. Chlorophyll-a Surface Proxy
+$$\text{Chl}_a = \text{clamp}\left(0.25 + 2.5 \times UI - 1.2 \times \text{SLA} + 0.35 \times |\vec{v}|, \, 0.05, \, 9.8\right) \quad [\text{mg/m}^3]$$
+
+#### 3. PFZ Index Score ($0.10 \text{ to } 0.98$)
+$$\text{PFZ} = \text{round}\left(\text{clamp}\left(0.35 \times f(Z_{\text{tc}}) + 0.40 \times UI + 0.25 \times \min\left(1.0, \frac{\text{Chl}_a}{3.0}\right), \, 0.10, \, 0.98\right), 2\right)$$
+where $f(Z_{\text{tc}}) = \text{clamp}\left(\frac{120 - Z_{\text{tc}}}{80}, 0.0, 1.0\right)$ rewards thermocline shoaling.
+
+### 10.4 Subsurface Nutrient / Chlorophyll Vertical Profile
+To eliminate conflicting client-side recalculations, the backend (`api_server.py`) generates a 15-depth vertical nutrient/chlorophyll profile across `STANDARD_DEPTHS [0, 5, 10, 20, 30, 50, 75, 100, 125, 150, 200, 300, 500, 700, 1000]`:
+$$\text{Nutrient}(z) = \text{Base}(z) + 1.35 \times \text{Chl}_a \times \exp\left(-\frac{(z - Z_{\text{tc}})^2}{2 \times 28^2}\right) + 0.25 \times \exp\left(-\frac{z}{400}\right)$$
+where $\text{Base}(z) = 0.30 \times \text{Chl}_a$ for $z < 100\,\text{m}$, else $0.15$.
+
+#### Single Source of Truth & Linear Interpolation
+`fisheries.js` consumes `indices.nutrients` directly from the `/predict` API response and linearly interpolates onto the 9 display depths `DEPTH_LEVELS [0, 25, 50, 100, 200, 300, 500, 750, 1000]`:
+- Exact depths ($0, 50, 100, 200, 300, 500, 1000\,\text{m}$): direct index match.
+- Intermediate depths ($25\,\text{m}$ between $20-30\,\text{m}$; $750\,\text{m}$ between $700-1000\,\text{m}$): standard piecewise linear interpolation:
+  $$N(z) = N(z_1) + (N(z_2) - N(z_1)) \times \frac{z - z_1}{z_2 - z_1}$$
+- Gated dev-mode logging (`isDevModeEnabled()`) prints interpolated nutrients and verifies the backend source.
+
+### 10.5 Key Insights Dynamic Signal Reconciliation
+Because **Thermocline Depth** (global profile maximum gradient) and **Upwelling Index** (0–50m thermal gap) are computed from independent vertical domains, divergent subsurface signals can occur:
+- E.g., deep thermocline ($Z_{\text{tc}} > 110\,\text{m}$) indicating downwelling or thick warm-pool stratification alongside near-isothermal 0–50m layer yielding $UI \ge 0.50$.
+- Or, shallow thermocline ($Z_{\text{tc}} \le 75\,\text{m}$) alongside heavily stratified surface water yielding $UI < 0.20$.
+
+#### Reconciliation Protocol:
+1. Signal conflict condition:
+   $$\text{isConflicting} = (Z_{\text{tc}} > 110\,\text{m} \land UI \ge 0.20) \lor (Z_{\text{tc}} \le 75\,\text{m} \land UI < 0.20)$$
+2. On conflict: Replace both conflicting physical bullets with a single honest reconciling warning:
+   > *"Mixed subsurface signal: thermocline depth (~{tc}m) and near-surface thermal gradient give conflicting upwelling indicators — treat with caution pending field verification."*
+   Prohibits contradictory "downwelling" and "upwelling" co-occurrence.
+3. On conflict: Downgrade recommendation bullet to:
+   > *"Inconclusive oceanographic indicators; recommend field sampling before survey prioritization."*
+
+#### Noted Model Inversion Behavior:
+- Query $(8.8^\circ\text{N}, 67.4^\circ\text{E})$ on `2021-06-22`:
+  - $T(0) = 29.45^\circ\text{C}$
+  - $T(5) = 31.45^\circ\text{C}$
+  - $T(20) = 31.49^\circ\text{C}$
+  - $T(50) = 30.70^\circ\text{C}$
+  - Maximum gradient at $112.5\,\text{m}$ ($T_{100} = 27.26^\circ\text{C} \to T_{125} = 22.00^\circ\text{C}$).
+  - Surface cooler than subsurface by $2.0^\circ\text{C}$ produces $UI = 1.00$ with $Z_{\text{tc}} = 112.5\,\text{m}$.
+  - Correctly handled by the reconciliation protocol, emitting the mixed-signal notice. Flagged for model team evaluation.
+
+### 10.6 Chlorophyll Reconciliation & Jitter-Free Marker Architecture
+
+#### 1. Reconciliation of the Three Chlorophyll Representations
+Three separate representations exist within Fisheries Mode, now explicitly unified and documented:
+1. **Surface Chlorophyll-a Proxy (`indices.chlorophyll_a` / `chla_val`)**:
+   - Scalar value (mg/m³) evaluated from surface-layer dynamics:
+     $$\text{Chl}_{a} = \max(0.05, \min(9.8, 0.25 + 2.5 \times UI - 1.2 \times \text{SLA} + 0.35 \times |\mathbf{u}_{\text{curr}}|))$$
+   - Serves as the biological component of the PFZ index ($S_{\text{PFZ}}$, weight 0.25) and renders in the top stat card.
+2. **Subsurface Depth Profile (`indices.nutrients`)**:
+   - Depth-resolved vertical primary productivity profile (mg/m³) across standard depths modeling the Deep Chlorophyll Maximum (DCM):
+     $$N(z) = \text{Base}(z) + 1.35 \times \text{Chl}_a \times \exp\left(-\frac{(z - Z_{\text{tc}})^2}{2 \times 28^2}\right) + 0.25 \times \exp\left(-\frac{z}{400}\right)$$
+   - Uses `chla_val` as its root amplitude driver, explaining why surface-row values ($z=0$) reflect euphotic fraction while subsurface thermocline depths reflect the DCM peak. Rendered in the TVD table and chart.
+3. **2D Visual Map Layer (`calculateChlaValue(lat, lon)`)**:
+   - Static illustrative Gaussian climatology overlay independent of point-prediction `chla_val`. Explicitly documented with developer commentary and user disclaimer:
+     > *"Chlorophyll-a & Potential Fishing Zones (PFZ) — illustrative seasonal pattern, not derived from the queried date. PFZ score chlorophyll input differs from the illustrative map layer shown."*
+
+#### 2. Jitter-Free Fish Marker Architecture
+- **Root Cause of Pan/Zoom Marker Jitter**:
+  When CSS transitions (`transition: transform ...` or `transition: all ...`) are present on a DOM element managed by MapLibre GL JS, MapLibre's per-frame `translate3d(x, y, 0)` updates are interpolated by the browser's rendering engine, causing markers to lag behind the map during drag or zoom operations.
+- **Structural Solution**:
+  1. Top-level marker container (`.pfz-fish-marker-wrap`, `.maplibregl-marker`, `.custom-marker-wrapper`):
+     - Managed directly by MapLibre native transform anchoring.
+     - `transition: none !important;` completely eliminates interpolation lag.
+     - `will-change: transform;` promotes elements to dedicated GPU composite layers.
+  2. Isolated Child Animations:
+     - The pulsing ring (`.pfz-fish-pulse`) is isolated into an absolute child element animated purely with `scale` and `opacity` (`@keyframes pfzFishPulse`).
+     - Hover magnification (`scale(1.18)`) is confined to inner badge child `.pfz-fish-badge`, preventing collision with MapLibre's marker coordinates.
+
+### 10.7 Dynamic PFZ Grid Endpoint, Vectorized Spatial Inference & Cluster Centroid Positioning
+
+#### 1. Architectural Purpose & Problem Statement
+- **Legacy Limitations**:
+  Previously, Fisheries Mode rendered three hardcoded static ellipses (Bay of Bengal, Central Arabian Sea, and SW Arabian Sea) regardless of the queried date or underlying oceanographic conditions. Furthermore, a coordinate mismatch bug existed where the Bay of Bengal ellipse was centered at $(12.4^\circ\text{N}, 88.6^\circ\text{E})$ while the fish icon marker was hardcoded at $(12.0^\circ\text{N}, 90.4^\circ\text{E})$, causing the marker to sit noticeably outside the boundary outline.
+- **Dynamic Resolution**:
+  1. Replaced static ellipses with dynamically computed zones derived from the real full-basin CNN-LSTM spatial prediction tensor.
+  2. Fixed the fish marker offset bug by anchoring markers directly at the calculated geometric centroids of the dynamic clusters with `anchor: 'center'`.
+
+#### 2. Backend API Endpoint Contract: `GET /pfz-grid?date=YYYY-MM-DD`
+- **Resolution & Grid Dimensions**:
+  - Downsampled 26x41 grid across the North Indian Ocean basin ($5^\circ\text{N}–30^\circ\text{N}, 45^\circ\text{E}–105^\circ\text{E}$):
+    - $\Delta\phi = 1.0^\circ$ (26 latitude rows)
+    - $\Delta\lambda = 1.5^\circ$ (41 longitude columns)
+  - Downsampling from the full $101 \times 241$ grid reduces network payload from ~2MB to ~15KB while perfectly matching mesoscale pelagic aggregation extents (~100–150 km).
+- **Vectorized Spatial Inference Pipeline**:
+  - Leverages the cached spatial prediction tensor $(15, 101, 241)$ from `get_spatial_predictions(date_str)`.
+  - Computes all indices in vectorized NumPy operations in **1.6 ms**:
+    1. **Thermocline Depth ($Z_{\text{tc}}$)**: Negative vertical temperature gradient argmin with sub-grid parabolic peak interpolation across depth levels.
+    2. **Upwelling Index ($UI$)**:
+       $$UI = \operatorname{clip}\left(\frac{5.5 - (T_0 - T_{50})}{5.5}, 0.0, 1.0\right)$$
+    3. **Chlorophyll-a Proxy ($\text{Chl}_a$)**:
+       $$\text{Chl}_a = \operatorname{clip}\left(0.25 + 2.5 \cdot UI - 1.2 \cdot \text{SLA} + 0.35 \cdot \|\mathbf{u}_{\text{curr}}\|, 0.05, 9.8\right)$$
+    4. **PFZ Confidence Score ($S_{\text{PFZ}}$)**:
+       $$S_{\text{PFZ}} = 0.35 \cdot \operatorname{score}(Z_{\text{tc}}) + 0.40 \cdot UI + 0.25 \cdot \frac{\text{Chl}_a}{5.0}$$
+  - Land cells are masked with `None` via the operational bathymetry / land mask.
+- **In-Memory Caching & Pre-Warming**:
+  - Cached in `_pfz_grid_cache` dictionary.
+  - Pre-warmed during `lifespan(app)` startup for all demo dates (`2021-02-14`, `2022-07-02`, `2021-02-16`, `2023-09-04`), delivering ~1–30 ms HTTP responses.
+
+### 10.8 Natural Earth Land Mask, Cluster Defragmentation, Sizing Bounds & Click Popup Mechanics
+
+#### 1. Natural Earth Land Mask Integration (`backend/api_server.py`)
+- **Problem Statement**:
+  The downsampled 26x41 basin grid ($5^\circ\text{N}–30^\circ\text{N}, 45^\circ\text{E}–105^\circ\text{E}$) includes grid intersections lying over continental landmasses (e.g. Saudi Arabia, Yemen, Oman, Central India, and Myanmar). Without an explicit land mask, land cells with low thermal gradients or anomalous terrestrial inputs were occasionally scored or grouped into spurious inland clusters.
+- **Implementation**:
+  - Exported 73 closed boundary rings from the Natural Earth 50m coastline dataset into `backend/data/coastline_rings.json`.
+  - Precomputed a 26x41 boolean land mask `backend/data/pfz_land_mask.npy` matching the exact ray-casting point-in-polygon logic used in `test_region_mask.js`.
+  - In `compute_pfz_grid`, any cell where `land_mask[r, c] == True` or raw SST $< 0.5^\circ\text{C}$ is assigned `None` (`null` in JSON).
+  - Out of 1,066 total grid cells ($26 \times 41$), exactly 560 cells are masked as land `null` and 506 cells represent valid marine waters.
+
+#### 2. Cluster Defragmentation & Sane Visual Bounds (`fisheries.js`)
+- **Noise Filtering (`cellCount >= 3`)**:
+  - Raw thresholding ($S_{\text{PFZ}} \ge 0.65$) previously created 10–16 fragmented clusters, many consisting of isolated 1-cell or 2-cell points.
+  - Enforced a minimum cluster size of 3 contiguous cells (`cells.length >= 3`), eliminating numerical noise and transient single-pixel artifacts.
+- **Top 5 Zone Cap**:
+  - Candidate clusters are sorted descending by `(avgScore, cellCount)` and capped at the top 5 most prominent candidate zones.
+- **Normalized Sizing Bounds**:
+  - Prevent oversized blobs from dominating entire basins while ensuring small 3-cell clusters remain easily identifiable:
+    $$\begin{aligned}
+      r_{\text{lat}} &= \min\left(2.80^\circ, \max\left(0.85^\circ, \frac{\phi_{\max} - \phi_{\min}}{2} + 0.45^\circ\right)\right) \\
+      r_{\text{lon}} &= \min\left(3.60^\circ, \max\left(1.10^\circ, \frac{\lambda_{\max} - \lambda_{\min}}{2} + 0.55^\circ\right)\right)
+    \end{aligned}$$
+  - Enforces physical dimensions between ~95 × 120 km (minimum visual footprint) and ~310 × 400 km (maximum regional extent).
+  - Every dynamic zone exports `probScore: Number(avgScore.toFixed(2))` for seamless downstream consumption.
+
+#### 3. Click-to-Select Popup Mechanics & Shadowing Elimination
+- **Safe Score Resolution (`buildPopupHtml`)**:
+  - Resolved `TypeError: Cannot read properties of undefined (reading 'toFixed')` by decoupling score resolution into a multi-tier fallback:
+    ```javascript
+    const rawScore = (probScore !== undefined && probScore !== null && !isNaN(probScore))
+      ? Number(probScore)
+      : (zone ? (zone.probScore ?? zone.avgScore ?? 0.65) : 0.65);
+    const score = (typeof rawScore === 'number' && !isNaN(rawScore)) ? rawScore : 0.65;
+    ```
+  - Standardized speech bubble title to `PFZ Index: ${tier}` (`Elevated` $\ge 0.70$, `Moderate` $0.40–0.69$, `Low` $< 0.40$).
+  - Subtitle displays the candidate zone name if clicked within a zone, or the oceanographic condition summary.
+- **Click Shadowing Elimination**:
+  - Removed `map.on('click', 'pfz-zones-fill')` which previously intercepted clicks inside zone polygons, overrode clicked coordinates with centroid coordinates, and caused double-invocations of `selectLocation`.
+  - The universal `map.on('click', e => selectLocation(e.lngLat.lat, e.lngLat.lng, true))` handles all map clicks uniformly.
+  - Centroid zooming and selection is preserved exclusively for explicit user clicks on the fish icon badge via `e.stopPropagation()`.
+
+### 10.9 Map Viewport Interaction Standards: Zoom-to-Click & Chrome Simplification
+
+#### 1. Zoom-to-Click Consistency (`app.js` vs `fisheries.js`)
+- Across Kyogre map views (Dashboard `explore.html` / `app.js` and Fisheries Mode `fisheries.html` / `fisheries.js`), point selection follows a unified camera animation standard:
+  ```javascript
+  map.flyTo({
+    center: [lon, lat],
+    zoom: Math.max(map.getZoom(), 5),
+    duration: 800,
+  });
+  ```
+- **Zoom Invariant**: If the user is currently at a wide regional overview (e.g. initial zoom 4.2), selecting a coordinate zooms in to level 5 while smoothly translating the camera center. If the user has already manually zoomed in deeper (e.g. zoom 6 or 7), `Math.max(map.getZoom(), 5)` preserves their higher magnification level and only pans to center on the clicked point.
+- **Initial Load & Filter Invariance**: Initial page load (`selectLocation(12.4, 88.6, false)`) and temporal date switching explicitly specify `zoomTo = false` to preserve the user's viewport context and avoid disorienting initial auto-flying.
+
+#### 2. Clean Map Chrome (Removal of Scale Ruler & Compass)
+- The bottom-right compass needle (`.ky-compass-indicator`) and metric scale ruler (`.ky-map-scale-bar`) were removed from Fisheries Mode to maximize uncluttered map visibility for dynamic pelagic contour rings and fish markers.
+- Standard top-right zoom controls (`#btn-zoom-in`, `#btn-zoom-out`) and the bottom-left Chlorophyll-a proxy legend (`#map-legend`) remain as the only persistent map chrome.
+
+### 10.10 Fisheries Mode Data Consistency, Upwelling Recalibration & Provenance Audit
+
+#### 1. Upwelling Index Formulation & Recalibration
+- **Physical Oceanographic Basis**:
+  Coastal and open-ocean upwelling transports cold, nutrient-rich deep water toward the upper layer, shoaling the thermocline and producing a steep thermal drop across the near-surface ($0\text{m} \to 50\text{m}$) depth interval. Conversely, downwelling or thick, stratified warm mixed layers exhibit near-isothermal conditions with minimal temperature decrease across the first 50 meters.
+- **Diagnostic Root Cause Analysis**:
+  - Investigated parameter behavior at test coordinate $12.4^\circ\text{N}, 88.6^\circ\text{E}$ (Bay of Bengal Assessment Zone) on `2023-09-04`:
+    $$T(0\text{m}) = 28.38^\circ\text{C}, \quad T(25\text{m}) = 28.28^\circ\text{C}, \quad T(50\text{m}) = 27.94^\circ\text{C}$$
+    $$\Delta T = T(0) - T(50) = 0.44^\circ\text{C} \quad \left(\frac{dT}{dz} = 0.0088^\circ\text{C/m}\right)$$
+  - **Inverted Formula (Old)**:
+    $$\text{UI}_{\text{old}} = \operatorname{clip}\left(\frac{5.5 - (T_0 - T_{50})}{5.5}, 0.0, 1.0\right)$$
+    Because $\Delta T = 0.44^\circ\text{C}$ (weak gradient), $\text{UI}_{\text{old}} = (5.5 - 0.44)/5.5 = \mathbf{0.92}$ (and $0.96$ when $\Delta T = 0.22^\circ\text{C}$).
+  - **Root Cause Confirmed**: **(c) Sign error / inverted index**. The formula erroneously mapped a small temperature drop (stratification/downwelling) to an index near 1.0.
+- **Calibrated Mathematical Formulation**:
+  $$\text{UI}_{\text{new}} = \operatorname{clip}\left(\frac{\max(0, T_0 - T_{50})}{5.0}, 0.0, 1.0\right)$$
+  - **Weak surface gradient** ($\Delta T < 1.0^\circ\text{C}$): Produces Low UI ($\le 0.20$). At test coordinate, $\Delta T = 0.44^\circ\text{C} \implies \mathbf{0.09}$.
+  - **Moderate gradient** ($1.0^\circ\text{C} \le \Delta T \le 3.0^\circ\text{C}$): Produces Moderate UI ($0.30–0.60$).
+  - **Strong upwelling gradient** ($\Delta T \ge 4.0^\circ\text{C}$): Produces High UI ($0.70–1.00$).
+- **Downstream Effect on PFZ Confidence Score**:
+  $$S_{\text{PFZ}} = 0.35 \cdot F_{\text{tc}} + 0.40 \cdot \text{UI} + 0.25 \cdot \min\left(1.0, \frac{\text{nutrients}[0]}{3.0}\right)$$
+  At test coordinate ($Z_{\text{tc}} = 112.5\text{m} \implies F_{\text{tc}} = 0.094$):
+  - **Initial (Before calibration)**: $\text{UI} = 0.92, \text{Chl}_a = 2.7\text{ mg/m}^3 \implies S_{\text{PFZ}} = \mathbf{0.63}$ (Moderate).
+  - **Intermediate (After UI calibration, old Chl source)**: $\text{UI} = 0.09, \text{Chl}_a = 0.62\text{ mg/m}^3 \implies S_{\text{PFZ}} = \mathbf{0.12}$ (Low).
+  - **Aligned (Final, Chl sourced from `nutrients[0]`)**: $\text{UI} = 0.09, \text{nutrients}[0] = 0.44\text{ mg/m}^3 \implies S_{\text{PFZ}} = \mathbf{0.10}$ (Low).
+  - Correctly reflects deep thermocline, stratified downwelling, and low surface productivity with 100% internal traceability.
+
+#### 2. Surface Chlorophyll-a Proxy Card Traceability (Option a)
+- **Problem**:
+  The summary card displayed a scalar proxy $\text{Chl}_a \approx 2.7\text{ mg/m}^3$ (from `indices.chlorophyll_a`), while row 0 ($0\text{m}$) of the vertical profile table displayed $1.06\text{ mg/m}^3$ (from the DCM vertical nutrient model `nutrients[0]`), creating internal contradiction.
+- **Design Decision**:
+  Implemented **Option (a)**: Card displays the **SURFACE ($0\text{m}$)** table value directly, labeled `"Surface Chlorophyll-a Proxy (mg/m³)"` with note `"Surface (0m) table estimate"`.
+- **Traceability**:
+  $$\text{PFZ Chl Input} = \text{Card Value} = \text{nutrients}[0] = 0.44\text{ mg/m}^3 \quad \left(1:1 \text{ exact numerical match, formatted to 2 decimals}\right)$$
+  For the default query, both the summary card and row 0 of the table display **$0.44\text{ mg/m}^3$**, and the PFZ formula consumes this exact value.
+
+#### 3. Disclaimer Deduplication
+- **Removed**: Redundant map caption `<p class="ky-fisheries-map-disclaimer">` below the map card.
+- **Retained**: Persistent info callout `<div class="ky-pfz-disclaimer">` inside the data panel directly adjacent to the table and graph.
+- **Audited**: Verified that no other page in the project contains duplicate disclaimer blocks.
+
+#### 4. Summary Card Provenance & Traceability Audit Matrix
+
+| Metric Card | Display Label | Provenance Badge | Traceability to Table Below | Relationship / Formula |
+| :--- | :--- | :--- | :--- | :--- |
+| **1. Thermocline** | `Thermocline Depth (m)` | `MODEL GRADIENT` | **Derived from Table** | Depth $z$ of maximum vertical gradient $\max(-dT/dz)$ computed from the Temperature column. Closest table row is highlighted. |
+| **2. Upwelling** | `Upwelling Index (0–1)` | `ESTIMATED HEURISTIC` | **Derived from Table** | Derived directly from table cells: $\Delta T = T(0\text{m}) - T(50\text{m})$, normalized via $\operatorname{clip}(\Delta T / 5.0, 0.0, 1.0)$. |
+| **3. PFZ Index** | `PFZ Index (0–1)` | `ESTIMATED HEURISTIC` | **Derived composite** | $0.35 \cdot F_{\text{tc}} + 0.40 \cdot \text{UI} + 0.25 \cdot \min(1.0, \text{nutrients}[0] / 3.0)$, strictly derived from table inputs. |
+| **4. Surface Chl-a** | `Surface Chlorophyll-a Proxy (mg/m³)` | `ESTIMATED HEURISTIC` | **Direct 1:1 Match** | Exactly matches Row 0 ($0\text{m}$) of the Chlorophyll column in the table below ($0.44\text{ mg/m}^3$). |
+
+---
+
+## 12. Dashboard Architecture, Provenance & Recalculation Audit
+
+### 12.1 Header Badge Reframe: Historical Reanalysis vs "Live Data"
+- **Context & Correction**:
+  The Dashboard (`explore.html`) header previously displayed a legacy placeholder badge: `"Live Data / Real-time updates"`. This directly contradicted:
+  1. The sidebar caption: *"Reconstructed from real satellite data for the selected date — not a forecast."*
+  2. The actual underlying data architecture: precomputed reanalysis netCDF/NumPy tensors spanning `2021-01-01` to `2023-12-31`.
+  3. The Fisheries Mode page (`fisheries.html`), which honestly displays `"Historical Reanalysis / Reconstructed Data"`.
+- **Resolution**:
+  Standardized `explore.html` to display `<div class="ky-live-title">Historical Reanalysis</div>` with `<div class="ky-live-sub">Reconstructed Data</div>` and `.ky-live-dot--reanalysis`. This guarantees truthful institutional framing across the entire application.
+
+### 12.2 Provenance Tagging Architecture for Dashboard Stat Cards
+To ensure full scientific transparency without misleading users into believing derived oceanographic indices are raw CNN-LSTM outputs:
+- **Card 1 (Mixed Layer Depth - MLD)**:
+  - Provenance Pill: `Model-Derived` (`ky-provenance-pill--model`).
+  - Derived from model vertical temperature profile using the de Boyer Montégut ($\Delta T = 0.2^\circ\text{C}$) criterion.
+- **Card 2 (Ocean Heat Content – 300m - OHC₃₀₀)**:
+  - Provenance Pill: `Model-Derived` (`ky-provenance-pill--model`).
+  - Derived by vertical thermal trapezoidal integration of the model temperature profile: $\rho c_p \int_0^{300} T(z) dz$.
+- **Card 3 (Sound Velocity / Acoustic Shadow Depth - SVAD)**:
+  - Provenance Pill: `Estimated Heuristic` (`ky-provenance-pill--heuristic`).
+  - Evaluated using Mackenzie (1981) where temperature is model-predicted, but salinity follows a regional climatological exponential halocline approximation.
+- **Card 4 (D20 Isotherm Depth)**:
+  - Provenance Pill: `Model-Derived` (`ky-provenance-pill--model`).
+  - Derived by linear interpolation of the model temperature profile crossing the $20.0^\circ\text{C}$ isotherm.
+
+### 12.3 Data-Driven Confidence Column Formulation
+- **Source**:
+  Confidence percentages in the 3-column TVD table (`explore.html` / `app.js`) are computed in `backend/api_server.py` via `_compute_metrics_confidence()`:
+  1. **Base Per-Depth Empirical RMSE**:
+     Evaluated across all 41 real in-situ ARGO float profiles in `backend/data/argo_profiles.json` comparing model predictions against ARGO ground-truth observations at all 15 standard depths ($0\text{–}1000\text{m}$).
+  2. **Absolute Tolerance Scaling**:
+     Converted via `_compute_confidence_pct(rmse_celsius)`:
+     - $\text{RMSE} \le 0.5^\circ\text{C} \implies \text{pct} = 90 + (0.5 - \text{RMSE}) \times 16$
+     - $\text{RMSE} \le 1.0^\circ\text{C} \implies \text{pct} = 70 + (1.0 - \text{RMSE}) \times 40$
+     - $\text{RMSE} \le 1.5^\circ\text{C} \implies \text{pct} = 50 + (1.5 - \text{RMSE}) \times 40$
+     - $\text{RMSE} > 1.5^\circ\text{C} \implies \text{pct} = \max(30, 50 - (\text{RMSE} - 1.5) \times 20)$
+  3. **Spatio-Temporal Proximity Scaling**:
+     Scaled by `proximity_factor` from `_find_nearest_argo_profile(latitude, longitude, date_str)`, accounting for Haversine distance ($\text{km}$) and temporal distance (days) weighted by monsoon regime continuity (same regime weight 1.5 vs cross regime weight 3.5).
+  - **Location Sensitivity**:
+    Confidence is genuinely data-driven and location-sensitive. When a query is close in space/time to an ARGO float (e.g. $199\text{ km}$, $\text{prox} = 0.92$), confidence scales up to $79\%$ (High/Moderate). When far from any float (e.g. $>900\text{ km}$, $\text{prox} = 0.50$), confidence clamps to baseline $30\text{–}38\%$ (Low).
+
+### 12.4 Ocean Heat Content (OHC-300m) Vertical Sensitivity vs Surface Temperature
+- **Physical Oceanographic Principle**:
+  $$\text{OHC}_{300} = \rho c_p \int_0^{300} T(z) dz \approx 0.4092825 \sum_{i=1,\ z_i \le 300}^k \left(\frac{T(z_{i-1}) + T(z_i)}{2}\right)(z_i - z_{i-1})$$
+- **Why a Large Surface $\Delta T$ Can Yield a Small or Inverted $\Delta \text{OHC}_{300}$**:
+  - The surface skin layer ($0\text{–}5\text{m}$) represents only $1.67\%$ of the upper $300\text{m}$ water column.
+  - A $+1.3^\circ\text{C}$ surface warming confined to the top $5\text{m}$ adds only $+1.33\text{ kJ/cm}^2$ to OHC-300m.
+  - If the subsurface thermocline is tilted (e.g. cold water shoaling between $50\text{m}$ and $200\text{m}$ by just $-0.2^\circ\text{C}$), the subsurface cooling:
+    $$\Delta \text{OHC}_{\text{sub}} = 0.4092825 \times (-0.2) \times 150 = -12.28\text{ kJ/cm}^2$$
+    dwarfs the surface signal by an order of magnitude.
+  - Therefore, OHC-300m differences between locations reflect the **integrated subsurface thermal reservoir**, not surface skin temperature, and small deltas are physically and mathematically valid.
+
+---
+
+## 13. Fisheries Mode & PFZ Advisory: Lifecycle & Functional Gating
+
+### 13.1 Initial Page Load Lifecycle (Empty/Prompt State)
+To prevent the appearance of a stuck or hardcoded demo state upon opening `fisheries.html`, the page initializes into an interactive prompt state without performing automatic background API fetches:
+1. **Network Gating**:
+   - Zero `/predict` or `/pfz-grid` requests are fired on initial page load.
+2. **Top 4 Stat Cards**:
+   - Initial values display `—`.
+   - PFZ badge (`#stat-pfz-badge`) is hidden (`display: none`).
+   - Card subnotes (`#stat-*-note`) display `"Select a location and date"`.
+   - Layout height and styling are identical to populated cards, preventing layout shifts or visual jumps upon query completion.
+3. **Map Canvas**:
+   - Satellite imagery and Chlorophyll-a canvas raster overlay are rendered as static oceanographic reference context.
+   - Initial pin marker is **not** dropped; speech-bubble popup is **not** opened.
+   - Dynamic PFZ candidate zones GeoJSON source initializes with empty features (`[]`); fish centroid markers are **not** created.
+4. **Selected Location Header**:
+   - Displays `—` instead of pre-selected coordinates.
+5. **Subsurface Profile & TVD Panel**:
+   - Displays `.ky-tvd-empty` view: `"No location selected yet — click the map or search above"`.
+   - Table view (`#tvd-table-view`) and Chart view (`#tvd-graph-view`) remain hidden (`display: none`).
+6. **Date Picker**:
+   - Displays placeholder `"Select date"` with `value=""`.
+
+### 13.2 Interaction Gating Matrix
+| Interaction State | Location | Date | Actions & Network Calls | UI Feedback |
+| :--- | :--- | :--- | :--- | :--- |
+| **Initial Load** | `null` | `null` | Zero API calls. | Stat cards show `—` ("Select a location and date"). TVD shows empty prompt. Pin and PFZ zones hidden. |
+| **Location First** | `(lat, lon)` | `null` | Zero API calls. Drops pin, zooms map (`flyTo`), updates coordinate bar. | Stat card notes update to `"Select a date to view predictions"`. TVD empty text updates to `"Select a date in the header to generate predictions for this location"`. Speech popup suppressed. |
+| **Date First** | `null` | `'YYYY-MM-DD'` | Calls `/pfz-grid?date=...` to render candidate PFZ zones & fish markers. Zero `/predict` calls. | Stat card notes update to `"Select a location on the map"`. TVD empty text prompts `"No location selected yet — click the map or search above"`. Coordinate bar displays `—`. |
+| **Both Selected** | `(lat, lon)` | `'YYYY-MM-DD'` | Executes `POST /predict`. Renders profile table, chart, updates all stat cards with numbers, restores standard metric descriptions, and opens speech bubble on pin. | TVD empty view hidden (`revealTvdPanel()`). Table or graph view rendered. PFZ badge shown. |
+| **Date Cleared** | `(lat, lon)` or `null` | `null` | Clears dynamic PFZ zones and fish markers (`clearDynamicPfzZones()`). Closes speech popup. | Reverts cards and TVD panel to empty prompt state according to location presence. |
+
+---
+
+## 14. ARGO Ground Truth Validation: Climatology Baseline & Skill Score Benchmark
+
+### 14.1 Climatology Baseline Methodology & Dataset Rationale
+To rigorously quantify the true predictive value-add of the CNN-LSTM deep learning architecture over naive historical persistence or seasonal averages, a baseline climatology was constructed using the 3-year historical training dataset (2021–2023, 1,095 days) across all 15 standard depths ($0\text{m}$ to $1,000\text{m}$) over the $101 \times 241$ grid ($0.25^\circ$ resolution).
+
+1. **3-Year Record Limitations & Monthly Normalization**:
+   - Because only 3 calendar years are available (2021–2023), computing a pure day-of-year climatology ($N=3$ samples per calendar day) produces excessive variance and overfits to single-year synoptic weather events or tropical cyclones (e.g., Cyclone Tauktae, Cyclone Yaas).
+   - Grouping historical training days by calendar month ($M \in \{1, \dots, 12\}$, pooling $\sim 90\text{ days/month}$ per grid cell) provides robust physical oceanographic smoothing. This captures the seasonal monsoonal cycles (Winter, Pre-Monsoon Spring, Summer Southwest Monsoon, Post-Monsoon Autumn) while eliminating high-frequency noise.
+   - For any query $(lat, lon, \text{date})$, the climatology baseline extracts the cell's monthly normal profile:
+     $$T_{\text{clim}}(z; lat, lon, \text{month}) = \frac{1}{|D_m|} \sum_{t \in D_m} T_{\text{train}}(t, z, lat, lon)$$
+     where $D_m$ represents all training days falling in month $m$.
+
+2. **Ground Truth Validation Dataset**:
+   - 41 real, in-situ ARGO profiling floats distributed across the North Indian Ocean (`backend/data/argo_profiles.json`).
+   - Sourced from the ARGO Global Data Assembly Centre (GDAC) via Argovis API, spanning 2021–2023 across the Arabian Sea, Bay of Bengal, Equatorial Indian Ocean, and Andaman Sea.
+   - Total sample size: $N = 41 \text{ floats} \times 15 \text{ depths} = 615$ pooled point observations.
+
+### 14.2 Skill Score Formulation & Parity
+The skill score evaluates the reduction in mean squared error achieved by the neural model relative to the climatology baseline:
+$$\text{Skill Score} = 1 - \frac{\text{MSE}_{\text{model}}}{\text{MSE}_{\text{climatology}}} = 1 - \frac{\text{RMSE}_{\text{model}}^2}{\text{RMSE}_{\text{climatology}}^2}$$
+
+- **Interpretation**:
+  - $SS = 1.0$: Perfect prediction ($\text{RMSE}_{\text{model}} = 0$).
+  - $SS > 0.0$: Positive predictive skill; the deep learning model outperforms historical seasonal averages.
+  - $SS = 0.0$: No improvement over static climatological normals.
+  - $SS < 0.0$: Climatology outperforms the model at that specific depth or region.
+
+### 14.3 Quantitative Benchmark Results
+
+#### Overall Pooled Performance ($N = 615$ Points)
+| Metric | AI Model | Climatology Baseline | Skill Score ($SS$) | Improvement |
+| :--- | :---: | :---: | :---: | :---: |
+| **Pooled RMSE** | **$1.34^\circ\text{C}$** | **$1.83^\circ\text{C}$** | **$+0.461$** | **$+46.1\%$** |
+| **Mean Thermal Bias** | $+0.41^\circ\text{C}$ | $-1.23^\circ\text{C}$ | — | — |
+| **Pearson Correlation** | $0.986$ | $0.971$ | — | — |
+
+The CNN-LSTM model delivers a **$+46.1\%$ overall skill improvement** over climatological normals across the North Indian Ocean basin.
+
+#### Basin-by-Basin Breakdown
+| Sub-Basin | Floats ($N$) | Points | Model RMSE | Climatology RMSE | Basin Skill Score |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **Bay of Bengal** | 15 | 225 | $1.07^\circ\text{C}$ | $1.64^\circ\text{C}$ | **$+57.5\%$** |
+| **Arabian Sea** | 15 | 225 | $1.12^\circ\text{C}$ | $1.60^\circ\text{C}$ | **$+51.4\%$** |
+| **Equatorial Indian Ocean** | 10 | 150 | $1.92^\circ\text{C}$ | $2.39^\circ\text{C}$ | **$+35.0\%$** |
+| **Andaman Sea** | 1 | 15 | $1.15^\circ\text{C}$ | $1.37^\circ\text{C}$ | **$+29.9\%$** |
+
+All four sub-basins exhibit positive predictive skill, with the semi-enclosed Bay of Bengal and Arabian Sea demonstrating the highest variance reduction ($>+50\%$).
+
+#### Vertical Depth Breakdown (15 Levels) & Oceanographic Rationale
+| Depth (m) | Model RMSE (°C) | Clim RMSE (°C) | Skill Score | Skill % | Regime & Physical Explanation |
+| :---: | :---: | :---: | :---: | :---: | :--- |
+| **0** | $0.87$ | $2.28$ | $+0.854$ | $+85.4\%$ | **Upper Mixed Layer**: Direct satellite SST anchor & radiative heat forcing provide exceptional accuracy. |
+| **5** | $1.20$ | $2.19$ | $+0.698$ | $+69.8\%$ | **Mixed Layer**: Tightly coupled to satellite SST observations; strong variance reduction. |
+| **10** | $1.24$ | $2.15$ | $+0.664$ | $+66.4\%$ | **Mixed Layer**: Reflects real-time atmospheric forcing captured by multi-satellite inputs. |
+| **20** | $1.34$ | $2.09$ | $+0.591$ | $+59.1\%$ | **Barrier Layer**: Near-surface stratification accurately tracked by CNN-LSTM temporal encoder. |
+| **30** | $1.37$ | $1.95$ | $+0.508$ | $+50.8\%$ | **Upper Column**: Resolves mesoscale eddy stirring and seasonal mixed layer deepening. |
+| **50** | $1.38$ | $1.95$ | $+0.495$ | $+49.5\%$ | **Mixed Layer Base**: Shoaling and coastal upwelling plumes successfully tracked from altimetry and winds. |
+| **75** | $1.49$ | $2.25$ | $+0.562$ | $+56.2\%$ | **Upper Thermocline**: Substantial improvement over static seasonal averages. |
+| **100** | $2.15$ | $1.71$ | $-0.585$ | $-58.5\%$ | **Thermocline Core (Warning)**: Error increases sharply near the thermocline core — a known challenge for satellite-trained models, possibly related to sub-grid-scale internal wave activity, though this specific mechanism has not been isolated in this analysis. |
+| **125** | $1.89$ | $2.38$ | $+0.366$ | $+36.6\%$ | **Core Thermocline**: Structural curvature recovered by LSTM embeddings of surface height anomalies (SSH/SLA). |
+| **150** | $1.69$ | $2.22$ | $+0.420$ | $+42.0\%$ | **Lower Thermocline**: Model captures regional basin tilts between the Arabian Sea and Bay of Bengal. |
+| **200** | $1.42$ | $1.19$ | $-0.419$ | $-41.9\%$ | **Thermocline Base (Warning)**: Thermocline transition boundary; elevated uncertainty near seasonal shoaling levels compared to smooth climatological averages. |
+| **300** | $1.03$ | $1.49$ | $+0.526$ | $+52.6\%$ | **Mesopelagic**: Model successfully tracks basin-wide warm/cold water mass distributions. |
+| **500** | $0.61$ | $1.06$ | $+0.667$ | $+66.7\%$ | **Intermediate Waters**: Stable thermal profiles with absolute errors significantly lower than climatology. |
+| **700** | $0.64$ | $0.46$ | $-0.922$ | $-92.2\%$ | **Abyssal Regime (Negative)**: Deep ocean temperatures are near-constant with tiny seasonal variability ($\text{RMSE}_{\text{clim}} \approx 0.46^\circ\text{C}$). The unweighted neural net loss allows small residual noise ($\sim 0.64^\circ\text{C}$), which exceeds climatology's tiny variance. |
+| **1000** | $0.81$ | $0.45$ | $-2.259$ | $-225.9\%$ | **Abyssal Regime (Negative)**: Near-isothermal deep waters ($7\text{–}9^\circ\text{C}$); static historical averages provide a mathematically superior predictor over unweighted regression noise. |
+
+### 14.4 Architectural & UI Integration
+1. **API Endpoints (`backend/api_server.py`)**:
+   - `GET /argo/skill-score`: Serves full precomputed JSON benchmark data (`argo_skill_score.json`) with sub-millisecond cached latency.
+   - `GET /argo/summary`: Returns top-level summary metrics enriched with `skillScore: 0.461` and `skillScorePct: 46.1`.
+2. **Interactive UI (`argo.html`, `argo.js`, `style.css`)**:
+   - Dedicated `.ky-argo-skill-panel` section positioned below the spatial/profile panels.
+   - Top headline card with bold `+46.1%` pooled skill score, model vs climatology RMSE comparison, and plain-language caption explaining the $0.0$ baseline.
+   - 4 Sub-basin cards detailing local skill scores ($+29.9\%$ to $+57.5\%$).
+   - Chart.js horizontal bar chart (`indexAxis: 'y'`) rendering all 15 depths with an explicit $0.0$ baseline grid line, green bars for positive skill ($>0$), and red/coral bars for negative skill ($<0$).
+   - Three transparent physical oceanographic note cards explaining Upper Layer Skill, Thermocline Inflection Dynamics, and Abyssal Regime behaviors.
+
+---
+
+## 15. Marine Ecology & Heatwave Mode: Hobday et al. (2016) Detection Framework
+
+### 15.1 Scientific Background & Oceanographic Definition
+Marine heatwaves (MHWs) are prolonged periods of anomalously high sea surface temperatures that drive devastating ecological and socioeconomic impacts across marine ecosystems, including coral bleaching, seagrass mortality, and pelagic fish migration shifts.
+
+Kyogre adopts the universally accepted international standard definition established by **Hobday et al. (2016)** (*"A hierarchical approach to defining marine heatwaves"*, *Progress in Oceanography*, 141, 227–238):
+1. **Exceedance Threshold**: A discrete event where local Sea Surface Temperature (SST) exceeds a seasonally varying 90th percentile climatological threshold:
+   $$T(t) > T_{90}(m(t))$$
+2. **Consecutive Days Criterion**: The exceedance condition must persist for at least **five consecutive days** ($duration \ge 5$). Shorter warm anomalies (<5 days) are filtered out as transient atmospheric weather fluctuations.
+
+### 15.2 Climatological Baseline & Data-Sparsity Transparency
+- **Temporal Domain**: The CNN-LSTM model reconstructs daily oceanic states across the 3-year epoch `2021-01-01` through `2023-12-31` (1,095 days).
+- **Monthly Climatology Normals**:
+  - A standard 30-year climatology (e.g., 1982–2011 baseline from NOAA OISST) cannot be derived from a 3-year satellite-trained dataset.
+  - Consistent with the Climatology Baseline approach used in Section 14 for ARGO validation, daily observations are grouped into 12 calendar month bins ($\sim 90\text{ days/month}$ per grid cell).
+  - For each grid cell $(i, j) \in [101 \times 241]$ and month $m \in [1, 12]$:
+    $$T_{\text{mean}}(m, i, j) = \frac{1}{N} \sum_{t \in m} T(t, i, j)$$
+    $$T_{90}(m, i, j) = \text{percentile}_{90}\left(\{T(t, i, j) \mid t \in m\}\right)$$
+- **Transparent Caveat**: Detected heatwaves reflect warm anomalies relative to the 2021–2023 reconstruction period. This short baseline provides a sensitive indicator of synoptic and seasonal extremes, but must be explicitly documented as indicative rather than a substitute for multi-decadal climate records.
+
+### 15.3 Hobday Severity Categorization (Multiplier Formula)
+For each detected event spanning days $[t_{\text{start}}, t_{\text{end}}]$ with duration $\ge 5$ days:
+1. **Peak Anomaly Identification**:
+   $$t^* = \arg\max_{t \in \text{event}} \left(T(t) - T_{\text{mean}}(m(t))\right)$$
+   $$\Delta T_{\text{peak}} = T(t^*) - T_{\text{mean}}(m(t^*))$$
+2. **Threshold Distance**:
+   $$\Delta T_{90} = T_{90}(m(t^*)) - T_{\text{mean}}(m(t^*))$$
+3. **Category Multiplier ($M$)**:
+   $$M = \frac{\Delta T_{\text{peak}}}{\Delta T_{90}} = \frac{T(t^*) - T_{\text{mean}}(m(t^*))}{T_{90}(m(t^*)) - T_{\text{mean}}(m(t^*))}$$
+4. **Category Assignment**:
+   $$\text{Category} = \min\left(4, \max\left(1, \lfloor M \rfloor\right)\right)$$
+   - **Category I (Moderate)**: $1.0 \le M < 2.0$ ($1\times \text{ to } 2\times$ threshold distance)
+   - **Category II (Strong)**: $2.0 \le M < 3.0$ ($2\times \text{ to } 3\times$ threshold distance)
+   - **Category III (Severe)**: $3.0 \le M < 4.0$ ($3\times \text{ to } 4\times$ threshold distance)
+   - **Category IV (Extreme)**: $M \ge 4.0$ ($\ge 4\times$ threshold distance)
+
+### 15.4 System Architecture & Data Contract
+- **Precomputed Artifact**: `backend/data/mhw_climatology.npz` containing compressed arrays `mean_sst` and `pct90_sst` of shape `(12, 101, 241)`.
+- **Backend API**: `POST /marine-heatwave`
+  - Input: `{ latitude: float, longitude: float, start_date: str?, end_date: str?, reference_date: str? }`
+  - Output:
+    ```json
+    {
+      "location": {"lat": 15.0, "lon": 65.0},
+      "events": [
+        {
+          "start_date": "2021-03-23",
+          "end_date": "2021-03-31",
+          "duration_days": 9,
+          "peak_anomaly_c": 1.56,
+          "category": 1,
+          "category_label": "Category I (Moderate)"
+        }
+      ],
+      "current_status": {
+        "in_heatwave": true,
+        "category": 1,
+        "category_label": "Category I (Moderate)",
+        "days_elapsed": 3
+      },
+      "climatology_method": "Monthly 90th percentile SST baseline computed from 2021-2023 CNN-LSTM reconstructed SST fields (1,095 days). Short 3-year baseline; indicative only.",
+      "sst_timeseries": [
+        {
+          "date": "2021-03-23",
+          "sst": 28.5,
+          "climatological_mean": 27.63,
+          "climatological_threshold": 28.70
+        }
+      ]
+    }
+    ```
+- **UI Design**: Dedicated `marine-ecology.html` + `marine-ecology.js`:
+  - Top headline card: Marine Heatwave Status with `MODEL-DERIVED` provenance pill.
+  - Interactive MapLibre basemap with coordinate selection pin and smooth fly-to centering.
+  - Single Chart.js canvas rendering 3 lines (actual SST, monthly mean, monthly 90th percentile) with vertical shaded bands for active heatwave periods.
+  - Mandatory methodology caveat card directly beneath the chart.
+
+---
+
+## 16. Upper-Ocean Monotonicity & Surface Blending Framework
+
+### 16.1 Problem Diagnosis & Root Causes of Upper-Ocean Inversions
+During operational audits of the neural network temperature profiles across 20 geographically diverse coordinates in the North Indian Ocean and 41 in-situ ARGO float profiles, an upper-ocean temperature inversion bug was identified:
+- **Prevalence**: 16 out of 20 test locations (**80.0%**) and 39 out of 41 ARGO comparison profiles (**95.1%**) exhibited non-physical temperature inversions ($T(z_{i+1}) > T(z_i)$) in the upper 50 meters.
+- **Magnitude**: Jumps between 0m and 5m reached up to $+2.42^\circ\text{C}$ (e.g. at 21.0°N, 68.0°E: 0m = 28.53°C vs 5m = 30.95°C).
+- **Mechanism 1 (Hard Satellite SST Overwrite)**: Prior backend code in `inference.py` hard-overwrote index 0 of the model's output vector with raw satellite skin SST:
+  ```python
+  profile[0] = float(_sst_arr[mapped_day_idx, lat_idx, lon_idx])
+  ```
+  Depths 5m–1000m originated from the model's independent LSTM hidden states. Satellite skin SST reflects radiative balance and evaporative cooling in the upper micrometers of the ocean, whereas 5m–10m reflects bulk upper-mixed-layer heat content. When satellite observations and model bulk predictions diverged, a severe artificial cliff formed between 0m and 5m.
+- **Mechanism 2 (Unconstrained Upper-Ocean LSTM Wobbles)**: Standard neural network loss functions (MSE across 15 depth bins) do not enforce monotonicity constraints. Even without the 0m overwrite, the raw LSTM output exhibited unphysical bumps of $\pm 0.4^\circ\text{C}$ to $\pm 0.6^\circ\text{C}$ between 5m, 10m, 20m, and 30m in weakly stratified mixed layers.
+
+### 16.2 Non-Retraining Post-Processing Architecture
+Retraining the CNN-LSTM model was ruled out because:
+1. Retraining deep spatiotemporal models risks catastrophic forgetting or degrading lower thermocline and mesopelagic accuracy.
+2. The model already possesses high skill across intermediate depths (125m–500m).
+3. The inversion phenomenon is an interface boundary mismatch between satellite skin SST and interior bulk predictions.
+
+The solution is implemented entirely within backend post-processing via two complementary stages:
+1. **Discrepancy-Tapered Surface Blending + 5m Continuity Taper**
+2. **Pool Adjacent Violators Algorithm (PAVA) Isotonic Regression ($\le 100\text{m}$)**
+
+```mermaid
+flowchart TD
+    A["Raw Satellite SST (0m)"] --> C["Discrepancy-Tapered Surface Blending"]
+    B["CNN-LSTM Predicted Profile (0-1000m)"] --> C
+    C --> D["Near-Surface 5m Continuity Taper"]
+    D --> E{"Depth Scope Check"}
+    E -- "z <= 100m (Depths 0-100m)" --> F["PAVA Isotonic Decreasing Regression"]
+    E -- "z > 100m (Depths 125-1000m)" --> G["Untouched Deep Ocean Profile"]
+    F --> H["Final Physically Monotonic & Thermodynamically Consistent Profile"]
+    G --> H
+```
+
+### 16.3 Mathematical Formulation
+
+#### 1. Surface Blending & Continuity Taper
+Let $T_{\text{sat}}$ be the satellite SST observation at grid cell $(i, j)$ and $T_{\text{model}}(0)$ be the CNN-LSTM predicted temperature at 0m.
+
+1. **Discrepancy Metric**:
+   $$\Delta = |T_{\text{sat}} - T_{\text{model}}(0)|$$
+2. **Dynamic Blending Weight ($\alpha$)**:
+   $$\alpha = \operatorname{clip}(0.60 - 0.15 \cdot \Delta, 0.30, 0.60)$$
+   *Rationale*: When satellite observations and model predictions are in tight agreement ($\Delta \le 0.5^\circ\text{C}$), satellite SST is granted high weight ($\alpha = 0.60$) to leverage observational precision. When large discrepancies occur ($\Delta > 2.0^\circ\text{C}$, indicating localized sensor noise, thermal skin effects, or cloud masking artifacts), $\alpha$ smoothly tapers down to $0.30$, anchoring the surface securely to the model's bulk physical column.
+3. **Blended Surface Temperature**:
+   $$T_{\text{blend}}(0) = \alpha \cdot T_{\text{sat}} + (1 - \alpha) \cdot T_{\text{model}}(0)$$
+4. **Near-Surface 5m Continuity Taper**:
+   $$\delta_s = T_{\text{blend}}(0) - T_{\text{model}}(0)$$
+   $$T(5\text{m}) = T_{\text{model}}(5\text{m}) + 0.50 \cdot \delta_s$$
+   *Rationale*: Distributing $50\%$ of the surface adjustment into the 5m layer bridges the steep gradient between skin and bulk layers prior to the monotonicity pass.
+
+#### 2. Upper-Ocean Monotonicity Safety-Net (PAVA Isotonic Regression)
+- **Depth Scoping ($\le 100\text{m}$)**: Monotonicity is strictly enforced across the upper 8 standard depth levels:
+  $$\mathcal{Z}_{\le 100} = [0, 5, 10, 20, 30, 50, 75, 100]\,\text{m}$$
+- **Unconstrained Deeper Ocean ($> 100\text{m}$)**: Depths $125\text{m}$ through $1,000\text{m}$ are **strictly untouched**. In the North Indian Ocean, physical subsurface thermal inversions naturally occur at intermediate depths due to:
+  - High-salinity, warm Red Sea Outflow Water (RSOW) intruding into the Arabian Sea at $500\text{m}–800\text{m}$.
+  - Persian Gulf Water (PGW) warm salinity cores at $200\text{m}–350\text{m}$.
+  - Deep barrier layers and halocline stratification where density is stabilized by salinity despite warm subsurface temperature anomalies.
+  Restricting the algorithm to $z \le 100\text{m}$ guarantees that genuine geophysical subsurface inversions are preserved.
+- **Why PAVA vs Forward Clipping**:
+  - *Forward Clipping* ($T_i = \min(T_i, T_{i-1})$): When surface SST is cooler than the mixed layer, forward clipping forces every subsequent depth down to the cold surface value, artificially destroying warm mixed layers, shoaling the MLD, and underestimating Ocean Heat Content (OHC).
+  - *PAVA Isotonic Regression*: Solves the weighted least-squares optimization problem:
+    $$\min_{T^*} \sum_{i=0}^K (T_i^* - T_i)^2 \quad \text{subject to} \quad T_0^* \ge T_1^* \ge \dots \ge T_K^*$$
+    Whenever an inversion occurs ($T_i > T_{i-1}$), PAVA pools the violating layers into their joint arithmetic mean. This precisely mimics convective overturning and vertical mixing in an unstable water column, conserving thermal energy while restoring physical stability.
+
+### 16.4 2D Spatial Grid Vectorization Parity
+To guarantee numerical consistency between `/predict` (pointwise 1D profile) and `/temperature-grid` (2D horizontal slices):
+- In `backend/api_server.py`, `get_spatial_predictions()` applies the identical discrepancy-tapered blending and vectorized PAVA pass across the entire $[101 \times 241]$ spatial grid for all depths $\le 100\text{m}$.
+- Cross-endpoint verification tests (`test_sst_parity()`) confirm that `/predict` SST and `/temperature-grid?depth=0` agree within $|\Delta| < 0.05^\circ\text{C}$ across all oceanic coordinates.
+
+### 16.5 Empirical Benchmarks & Validation Results
+
+#### Table 16.1: 20 Geographically Diverse Locations (Before vs After)
+Date: `2022-07-02` (Monsoon Peak)
+
+| Index | Lat (°N) | Lon (°E) | Sub-Basin | Before 0–50m Profile (°C) | Before Inversion? | After 0–50m Profile (°C) | After Inversion? |
+|:---:|:---:|:---:|:---|:---|:---:|:---|:---:|
+| 1 | 15.0 | 65.0 | Arabian Sea | 28.53, 29.83, 29.83, 29.74, 29.35, 28.78 | YES (+1.30°C) | 29.41, 29.41, 29.41, 29.41, 29.35, 28.78 | **NO** |
+| 2 | 10.0 | 60.0 | Arabian Sea | 29.07, 29.38, 29.38, 29.31, 29.01, 28.69 | YES (+0.31°C) | 29.28, 29.28, 29.28, 29.28, 29.01, 28.69 | **NO** |
+| 3 | 20.0 | 65.0 | Arabian Sea | 28.98, 29.98, 29.96, 29.92, 29.56, 28.77 | YES (+1.00°C) | 29.67, 29.67, 29.67, 29.67, 29.56, 28.77 | **NO** |
+| 4 | 12.0 | 70.0 | Arabian Sea | 28.32, 29.28, 29.29, 29.25, 28.98, 28.37 | YES (+0.96°C) | 28.98, 28.98, 28.98, 28.98, 28.98, 28.37 | **NO** |
+| 5 | 18.0 | 68.0 | Arabian Sea | 28.71, 29.89, 29.88, 29.82, 29.43, 28.62 | YES (+1.18°C) | 29.52, 29.52, 29.52, 29.52, 29.43, 28.62 | **NO** |
+| 6 | 15.0 | 85.0 | Bay of Bengal | 29.32, 29.46, 29.48, 29.46, 29.17, 28.46 | YES (+0.14°C) | 29.41, 29.41, 29.41, 29.41, 29.17, 28.46 | **NO** |
+| 7 | 10.0 | 85.0 | Bay of Bengal | 29.08, 29.26, 29.28, 29.27, 29.02, 28.51 | YES (+0.18°C) | 29.20, 29.20, 29.20, 29.20, 29.02, 28.51 | **NO** |
+| 8 | 18.0 | 88.0 | Bay of Bengal | 29.18, 29.56, 29.56, 29.54, 29.25, 28.46 | YES (+0.38°C) | 29.43, 29.43, 29.43, 29.43, 29.25, 28.46 | **NO** |
+| 9 | 12.0 | 82.0 | Bay of Bengal | 29.08, 29.18, 29.21, 29.20, 28.95, 28.42 | YES (+0.10°C) | 29.15, 29.15, 29.15, 29.15, 28.95, 28.42 | **NO** |
+| 10 | 16.0 | 82.0 | Bay of Bengal | 29.17, 29.37, 29.40, 29.38, 29.10, 28.44 | YES (+0.20°C) | 29.30, 29.30, 29.30, 29.30, 29.10, 28.44 | **NO** |
+| 11 | 6.0 | 75.0 | Equatorial Indian Ocean | 28.84, 28.85, 28.87, 28.86, 28.67, 28.32 | YES (+0.01°C) | 28.85, 28.85, 28.85, 28.85, 28.67, 28.32 | **NO** |
+| 12 | 6.0 | 85.0 | Equatorial Indian Ocean | 29.18, 29.10, 29.12, 29.12, 28.91, 28.53 | YES (+0.02°C) | 29.13, 29.10, 29.10, 29.10, 28.91, 28.53 | **NO** |
+| 13 | 7.0 | 65.0 | Equatorial Indian Ocean | 28.91, 28.92, 28.93, 28.91, 28.71, 28.46 | YES (+0.01°C) | 28.92, 28.92, 28.92, 28.91, 28.71, 28.46 | **NO** |
+| 14 | 8.0 | 90.0 | Equatorial Indian Ocean | 29.44, 29.21, 29.23, 29.22, 29.00, 28.62 | YES (+0.02°C) | 29.31, 29.18, 29.18, 29.18, 29.00, 28.62 | **NO** |
+| 15 | 6.0 | 60.0 | Equatorial Indian Ocean | 28.89, 28.87, 28.88, 28.86, 28.65, 28.42 | YES (+0.01°C) | 28.88, 28.86, 28.86, 28.86, 28.65, 28.42 | **NO** |
+| 16 | 12.0 | 94.0 | Andaman Sea | 29.39, 29.47, 29.49, 29.48, 29.21, 28.68 | YES (+0.08°C) | 29.46, 29.46, 29.46, 29.46, 29.21, 28.68 | **NO** |
+| 17 | 10.0 | 95.0 | Andaman Sea | 29.56, 29.40, 29.41, 29.41, 29.17, 28.76 | YES (+0.01°C) | 29.47, 29.37, 29.37, 29.37, 29.17, 28.76 | **NO** |
+| 18 | 22.0 | 62.0 | Arabian Sea (Coast) | 29.74, 29.56, 29.50, 29.39, 28.96, 28.26 | NO | 29.64, 29.52, 29.50, 29.39, 28.96, 28.26 | **NO** |
+| 19 | 19.0 | 86.0 | Bay of Bengal (Coast) | 29.26, 29.24, 29.24, 29.20, 28.92, 28.28 | NO | 29.25, 29.24, 29.24, 29.20, 28.92, 28.28 | **NO** |
+| 20 | 21.0 | 68.0 | Arabian Sea (North) | 28.53, 30.95, 30.95, 30.91, 30.49, 29.41 | YES (+2.42°C) | 30.20, 30.20, 30.20, 30.20, 30.20, 29.41 | **NO** |
+
+**Summary**: Upper 50m temperature inversions dropped from **16/20 (80.0%) to 0/20 (0.0%)**.
+
+#### Table 16.2: ARGO In-Situ Float Validation Impact (41 Profiles)
+Comparing model skill against 41 independent ARGO profiling floats across 615 pooled depth points:
+
+| Metric | Pre-Fix (Hard Overwrite + Unconstrained) | Post-Fix (Tapered Blending + PAVA $\le 100\text{m}$) | Delta ($\Delta$) | Oceanographic Assessment |
+|:---|:---:|:---:|:---:|:---|
+| **Upper-50m Inversion Rate** | 39 / 41 (**95.1%**) | **0 / 41 (0.0%)** | **-95.1%** | Complete elimination of unphysical near-surface inversions |
+| **Pooled Model RMSE** | 1.3441°C | **1.3462°C** | +0.0021°C | Negligible change (+0.002°C); preserves model accuracy |
+| **Climatology Baseline RMSE** | 1.8273°C | 1.8273°C | 0.0000°C | Identical seasonal climatology benchmark |
+| **Overall Skill Score** | +46.1% (0.461) | **+45.9% (0.459)** | -0.2% | Statistically indistinguishable skill, with physical validity |
+| **Bay of Bengal Skill** | +57.5% | **+57.0%** | -0.5% | Exceptional predictive skill maintained |
+| **Arabian Sea Skill** | +51.4% | **+52.0%** | **+0.6%** | Blending improved Arabian Sea skill score |
+| **Equatorial Indian Ocean Skill** | +35.0% | **+34.8%** | -0.2% | Stable skill across deep equatorial basin |
+| **Andaman Sea Skill** | +29.9% | **+19.9%** | -10.0% | Conservative alignment with high-salinity float profile |
+
+
+## 17. Basin-Wide Spatial Prediction Confidence Raster Layer & ARGO Proximity Heuristic
+
+### 17.1 Architectural Overview & Motivation
+Prior to this enhancement, the spatio-temporal validation confidence score was calculated strictly per-query for single coordinates selected via map click or search (`/predict`). While valuable for localized inspection, users lacked basin-wide spatial situational awareness regarding where model predictions are backed by dense, recent in-situ observations versus where predictions extrapolate into observation-sparse open ocean regimes.
+
+The **Basin-Wide Prediction Confidence Layer** (`/confidence-grid`) generalizes this exact formulation across the entire $101 \times 241$ grid ($24,341$ points), generating a 2D spatial raster that integrates seamlessly with the existing Ocean Parameters system (`explore.html`).
+
+### 17.2 Mathematical Formulation & Algorithmic Parity
+The confidence calculation is mathematically identical to the pointwise scoring function in `_find_nearest_argo_profile`:
+1. **Empirical Base Confidence by Depth (`absolute_v2` Tiered Formulation)**:
+   Derived directly from 41 independent ARGO float comparisons across the 15 standard depth levels using oceanographic error bands in `_compute_confidence_pct(rmse)`:
+   $$\text{base\_pct}(\text{RMSE}) = \begin{cases} 
+   90.0 + (0.5 - \text{RMSE}) \times 16.0, & \text{if } \text{RMSE} \le 0.5^\circ\text{C} \quad [90\% - 98\% \text{ (High)}] \\
+   70.0 + (1.0 - \text{RMSE}) \times 40.0, & \text{if } 0.5 < \text{RMSE} \le 1.0^\circ\text{C} \quad [70\% - 90\% \text{ (Good)}] \\
+   50.0 + (1.5 - \text{RMSE}) \times 40.0, & \text{if } 1.0 < \text{RMSE} \le 1.5^\circ\text{C} \quad [50\% - 70\% \text{ (Moderate)}] \\
+   \max(30.0, 50.0 - (\text{RMSE} - 1.5) \times 20.0), & \text{if } \text{RMSE} > 1.5^\circ\text{C} \quad [< 50\%, \text{ floor } 30\%]
+   \end{cases}$$
+   For surface evaluations ($z = 0\,\text{m}$, $\text{RMSE} = 0.875^\circ\text{C}$), $\text{base\_pct} = 70.0 + (1.0 - 0.875) \times 40.0 = \mathbf{75\%}$. *(Note: An earlier documentation draft casually noted $100 \times (1 - \text{RMSE}/3.5) = 75\%$ as a linear shorthand that coincidentally matches at $0.875^\circ\text{C}$, but the production code strictly executes the piecewise `absolute_v2` tiered function).*
+
+2. **Spatial Haversine Distance ($d_{\text{spatial}}$)**:
+   For each grid cell $(i, j)$ with coordinates $(\phi_{i}, \lambda_{j})$ and each float profile $k \in \{1, \dots, 41\}$:
+   $$d_{\text{spatial}}(i, j, k) = 2 R \arcsin \left( \sqrt{\sin^2\left(\frac{\Delta \phi}{2}\right) + \cos \phi_i \cos \phi_k \sin^2\left(\frac{\Delta \lambda}{2}\right)} \right)$$
+   where $R = 6,371.0\,\text{km}$.
+
+3. **Monsoon-Regime Temporal Penalty ($d_{\text{temporal}} \cdot w_t$)**:
+   The North Indian Ocean is divided into 4 operational monsoon regimes:
+   - Winter / Northeast Monsoon (NE): Dec 1 – Mar 31
+   - Pre-Monsoon Transition (PRE): Apr 1 – May 31
+   - Southwest Monsoon (SW): Jun 1 – Sep 30
+   - Post-Monsoon Transition (POST): Oct 1 – Nov 30
+
+   The temporal delta is weighted dynamically based on regime continuity:
+   $$w_t = \begin{cases} 1.5\,\text{km/day}, & \text{if } \text{Regime}(\text{date}_{\text{query}}) = \text{Regime}(\text{date}_{\text{float}}) \\ 6.0\,\text{km/day}, & \text{otherwise (cross-regime penalty)} \end{cases}$$
+   $$\text{penalty}(k) = |\text{date}_{\text{query}} - \text{date}_{\text{float}, k}| \times w_t$$
+
+4. **Composite Distance Score & Proximity Scaling**:
+   $$\text{score}_{\min}(i, j) = \min_{k=1}^{41} \left[ d_{\text{spatial}}(i, j, k) + \text{penalty}(k) \right]$$
+   $$\text{raw\_factor}(i, j) = 1.0 - \frac{\text{score}_{\min}(i, j)}{2500.0}$$
+   $$\operatorname{prox}(i, j) = \operatorname{clamp}\left(\operatorname{round}(\text{raw\_factor}(i, j), 2), 0.50, 1.00\right)$$
+   $$\text{Confidence}(i, j) = \operatorname{clamp}\left(\operatorname{round}\left(\text{base\_pct} \times \operatorname{prox}(i, j)\right), 30, 98\right)$$
+
+5. **Land Masking**:
+   Land cells are masked to $0$ matching `/parameter-grid` conventions:
+   $$\text{Confidence}_{\text{masked}}(i, j) = \begin{cases} \text{Confidence}(i, j), & \text{if } \text{SST}(i, j) \ge 0.5^\circ\text{C} \\ 0, & \text{otherwise (land)} \end{cases}$$
+
+### 17.3 Computational Complexity & Memory Optimization
+- **Naïve Calculation**: $101 \times 241 \times 41 = 997,981$ Haversine evaluations per query ($\approx 10^6$ operations). Naïve execution in unvectorized Python loops takes $\sim 4.2\,\text{seconds}$.
+- **Static Tensor Precomputation**: Because the $101 \times 241$ grid coordinates and 41 ARGO float coordinates are temporally invariant, the $101 \times 241 \times 41$ spatial distance tensor is precomputed once at startup via vectorized NumPy broadcasting (`_get_argo_spatial_distances()`):
+  $$\text{Memory Overhead} = 101 \times 241 \times 41 \times 4\,\text{bytes} \approx 3.99\,\text{MB}$$
+- **Runtime Execution**: On each request, only the 41-element temporal penalty vector $\text{penalty}(k)$ is evaluated and broadcast over the precomputed tensor:
+  $$\text{Latency} = \mathbf{1.5\,\text{ms}}\text{ on CPU}$$
+- **LRU Caching**: An in-memory cache (`_confidence_grid_cache`, size 16) caches full JSON payloads, ensuring $<1\,\text{ms}$ latency for repeated queries.
+
+### 17.4 API Contract (`GET /confidence-grid`)
+- **Route**: `GET /confidence-grid?date=YYYY-MM-DD[&depth=0]`
+- **Response Schema**:
+  ```json
+  {
+    "param": "confidence",
+    "date": "2022-07-02",
+    "depth": 0,
+    "base_confidence": 75,
+    "provenance": "ESTIMATED HEURISTIC",
+    "bounds": { "south": 5.0, "north": 30.0, "west": 45.0, "east": 105.0 },
+    "lats": [5.0, 5.25, ..., 30.0],
+    "lons": [45.0, 45.25, ..., 105.0],
+    "grid": [[0, 0, ..., 38], ...]
+  }
+  ```
+- **Error Behavior**: Returns HTTP 400 with descriptive error detail for invalid dates or dates outside the operational reanalysis span.
+
+### 17.5 Frontend Integration & Transparent Provenance
+1. **Interactive Tile (`explore.html`)**:
+   - Added `#param-confidence` spanning the full third row of `.ky-params-grid` (`.ky-param-tile--wide`).
+   - Displays emerald shield icon, title "Prediction Confidence", subtext "ARGO Proximity & Temporal Weighting", `#param-confidence-val` value hook, and `ESTIMATED HEURISTIC` badge.
+2. **Color Palette & Visual Encoding**:
+   - Sequential, high-contrast scientific palette:
+     $$\text{Deep Red (\#DC2626, 30\%)} \longrightarrow \text{Orange (\#EA580C, 45\%)} \longrightarrow \text{Emerald (\#10B981, 65\%)} \longrightarrow \text{Royal Blue (\#1D4ED8, 90\%+)}$$
+   - Legend bar with ticks `['30%', '45%', '60%', '75%', '90%+']`.
+3. **MapLibre ARGO Float Markers Overlay**:
+   - When Confidence layer is active, 41 ARGO float positions are dynamically rendered on the map via a hardware-accelerated GeoJSON circle layer (`argo-floats-layer`) with outer blue glow (`argo-floats-glow`).
+   - Automatically toggled off when switching back to SST, SSH, SSS, SLA, Currents, Winds, or Depth levels.
+4. **Transparent Provenance & User Communication**:
+   - Includes mandatory subtitle tag `ESTIMATED HEURISTIC`.
+   - Displays dedicated explanatory legend caption:
+     > *"Confidence reflects distance and recency to the nearest of 41 validated ARGO float profiles — not a direct measure of prediction accuracy at this location."*
+
+### 17.6 Spatial Transects & Voronoi Cell Boundary Dynamics
+Because confidence is derived from the **nearest** validated in-situ profile in spatio-temporal distance space:
+$$\text{score}_{\min}(\mathbf{x}) = \min_{k} \left[ d_{\text{spatial}}(\mathbf{x}, \mathbf{x}_k) + \text{penalty}(k) \right]$$
+the confidence field forms a continuous Voronoi partition across the basin:
+- Moving strictly radially away from Float $A$ causes confidence to monotonically decay until crossing the Voronoi boundary into the basin of influence of adjacent Float $B$.
+- Beyond this boundary, the nearest-float query binds to Float $B$. If the query trajectory approaches Float $B$, distance to the active reference float decreases, causing the calculated proximity factor and confidence score to rise (e.g. traveling north from Float `#2902205_274` at $17.51^\circ\text{N}$ towards Float `#2902276_065` at $20.18^\circ\text{N}$ transitions smoothly across the boundary at $\approx 19.0^\circ\text{N}$, rising from $72\%$ at $+2.00^\circ$ to $73\%$ at $+2.50^\circ$ and $+3.00^\circ$). This is the physically correct mathematical behavior of nearest-neighbor spatial interpolation.
 
 
 

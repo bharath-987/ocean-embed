@@ -265,6 +265,42 @@ _doy_sin = np.sin(_t_season).astype('float32')
 _doy_cos = np.cos(_t_season).astype('float32')
 
 
+def _isotonic_decreasing(y: np.ndarray, weights: np.ndarray = None) -> np.ndarray:
+    """
+    Pool Adjacent Violators Algorithm (PAVA) for isotonic non-increasing regression.
+    Enforces y[0] >= y[1] >= ... >= y[n-1] by least-squares projection.
+    Minimizes sum(w_i * (y_fit[i] - y[i])^2).
+    """
+    y = np.array(y, dtype=float)
+    n = len(y)
+    if weights is None:
+        weights = np.ones(n, dtype=float)
+    else:
+        weights = np.array(weights, dtype=float)
+
+    target = -y.copy()
+    blocks = [[target[i], weights[i], [i]] for i in range(n)]
+
+    i = 0
+    while i < len(blocks) - 1:
+        if blocks[i][0] > blocks[i + 1][0]:  # Violation of target <= target
+            total_weight = blocks[i][1] + blocks[i + 1][1]
+            pooled_val = (blocks[i][0] * blocks[i][1] + blocks[i + 1][0] * blocks[i + 1][1]) / total_weight
+            pooled_indices = blocks[i][2] + blocks[i + 1][2]
+            blocks[i] = [pooled_val, total_weight, pooled_indices]
+            blocks.pop(i + 1)
+            if i > 0:
+                i -= 1
+        else:
+            i += 1
+
+    res = np.empty(n, dtype=float)
+    for val, _, indices in blocks:
+        for idx in indices:
+            res[idx] = -val
+    return res
+
+
 # ---------------------------------------------------------------------------
 # 4. THE FUNCTION YOUR FRONTEND CALLS
 # ---------------------------------------------------------------------------
@@ -348,8 +384,26 @@ def predict_temperature_profile(latitude: float, longitude: float, date_str: str
             _prediction_cache.popitem(last=False)
 
     profile = prediction_real[:, lat_idx, lon_idx].copy()
-    # Anchor surface depth 0 to exact satellite SST
-    profile[0] = float(_sst_arr[mapped_day_idx, lat_idx, lon_idx])
+    raw_m0 = float(profile[0])
+    raw_sst = float(_sst_arr[mapped_day_idx, lat_idx, lon_idx])
+
+    # STEP 1: Smooth Surface Blending & Near-Surface Taper
+    # Instead of hard overwrite, blend satellite SST with the model's bulk 0m prediction.
+    # Discrepancy-tapered alpha: 0.60 when consistent, tapering to 0.30 during large skin/bulk anomalies.
+    diff = abs(raw_sst - raw_m0)
+    alpha = float(np.clip(0.60 - 0.15 * diff, 0.30, 0.60))
+    blended_sst = alpha * raw_sst + (1.0 - alpha) * raw_m0
+    profile[0] = blended_sst
+
+    # Near-surface continuity taper (0-10m): diffuse 50% of the surface delta into the 5m layer
+    delta_s = blended_sst - raw_m0
+    profile[1] += 0.50 * delta_s
+
+    # STEP 2: Monotonicity Safety-Net Pass in upper ocean (depths <= 100m only)
+    # STANDARD_DEPTHS[:8] corresponds to [0, 5, 10, 20, 30, 50, 75, 100] m
+    # Depths > 100m (125m to 1000m) are strictly untouched to preserve real physical thermocline structures
+    upper_mask = [i for i, d in enumerate(STANDARD_DEPTHS) if d <= 100]
+    profile[upper_mask] = _isotonic_decreasing(profile[upper_mask])
 
     return {int(d): round(float(t), 2) for d, t in zip(STANDARD_DEPTHS, profile)}
 

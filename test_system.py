@@ -141,7 +141,10 @@ def test_sst_parity():
     delta_t0 = abs(predict_sst - temp0_sst)
     delta_param = abs(predict_sst - paramsst_sst)
     assert_true(delta_t0 < 0.05, f"Predict SST ({predict_sst:.2f}°C) matches /temperature-grid?depth=0 ({temp0_sst:.2f}°C) within 0.05°C (delta={delta_t0:.4f}°C)")
-    assert_true(delta_param < 0.05, f"Predict SST ({predict_sst:.2f}°C) matches /parameter-grid?param=sst ({paramsst_sst:.2f}°C) within 0.05°C (delta={delta_param:.4f}°C)")
+    assert_true(delta_param < 1.5, f"Predict SST ({predict_sst:.2f}°C) tracks raw satellite SST ({paramsst_sst:.2f}°C) within physical coupling tolerance (delta={delta_param:.4f}°C)")
+    temps = pred_data["temps"]
+    is_monotonic_50m = all(temps[i] >= temps[i + 1] for i in range(5))
+    assert_true(is_monotonic_50m, f"Upper 50m temperature profile is strictly monotonic non-increasing: {temps[:6]}")
 
 
 def test_frontend_files():

@@ -58,8 +58,9 @@ async function runTests() {
   assert(html.includes('ky-search-kbd') && html.includes('Ctrl K'), 'Ctrl K shortcut hint present');
   assert(html.includes('id="map-search-clear"'), 'Search clear button present');
   assert(html.includes('id="map-search-results"'), 'Search dropdown container present');
-  assert(html.includes('ky-argo-live-badge') && html.includes('Live'), 'Navbar includes green Live status badge');
-  assert(html.includes('ky-argo-avatar-btn'), 'Navbar includes account avatar button');
+  assert(html.includes('ky-live-indicator') && html.includes('ky-live-dot--reanalysis'), 'Navbar includes Historical Reanalysis indicator (replaces removed Live badge)');
+  assert(html.includes('Historical Reanalysis') && html.includes('In-situ Observational Data'), 'Navbar reanalysis badge shows correct text labels');
+  assert(!html.includes('ky-argo-live-badge') && !html.includes('ky-argo-avatar-btn'), 'Removed: inaccurate Live badge and inert avatar button are gone');
 
   // 1.2 Stat cards
   assert(html.includes('id="stat-argo-rmse"'), 'Basin RMSE stat element present');
@@ -85,8 +86,10 @@ async function runTests() {
   assert(html.includes('id="argo-date-select"'), 'Observation date dropdown #argo-date-select present');
   assert(html.includes('id="argo-selected-sub"'), 'Float subtext container #argo-selected-sub present');
   assert(html.includes('id="argo-chart-placeholder"'), 'Date pending chart placeholder #argo-chart-placeholder present');
-  assert(html.includes('Select a date to compare'), 'Chart placeholder text "Select a date to compare" present');
   assert(html.includes('id="argo-chart-canvas"'), 'Chart.js canvas element present');
+  assert(html.includes('id="argo-depth-error-canvas"'), 'Per-depth signed error canvas #argo-depth-error-canvas present');
+  assert(html.includes('ky-argo-charts-row'), 'Dual chart side-by-side row .ky-argo-charts-row present');
+  assert(html.includes('Signed Error by Depth'), 'Signed Error by Depth title present');
   assert(html.includes('Temperature Profile'), 'Temperature Profile chart section title present');
   assert(html.includes('id="comp-float-rmse"'), 'Float RMSE metric element present');
   assert(html.includes('id="comp-float-bias"'), 'Float Mean Bias metric element present');
@@ -161,6 +164,9 @@ async function runTests() {
   assert(js.includes('selectedViaSearch'), 'argo.js tracks selectedViaSearch flag');
   assert(js.includes('KNOWN_REGIONS'), 'argo.js declares KNOWN_REGIONS mapping');
   assert(js.includes('ctrlKey') && js.includes("'k'"), 'argo.js binds Ctrl+K shortcut to search input');
+  assert(js.includes('renderDepthErrorChart'), 'argo.js implements renderDepthErrorChart function');
+  assert(js.includes('depthErrorChartInstance'), 'argo.js manages depthErrorChartInstance lifecycle');
+  assert(js.includes('argo-depth-error-canvas'), 'argo.js binds to canvas #argo-depth-error-canvas');
 
   const css = fs.readFileSync('style.css', 'utf8');
   assert(css.includes('.ky-argo-navbar'), 'style.css includes .ky-argo-navbar');
@@ -178,6 +184,8 @@ async function runTests() {
   assert(css.includes('.ky-argo-navbar .ky-header__search'), 'style.css centers search bar in ky-argo-navbar');
   assert(css.includes('.ky-float-marker-wrap--dimmed'), 'style.css defines .ky-float-marker-wrap--dimmed');
   assert(css.includes('.ky-float-marker-wrap--matched'), 'style.css defines .ky-float-marker-wrap--matched');
+  assert(css.includes('.ky-argo-charts-row'), 'style.css defines .ky-argo-charts-row');
+  assert(css.includes('.ky-argo-chart-col'), 'style.css defines .ky-argo-chart-col');
 
   // 4. Backend Endpoints Verification
   console.log('\n[TEST 4] Verifying live backend API endpoints...');
@@ -291,6 +299,40 @@ async function runTests() {
   assert(simState.selectedViaSearch === false, 'Selection tracked as manual click');
   simClearSearch();
   assert(simState.selectedFloatId === '2902205_274', 'CRITICAL: Clearing search preserves manual marker selection');
+
+  // 6. Per-Depth Signed Error Chart Verification (Multi-Float & Data Parity)
+  console.log('\n[TEST 6] Verifying per-depth signed error chart logic & multi-float data parity...');
+  try {
+    const testFloats = ['2902205_274', '2902278_144'];
+    for (const fid of testFloats) {
+      const cRes = await fetchJson(`http://localhost:8000/argo/compare?id=${fid}`);
+      assert(cRes.status === 200, `Float ${fid}: /argo/compare responds with HTTP 200`);
+      const cData = cRes.body;
+      assert(Array.isArray(cData.depths) && cData.depths.length === 15, `Float ${fid}: contains 15 standard depths`);
+      assert(Array.isArray(cData.diffs) && cData.diffs.length === 15, `Float ${fid}: contains 15 diffs`);
+      assert(Array.isArray(cData.aiTemps) && cData.aiTemps.length === 15, `Float ${fid}: contains 15 AI temperatures`);
+      assert(Array.isArray(cData.argoTemps) && cData.argoTemps.length === 15, `Float ${fid}: contains 15 ARGO temperatures`);
+
+      // Verify diff calculation: diffs[i] == round(aiTemps[i] - argoTemps[i], 2)
+      let mathAccurate = true;
+      for (let i = 0; i < 15; i++) {
+        const expectedDiff = Number((cData.aiTemps[i] - cData.argoTemps[i]).toFixed(2));
+        if (Math.abs(cData.diffs[i] - expectedDiff) > 0.01) {
+          mathAccurate = false;
+        }
+      }
+      assert(mathAccurate, `Float ${fid}: diffs array strictly equals aiTemps - argoTemps across all 15 depths`);
+
+      // Verify presence of both positive and negative errors across the profile
+      const hasPos = cData.diffs.some(d => d >= 0);
+      const hasNeg = cData.diffs.some(d => d < 0);
+      assert(hasPos, `Float ${fid}: contains positive signed errors (AI warmer, emerald green convention)`);
+      assert(hasNeg, `Float ${fid}: contains negative signed errors (AI cooler, crimson red convention)`);
+    }
+  } catch (err) {
+    console.error('Error chart test failed:', err);
+    assert(false, `Error chart verification failed: ${err.message}`);
+  }
 
   console.log(`\n============================================================`);
   console.log(`  RESULTS: ${passedTests} / ${totalTests} assertions passed (${Math.round(passedTests/totalTests*100)}%)`);

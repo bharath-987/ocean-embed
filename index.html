@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>OceanEmbed — Satellite-derived ocean temperature profiles</title>
-  <meta name="description" content="Pick any point in the North Indian Ocean and any day, and OceanEmbed reconstructs the temperature profile from the surface to 1000 metres, from satellite data alone." />
+  <title>Kyogre — AI Digital Twin of the North Indian Ocean</title>
+  <meta name="description" content="Pick any point in the North Indian Ocean and any day, and Kyogre reconstructs the temperature profile from the surface to 1000 metres, from satellite data alone." />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body class="home-page">
@@ -12,7 +12,7 @@
   <!-- Minimal Navigation -->
   <header class="home-nav">
     <div class="home-nav__logo">
-      Ocean<em>Embed</em>
+      Kyogre
     </div>
   </header>
 
@@ -20,20 +20,20 @@
   <main class="home-hero" role="main">
     <div class="home-container">
       <div class="home-hero__content">
-        <p class="home-eyebrow">North Indian Ocean &middot; 2021&ndash;2023</p>
+        <p class="home-eyebrow">North Indian Ocean &middot; Jan 11, 2021&ndash;Dec 31, 2023</p>
 
-        <h1 class="home-title">Ocean<em>Embed</em></h1>
+        <h1 class="home-title">Kyogre</h1>
 
         <p class="home-description">
-          Pick any point in the North Indian Ocean and any day, and OceanEmbed reconstructs the temperature profile from the surface to 1000 metres, from satellite data alone.
+          Pick any point in the North Indian Ocean and any day, and Kyogre reconstructs the full subsurface temperature profile from the surface to 1000&thinsp;m — using only satellite observations of SST, SSH, SSS, ocean currents, and surface winds.
         </p>
 
         <div class="home-cta-wrap">
-          <a href="explore.html" class="home-btn-primary" id="cta-start">Start Now</a>
+          <a href="explore.html" class="home-btn-primary" id="cta-start">Launch Explorer</a>
         </div>
 
         <!-- 3-Step Overview Row -->
-        <div class="home-steps" role="list" aria-label="How OceanEmbed works">
+        <div class="home-steps" role="list" aria-label="How Kyogre works">
           <div class="home-step" role="listitem">
             <span class="home-step__num">01</span>
             <div class="home-step__text">
@@ -46,7 +46,7 @@
             <span class="home-step__num">02</span>
             <div class="home-step__text">
               <strong class="home-step__title">Choose a date</strong>
-              <span class="home-step__desc">Daily observations from 2021 to 2023</span>
+              <span class="home-step__desc">Daily data from Jan 11, 2021 to Dec 31, 2023</span>
             </div>
           </div>
           <div class="home-step__divider" aria-hidden="true"></div>
@@ -71,6 +71,55 @@
     </div>
   </main>
 
+  <!-- Module Navigation Cards -->
+  <section class="home-modules" id="home-modules" aria-label="Explore modules">
+    <div class="home-container">
+      <div class="home-details__header">
+        <span class="home-eyebrow">Four Modules</span>
+        <h2 class="home-details__title">Explore the full platform</h2>
+      </div>
+      <div class="home-details__grid">
+
+        <div class="home-feature">
+          <span class="home-feature__index">1</span>
+          <h3 class="home-feature__title">Ocean Explorer</h3>
+          <p class="home-feature__desc">
+            2D heatmap of subsurface temperatures, TVD profiles, mixed layer depth, OHC&#8323;&#8320;&#8320;, sound velocity, and D20 isotherm depth across the North Indian Ocean.
+          </p>
+          <a href="explore.html" style="display:inline-block;margin-top:10px;font-size:13px;font-weight:600;color:#1D4ED8;text-decoration:none;">Open Explorer &rarr;</a>
+        </div>
+
+        <div class="home-feature">
+          <span class="home-feature__index">2</span>
+          <h3 class="home-feature__title">Fisheries Intelligence</h3>
+          <p class="home-feature__desc">
+            Chlorophyll-a proxy raster, Potential Fishing Zone (PFZ) scoring, upwelling index, and fishing zone analysis derived from surface anomaly composites.
+          </p>
+          <a href="fisheries.html" style="display:inline-block;margin-top:10px;font-size:13px;font-weight:600;color:#1D4ED8;text-decoration:none;">Open Fisheries &rarr;</a>
+        </div>
+
+        <div class="home-feature">
+          <span class="home-feature__index">3</span>
+          <h3 class="home-feature__title">Marine Ecology</h3>
+          <p class="home-feature__desc">
+            Marine Heatwave (MHW) event detection, category classification (Moderate &rarr; Extreme), duration estimates, and peak intensity tracking per grid cell.
+          </p>
+          <a href="marine-ecology.html" style="display:inline-block;margin-top:10px;font-size:13px;font-weight:600;color:#1D4ED8;text-decoration:none;">Open Ecology &rarr;</a>
+        </div>
+
+        <div class="home-feature">
+          <span class="home-feature__index">4</span>
+          <h3 class="home-feature__title">ARGO Validation</h3>
+          <p class="home-feature__desc">
+            Independent validation against in-situ ARGO float profiles. RMSE, Bias, Pearson correlation, and skill scores vs. climatology.
+          </p>
+          <a href="argo.html" style="display:inline-block;margin-top:10px;font-size:13px;font-weight:600;color:#1D4ED8;text-decoration:none;">Open Validation &rarr;</a>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
   <!-- Minimal Details Section -->
   <section class="home-details" id="home-details" aria-label="About the technology">
     <div class="home-container">
@@ -87,7 +136,7 @@
           <span class="home-feature__index">A</span>
           <h3 class="home-feature__title">Satellite-only inputs</h3>
           <p class="home-feature__desc">
-            No physical sensor drops needed. Sea surface temperature (SST), sea surface height (SSH), and sea surface salinity (SSS) feed the model directly.
+            No physical sensor drops needed. Sea surface temperature (SST), sea surface height (SSH), sea surface salinity (SSS), ocean currents, and surface winds feed the model directly.
           </p>
         </div>
 
@@ -119,7 +168,7 @@
   <footer class="home-footer">
     <div class="home-container home-footer__inner">
       <p class="home-footer__copy">
-        OceanEmbed &middot; North Indian Ocean 2021&ndash;2023 &middot; Subsurface Temperature Reconstruction
+        Kyogre &middot; North Indian Ocean 2021&ndash;2023 &middot; Subsurface Temperature Reconstruction
       </p>
     </div>
   </footer>

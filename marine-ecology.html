@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Kyogre — Fisheries Mode &amp; PFZ Advisory</title>
-  <meta name="description" content="Identify Potential Fishing Zones (PFZ) and analyze subsurface vertical profiles in the North Indian Ocean." />
+  <title>Kyogre — Marine Ecology &amp; Heatwave Mode</title>
+  <meta name="description" content="Detect and categorize Marine Heatwaves (MHWs) across the North Indian Ocean using Hobday et al. (2016) criteria and CNN-LSTM reconstructed SST time series." />
 
   <!-- Deployment Config -->
   <script src="config.js"></script>
@@ -40,7 +40,7 @@
             <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
           </svg>
           <input type="text" id="map-search-input" class="map-search__input"
-            placeholder="Search location (e.g. Andaman Sea, 10°N 95°E)..."
+            placeholder="Search location (e.g. Arabian Sea, 15°N 65°E)..."
             autocomplete="off" spellcheck="false" aria-label="Search location or coordinates" />
           <span class="ky-search-kbd">Ctrl K</span>
           <button type="button" id="map-search-clear" class="map-search__clear"
@@ -93,7 +93,7 @@
             <span class="ky-nav-item__label">Dashboard</span>
           </button>
 
-          <button class="ky-nav-item ky-nav-item--active" data-nav="fisheries">
+          <button class="ky-nav-item" data-nav="fisheries" onclick="window.location.href='fisheries.html'">
             <span class="ky-nav-item__icon">
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M2 16s1-5 8-5 8 5 8 5-2 2-8 2-8-2-8-2z"/>
@@ -104,7 +104,7 @@
             <span class="ky-nav-item__label">Fisheries Mode</span>
           </button>
 
-          <button class="ky-nav-item" data-nav="ecology" onclick="window.location.href='marine-ecology.html'">
+          <button class="ky-nav-item ky-nav-item--active" data-nav="ecology">
             <span class="ky-nav-item__icon">
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z"/>
@@ -136,126 +136,116 @@
       <!-- MAIN CONTENT -->
       <main class="ky-main">
 
-        <!-- TOP STAT CARDS ROW (4 Cards matching mockup) -->
+        <!-- TOP STAT CARDS ROW (4 Equal-Width Cards matching explore.html and fisheries.html) -->
         <div class="ky-stat-row">
-          <!-- 1: Thermocline Depth -->
+          <!-- Card 1: Marine Heatwave Status -->
+          <div class="ky-stat-card">
+            <div class="ky-stat-card__icon ky-stat-card__icon--coral">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <circle cx="12" cy="12" r="5"/>
+                <line x1="12" y1="1" x2="12" y2="3"/>
+                <line x1="12" y1="21" x2="12" y2="23"/>
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                <line x1="1" y1="12" x2="3" y2="12"/>
+                <line x1="21" y1="12" x2="23" y2="12"/>
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+              </svg>
+            </div>
+            <div class="ky-stat-card__body">
+              <div class="ky-stat-card__label-row">
+                <span class="ky-stat-card__label">Marine Heatwave Status</span>
+                <div class="ky-stat-card__pill-row">
+                  <span class="ky-provenance-pill ky-provenance-pill--heuristic" title="Derived from Hobday et al. (2016) statistical thresholding of reconstructed SST — not a direct model prediction.">Estimated Heuristic</span>
+                </div>
+              </div>
+              <div class="ky-stat-card__val-row">
+                <span class="ky-stat-card__val" id="stat-mhw-val">—</span>
+                <span class="ky-stat-card__badge" id="stat-mhw-badge" style="display:none;"></span>
+              </div>
+              <div class="ky-stat-card__note" id="stat-mhw-note">Select location &amp; date</div>
+            </div>
+          </div>
+
+          <!-- Card 2: Events in Window -->
           <div class="ky-stat-card">
             <div class="ky-stat-card__icon ky-stat-card__icon--blue">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-                <path d="M2 6c.6.5 1.2 1 2.5 1C7 7 7 5 9.5 5c2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/>
-                <path d="M2 12c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/>
-                <path d="M2 18c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/>
+                <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
               </svg>
             </div>
             <div class="ky-stat-card__body">
               <div class="ky-stat-card__label-row">
-                <span class="ky-stat-card__label">Thermocline Depth (m)</span>
+                <span class="ky-stat-card__label">Events in Window</span>
                 <div class="ky-stat-card__pill-row">
-                  <span class="ky-provenance-pill ky-provenance-pill--model">Model Gradient</span>
+                  <span class="ky-provenance-pill ky-provenance-pill--heuristic" title="Derived from Hobday et al. (2016) statistical thresholding of reconstructed SST — not a direct model prediction.">Estimated Heuristic</span>
                 </div>
               </div>
               <div class="ky-stat-card__val-row">
-                <span class="ky-stat-card__val" id="stat-thermocline-val">—</span>
+                <span class="ky-stat-card__val" id="stat-window-events-val">—</span>
               </div>
-              <div class="ky-stat-card__note" id="stat-thermocline-note">Select a location and date</div>
+              <div class="ky-stat-card__note" id="stat-window-events-note">Awaiting selection</div>
             </div>
           </div>
 
-          <!-- 2: Upwelling Index -->
+          <!-- Card 3: Peak Category (Window) -->
           <div class="ky-stat-card">
-            <div class="ky-stat-card__icon ky-stat-card__icon--mint">
+            <div class="ky-stat-card__icon ky-stat-card__icon--red">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-                <path d="M12 19V5M5 12l7-7 7 7"/>
-                <path d="M4 21h16"/>
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
               </svg>
             </div>
             <div class="ky-stat-card__body">
               <div class="ky-stat-card__label-row">
-                <span class="ky-stat-card__label">Upwelling Index (0–1)</span>
+                <span class="ky-stat-card__label">Peak Category (Window)</span>
                 <div class="ky-stat-card__pill-row">
-                  <span class="ky-provenance-pill ky-provenance-pill--heuristic">Estimated Heuristic</span>
+                  <span class="ky-provenance-pill ky-provenance-pill--heuristic" title="Derived from Hobday et al. (2016) statistical thresholding of reconstructed SST — not a direct model prediction.">Estimated Heuristic</span>
                 </div>
               </div>
               <div class="ky-stat-card__val-row">
-                <span class="ky-stat-card__val" id="stat-upwelling-val">—</span>
+                <span class="ky-stat-card__val" id="stat-window-peak-val">—</span>
               </div>
-              <div class="ky-stat-card__note" id="stat-upwelling-note">Select a location and date</div>
+              <div class="ky-stat-card__note" id="stat-window-peak-note">Awaiting selection</div>
             </div>
           </div>
 
-          <!-- 3: PFZ Index Assessment -->
+          <!-- Card 4: Longest Event Duration (Window) -->
           <div class="ky-stat-card">
-            <div class="ky-stat-card__icon ky-stat-card__icon--purple">
+            <div class="ky-stat-card__icon ky-stat-card__icon--teal">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-                <circle cx="12" cy="12" r="10"/>
-                <circle cx="12" cy="12" r="6"/>
-                <circle cx="12" cy="12" r="2"/>
+                <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
               </svg>
             </div>
             <div class="ky-stat-card__body">
               <div class="ky-stat-card__label-row">
-                <span class="ky-stat-card__label">PFZ Index (0–1)</span>
+                <span class="ky-stat-card__label">Longest Event Duration (Window)</span>
                 <div class="ky-stat-card__pill-row">
-                  <span class="ky-provenance-pill ky-provenance-pill--heuristic">Estimated Heuristic</span>
+                  <span class="ky-provenance-pill ky-provenance-pill--heuristic" title="Derived from Hobday et al. (2016) statistical thresholding of reconstructed SST — not a direct model prediction.">Estimated Heuristic</span>
                 </div>
               </div>
               <div class="ky-stat-card__val-row">
-                <span class="ky-stat-card__val" id="stat-pfz-val">—</span>
-                <span class="ky-stat-card__badge" id="stat-pfz-badge" style="display:none;"></span>
+                <span class="ky-stat-card__val" id="stat-window-duration-val">—</span>
               </div>
-              <div class="ky-stat-card__note" id="stat-pfz-note">Select a location and date</div>
+              <div class="ky-stat-card__note" id="stat-window-duration-note">Awaiting selection</div>
             </div>
           </div>
-
-          <!-- 4: Chlorophyll-a Proxy -->
-          <div class="ky-stat-card">
-            <div class="ky-stat-card__icon ky-stat-card__icon--green">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-                <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z"/>
-                <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>
-              </svg>
-            </div>
-            <div class="ky-stat-card__body">
-              <div class="ky-stat-card__label-row">
-                <span class="ky-stat-card__label">Surface Chlorophyll-a Proxy (mg/m³)</span>
-                <div class="ky-stat-card__pill-row">
-                  <span class="ky-provenance-pill ky-provenance-pill--heuristic">Estimated Heuristic</span>
-                </div>
-              </div>
-              <div class="ky-stat-card__val-row">
-                <span class="ky-stat-card__val" id="stat-nutrient-val">—</span>
-              </div>
-              <div class="ky-stat-card__note" id="stat-nutrient-note">Select a location and date</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Operational Caveat Banner: Thermocline-Depth Skill (100–200m) & PFZ Index Directional Usage -->
-        <div class="ky-fisheries-operational-caveat">
-          <svg class="ky-fisheries-caveat-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="12" y1="8" x2="12" y2="12"></line>
-            <line x1="12" y1="16" x2="12.01" y2="16"></line>
-          </svg>
-          <span class="ky-fisheries-caveat-text">
-            <strong>Operational Note:</strong> Thermocline-depth accuracy (100–200m) shows measured skill below the climatological baseline in ARGO validation; treat PFZ Index as a directional indicator, not a precise forecast. Full validation breakdown available on the <a href="argo.html" class="ky-fisheries-caveat-link">ARGO Validation page</a>.
-          </span>
         </div>
 
         <!-- ============================================================
-             TWO-COLUMN GRID: Left Map Section + Right Subsurface Profile Panel
+             TWO-COLUMN GRID: Left Map Section + Right SST Time Series Chart
              ============================================================ -->
-        <div class="ky-fisheries-content-row">
+        <div class="ky-mhw-content-row">
 
-          <!-- LEFT COLUMN (Wider): Chlorophyll-a & PFZ Map -->
-          <div class="ky-fisheries-map-col">
-            <div class="ky-fisheries-map-card">
+          <!-- LEFT COLUMN: Satellite Basemap & Coordinate Selection -->
+          <div class="ky-mhw-map-col">
+            <div class="ky-mhw-map-card">
 
-              <!-- Map Container -->
-              <div class="ky-fisheries-map-wrap" id="map-wrap">
+              <!-- Map Container (Edge-to-edge layout matching Fisheries and Dashboard) -->
+              <div class="ky-mhw-map-wrap" id="map-wrap">
                 <div id="map"></div>
 
-                <!-- Map Tools (Top-Right: Zoom + / - ONLY) -->
+                <!-- Map Tools (Top-Right: Zoom + / -) -->
                 <div class="ky-map-tools-top-right">
                   <div class="ky-zoom-btn-group">
                     <button type="button" class="ky-tool-btn" id="btn-zoom-in" aria-label="Zoom in" title="Zoom in">
@@ -275,92 +265,111 @@
                   <span>Selection limited to North Indian Ocean (5°N–30°N, 45°E–105°E)</span>
                 </div>
 
-                <!-- Dynamic Chlorophyll-a Map Legend (Bottom-Left) -->
-                <div id="map-legend" class="ky-fisheries-legend" style="display:block;">
-                  <span class="ky-fisheries-legend__title">Chlorophyll-a Proxy (mg/m³)</span>
-                  <span class="ky-map-legend__caption">Surface heuristic derived from upwelling dynamics</span>
-                  <div class="ky-fisheries-legend__bar"></div>
-                  <div class="ky-fisheries-legend__ticks">
-                    <span>Low (0.01)</span>
-                    <span>Moderate (1.0)</span>
-                    <span>High (10.0+)</span>
-                  </div>
-                  <div class="ky-fisheries-legend__subnote">Illustrative seasonal pattern</div>
-                </div>
-
               </div>
             </div>
           </div>
 
-          <!-- RIGHT COLUMN (Narrower): Vertical Profile + Single INCOIS Disclaimer -->
-          <div class="ky-fisheries-side-col">
-            <div class="ky-tvd-panel">
+          <!-- RIGHT COLUMN: Time Series Chart & Hobday Methodology Note -->
+          <div class="ky-mhw-side-col">
+            <div class="ky-mhw-panel">
 
-              <!-- Toggle (Table / Graph) - Full width matching Dashboard -->
-              <div class="ky-tvd-toggle">
-                <button type="button" class="ky-tvd-toggle__btn ky-tvd-toggle__btn--active" id="btn-view-table">Table</button>
-                <button type="button" class="ky-tvd-toggle__btn" id="btn-view-graph">Graph</button>
+              <!-- Panel Header -->
+              <div class="ky-mhw-panel__header">
+                <div>
+                  <div class="ky-mhw-panel__title">Sea Surface Temperature Time Series</div>
+                  <div class="ky-mhw-panel__sub" id="mhw-window-info">Hobday et al. (2016) Climatological Envelope &amp; Heatwave Detection</div>
+                </div>
+                <div class="ky-mhw-panel__header-badges">
+                  <span class="ky-mhw-coord-pill" id="selected-loc-coord" style="display:none;">—</span>
+                  <div class="ky-mhw-event-count-badge" id="mhw-event-count" style="display:none;">0 Events Detected</div>
+                </div>
               </div>
 
-              <!-- Coordinate Bar directly below tabs -->
-              <div class="ky-tvd-coord-bar">
-                <span class="ky-tvd-coord-label">Selected Location</span>
-                <span class="ky-tvd-loc-inline" id="selected-loc-coord">—</span>
-              </div>
-
-              <!-- EMPTY state (shown until both location and date are selected) -->
-              <div id="tvd-empty-view" class="ky-tvd-empty" style="display:flex;">
-                <svg class="ky-tvd-empty__icon" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                  <circle cx="12" cy="12" r="10"/>
-                  <line x1="12" y1="8" x2="12" y2="12"/>
-                  <line x1="12" y1="16" x2="12.01" y2="16"/>
+              <!-- Gated Views -->
+              <!-- 1. Empty State View -->
+              <div id="mhw-empty-view" class="ky-tvd-empty" style="display:flex;">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="1.5">
+                  <path d="M12 2v2M12 20v2m10-10h-2M4 12H2m15.07-7.07l-1.41 1.41M8.34 15.66l-1.41 1.41m11.14 0l-1.41-1.41M8.34 8.34L6.93 6.93"/>
+                  <circle cx="12" cy="12" r="4"/>
                 </svg>
-                <p class="ky-tvd-empty__text" id="tvd-empty-text">No location selected yet — click the map or search above</p>
+                <div class="ky-tvd-empty__title" id="mhw-empty-title">No location selected yet</div>
+                <div class="ky-tvd-empty__sub" id="mhw-empty-sub">Click anywhere on the map or search above to analyze Marine Heatwave status.</div>
               </div>
 
-              <!-- 3-Column Table View (Depth, Temperature, Nutrient) -->
-              <div id="tvd-table-view" class="ky-tvd-table-wrap" style="display:none;">
-                <table class="ky-tvd-table">
-                  <thead>
-                    <tr>
-                      <th>Depth (m)</th>
-                      <th>Temperature (°C) <span class="ky-tbl-tag ky-tbl-tag--model">Model</span></th>
-                      <th>Chlorophyll proxy (mg/m³) — est.</th>
-                    </tr>
-                  </thead>
-                  <tbody id="tvd-table-body">
-                    <!-- Populated dynamically via fisheries.js -->
-                  </tbody>
-                </table>
+              <!-- 2. Chart View (Shown when location + date selected) -->
+              <div id="mhw-chart-view" class="ky-mhw-chart-view" style="display:none;">
+                
+                <!-- Chart Summary Bar -->
+                <div class="ky-mhw-summary-bar">
+                  <div class="ky-mhw-summary-item">
+                    <span class="ky-mhw-summary-label">Actual SST</span>
+                    <span class="ky-mhw-summary-val" id="summary-sst">—</span>
+                  </div>
+                  <div class="ky-mhw-summary-item">
+                    <span class="ky-mhw-summary-label">Climatological Mean</span>
+                    <span class="ky-mhw-summary-val" id="summary-mean">—</span>
+                  </div>
+                  <div class="ky-mhw-summary-item">
+                    <span class="ky-mhw-summary-label">90th Percentile Threshold</span>
+                    <span class="ky-mhw-summary-val" id="summary-thresh">—</span>
+                  </div>
+                  <div class="ky-mhw-summary-item">
+                    <span class="ky-mhw-summary-label">Threshold Distance (&Delta;T&#8329;&#8320;)</span>
+                    <span class="ky-mhw-summary-val" id="summary-gap">—</span>
+                  </div>
+                </div>
+
+                <!-- Chart Canvas Container -->
+                <div class="ky-mhw-chart-container">
+                  <canvas id="mhw-chart"></canvas>
+                </div>
+
+                <!-- Legend Key -->
+                <div class="ky-mhw-legend-row">
+                  <div class="ky-mhw-legend-item">
+                    <span class="ky-mhw-legend-line ky-mhw-legend-line--sst"></span>
+                    <span>Actual SST (°C)</span>
+                  </div>
+                  <div class="ky-mhw-legend-item">
+                    <span class="ky-mhw-legend-line ky-mhw-legend-line--thresh"></span>
+                    <span>90th Percentile Threshold (°C)</span>
+                  </div>
+                  <div class="ky-mhw-legend-item">
+                    <span class="ky-mhw-legend-line ky-mhw-legend-line--mean"></span>
+                    <span>Climatological Mean (°C)</span>
+                  </div>
+                  <div class="ky-mhw-legend-item">
+                    <span class="ky-mhw-legend-box ky-mhw-legend-box--heatwave"></span>
+                    <span>Active Heatwave (≥5 Days)</span>
+                  </div>
+                </div>
+
               </div>
 
-              <!-- Graph View (Chart.js dual-axis canvas) -->
-              <div id="tvd-graph-view" class="ky-tvd-chart-wrap" style="display:none;">
-                <canvas id="profile-chart" aria-label="Subsurface depth profile chart"></canvas>
-              </div>
-
-              <!-- PERSISTENT INCOIS VALIDATION DISCLAIMER (Single Box Retained) -->
-              <div class="ky-pfz-disclaimer">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0; margin-top:2px;">
-                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-                </svg>
-                <span>These indices are derived heuristics based on model temperature output and are intended to support — not replace — field verification and INCOIS's operational PFZ advisories. PFZ score chlorophyll input differs from the illustrative map layer shown.</span>
+              <!-- Mandatory Methodology Disclaimer Card (Always visible) -->
+              <div class="ky-mhw-methodology-card">
+                <div class="ky-mhw-methodology-icon">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="16" x2="12" y2="12"/>
+                    <line x1="12" y1="8" x2="12.01" y2="8"/>
+                  </svg>
+                </div>
+                <div class="ky-mhw-methodology-text">
+                  <strong>Methodology Note:</strong> Marine heatwave defined per Hobday et al. (2016): SST exceeding the location's climatological 90th percentile for 5+ consecutive days. Climatology computed from 2021–2023 reconstructed SST — a short baseline period; treat detected events as indicative, not a substitute for long-term (10–30 year) climatological monitoring.
+                </div>
               </div>
 
             </div>
           </div>
 
         </div>
-        <!-- end two-column grid -->
 
       </main>
     </div>
-    <!-- end body -->
 
   </div>
-  <!-- end app -->
 
-  <script src="coastline.js"></script>
-  <script src="fisheries.js"></script>
+  <script src="marine-ecology.js"></script>
 </body>
 </html>

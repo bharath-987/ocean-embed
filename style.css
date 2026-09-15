@@ -871,6 +871,7 @@ body.kyogre-page {
   align-items: center;
   gap: 16px;
   border: 1px solid rgba(226, 235, 246, 0.8);
+  position: relative;
 }
 
 .ky-stat-card__icon {
@@ -971,6 +972,40 @@ body.kyogre-page {
   line-height: 1.25;
   margin-top: 3px;
   white-space: normal;
+}
+
+/* Metric Card Confidence Indicator */
+.ky-stat-card__confidence {
+  font-size: 11px;
+  color: #64748B;
+  margin-top: 3px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.ky-stat-card__confidence-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: inline-block;
+}
+
+.ky-stat-card__confidence-dot--high {
+  background: #16A34A;
+}
+
+.ky-stat-card__confidence-dot--moderate {
+  background: #D97706;
+}
+
+.ky-stat-card__confidence-dot--low {
+  background: #DC2626;
 }
 
 .cast-error-msg {
@@ -1111,12 +1146,18 @@ body.kyogre-page {
 
 
 /* Map Geographic Labels */
+.geo-label-marker {
+  z-index: 2 !important;
+  pointer-events: none !important;
+}
+
 .map-geo-label {
   pointer-events: none;
   user-select: none;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   letter-spacing: 0.08em;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7), 0 0 8px rgba(0, 0, 0, 0.4);
+  transition: opacity 0.25s ease;
 }
 
 .map-geo-label--land {
@@ -1382,6 +1423,29 @@ body.kyogre-page {
   font-weight: 600;
 }
 
+.ky-map-legend__caption {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid #E2E8F0;
+  font-size: 10.5px;
+  line-height: 1.35;
+  color: #475569;
+}
+
+.ky-map-legend__caption-tag {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 1.5px 6px;
+  border-radius: 4px;
+  background: #FEF3C7;
+  color: #92400E;
+  border: 1px solid #FDE68A;
+  margin-bottom: 4px;
+}
+
 /* 4: Bottom-Right Scale Bar */
 .ky-map-scale-bar {
   position: absolute;
@@ -1422,26 +1486,28 @@ body.kyogre-page {
 }
 
 /* Custom Pin Element with Coordinate Badge */
+.selected-location-marker,
 .custom-marker-wrapper {
   display: flex;
   flex-direction: column;
   align-items: center;
   cursor: pointer;
   filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.3));
+  transition: none !important;
+  will-change: transform;
+  z-index: 50 !important;
 }
 
 .custom-marker__coord {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  color: #1E293B;
+  background: #FFFFFF !important;
+  color: #0F172A;
   font-family: var(--font-body, system-ui, -apple-system, sans-serif);
   font-size: 11px;
   font-weight: 600;
-  padding: 2px 7px;
+  padding: 3px 8px;
   border-radius: 6px;
-  border: 1px solid #CBD5E1;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  border: 1px solid #94A3B8;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
   white-space: nowrap;
   pointer-events: none;
   user-select: none;
@@ -1560,6 +1626,27 @@ body.kyogre-page {
   color: #2563EB;
 }
 
+.ky-param-tile--wide {
+  grid-column: 1 / -1;
+}
+
+.ky-param-tile__name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ky-param-tile__icon--shield {
+  background: #ECFDF5;
+  color: #059669;
+}
+
+.ky-param-tile--active .ky-param-tile__icon--shield {
+  background: #059669;
+  color: #FFFFFF;
+}
+
 /* ============================================================
    RIGHT PANEL â€” Temperature vs Depth (340px)
    Graph default active, Table toggle with Depth, Temp, Salinity
@@ -1675,10 +1762,20 @@ body.kyogre-page {
   padding: 0 18px 18px;
 }
 
+.ky-tvd-table-note {
+  font-size: 10.5px;
+  color: #64748B;
+  line-height: 1.5;
+  font-style: italic;
+  margin: 8px 0 0;
+  padding: 0 2px;
+}
+
 .ky-tvd-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 12px;
+  table-layout: fixed;
 }
 
 .ky-tvd-table th {
@@ -1686,29 +1783,56 @@ body.kyogre-page {
   font-size: 11px;
   font-weight: 700;
   color: #475569;
-  text-align: right;
   border-bottom: 1px solid #E2E8F0;
   background: #FFFFFF;
   position: sticky;
   top: 0;
+  vertical-align: middle;
+  box-sizing: border-box;
 }
 
-.ky-tvd-table th:first-child {
+.ky-tvd-table th:first-child,
+.ky-tvd-table th:nth-child(1) {
   text-align: left;
+  width: 30%;
+}
+
+.ky-tvd-table th:nth-child(2) {
+  text-align: center;
+  width: 35%;
+}
+
+.ky-tvd-table th:nth-child(3) {
+  text-align: right;
+  width: 35%;
 }
 
 .ky-tvd-table td {
   padding: 8px 10px;
-  text-align: right;
   color: #334155;
   border-bottom: 1px solid #F1F5F9;
   font-weight: 500;
+  vertical-align: middle;
+  line-height: 1.4;
+  box-sizing: border-box;
 }
 
-.ky-tvd-table td:first-child {
+.ky-tvd-table td:first-child,
+.ky-tvd-table td:nth-child(1) {
   text-align: left;
   font-weight: 600;
   color: #0F172A;
+  width: 30%;
+}
+
+.ky-tvd-table td:nth-child(2) {
+  text-align: center;
+  width: 35%;
+}
+
+.ky-tvd-table td:nth-child(3) {
+  text-align: right;
+  width: 35%;
 }
 
 .ky-tvd-table tr:hover td {
@@ -1719,6 +1843,53 @@ body.kyogre-page {
   background: #EFF6FF !important;
   color: #1D4ED8 !important;
   font-weight: 700 !important;
+}
+
+/* TVD Table Confidence Column */
+.ky-tvd-conf-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  vertical-align: middle;
+  line-height: 1;
+  width: 100%;
+}
+
+.ky-tvd-conf-bar-bg {
+  flex: 1;
+  height: 5px;
+  min-width: 36px;
+  max-width: 52px;
+  background: #E2E8F0;
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.ky-tvd-conf-bar-fill {
+  height: 100%;
+  border-radius: 9999px;
+  transition: width 0.25s ease;
+}
+
+.ky-tvd-conf-bar-fill--high {
+  background: #16A34A;
+}
+
+.ky-tvd-conf-bar-fill--moderate {
+  background: #D97706;
+}
+
+.ky-tvd-conf-bar-fill--low {
+  background: #DC2626;
+}
+
+.ky-tvd-conf-pct {
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+  min-width: 26px;
+  text-align: right;
 }
 
 /* Empty placeholder state for TVD panel */
@@ -1955,7 +2126,67 @@ body.kyogre-page {
   font-weight: 500;
 }
 
-/* Stat card badges and trend notes */
+/* Stat card badges, label rows and provenance pills */
+.ky-stat-card__label-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.ky-stat-card__label-row .ky-stat-card__label {
+  margin-bottom: 0;
+  line-height: 1.25;
+  white-space: normal;
+  display: block;
+  width: 100%;
+}
+
+.ky-stat-card__pill-row {
+  display: flex;
+  align-items: center;
+  margin-top: 1px;
+}
+
+.ky-provenance-pill {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1.5px 5.5px;
+  border-radius: 4px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.ky-provenance-pill--heuristic {
+  background: #FEF3C7;
+  color: #92400E;
+  border: 1px solid #FDE68A;
+}
+
+.ky-provenance-pill--model {
+  background: #EFF6FF;
+  color: #1D4ED8;
+  border: 1px solid #BFDBFE;
+}
+
+.ky-tbl-tag {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 4.5px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  vertical-align: middle;
+}
+
+.ky-tbl-tag--model {
+  background: #EFF6FF;
+  color: #1D4ED8;
+  border: 1px solid #DBEAFE;
+}
+
 .ky-stat-card__val-row {
   display: flex;
   align-items: baseline;
@@ -2091,6 +2322,41 @@ body.kyogre-page {
   color: #047857;
   line-height: 1.45;
   margin: 0;
+}
+
+/* Persistent INCOIS Validation Disclaimer */
+.ky-pfz-disclaimer {
+  margin-top: 10px;
+  padding: 9px 12px;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 11px;
+  color: #64748B;
+  line-height: 1.45;
+}
+
+.ky-pfz-disclaimer svg {
+  color: #64748B;
+}
+
+/* Historical Reanalysis Header Indicator */
+.ky-live-dot--reanalysis {
+  background: #2563EB;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+  animation: none;
+}
+
+/* Fisheries Legend Subnote */
+.ky-fisheries-legend__subnote {
+  font-size: 9.5px;
+  color: #94A3B8;
+  margin-top: 5px;
+  font-style: italic;
+  text-align: center;
 }
 
 /* Key Insights */
@@ -2266,7 +2532,8 @@ body.kyogre-page {
   grid-template-columns: 1fr 390px;
   gap: 16px;
   flex: 1;
-  min-height: 590px;
+  min-height: 460px;
+  align-items: start;
 }
 
 @media (max-width: 1200px) {
@@ -2285,14 +2552,83 @@ body.kyogre-page {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  height: 100%;
 }
 
 .ky-fisheries-side-col {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  height: 100%;
+}
+
+.ky-tvd-panel {
+  background: #FFFFFF;
+  border-radius: 16px;
+  box-shadow: 0 2px 10px rgba(0, 30, 60, 0.04);
+  border: 1px solid rgba(226, 235, 246, 0.8);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+.ky-tvd-panel .ky-tvd-toggle {
+  display: flex;
+  background: #F1F5F9;
+  border-radius: 10px;
+  padding: 3px;
+  gap: 4px;
+  margin: 0 0 10px 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.ky-tvd-panel .ky-tvd-toggle__btn {
+  flex: 1;
+  padding: 6px 14px;
+  font-size: 12.5px;
+  font-weight: 600;
+  border-radius: 7px;
+  border: none;
+  cursor: pointer;
+  background: transparent;
+  color: #64748B;
+  transition: all 0.15s ease;
+  font-family: inherit;
+  text-align: center;
+}
+
+.ky-tvd-panel .ky-tvd-toggle__btn:hover {
+  color: #1E293B;
+}
+
+.ky-tvd-panel .ky-tvd-toggle__btn--active {
+  background: #1D64F2;
+  color: #FFFFFF !important;
+  box-shadow: 0 2px 6px rgba(29, 100, 242, 0.25);
+}
+
+.ky-tvd-coord-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  padding: 0 2px;
+}
+
+.ky-tvd-coord-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #64748B;
+}
+
+.ky-tvd-loc-inline {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1E293B;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-variant-numeric: tabular-nums;
 }
 
 .ky-fisheries-map-card {
@@ -2303,17 +2639,16 @@ body.kyogre-page {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  flex: 1;
-  min-height: 560px;
-  height: 100%;
+  height: 460px;
+  min-height: 460px;
 }
 
 .ky-fisheries-map-wrap {
   flex: 1;
   position: relative;
   overflow: hidden;
-  min-height: 500px;
   height: 100%;
+  min-height: 460px;
   background: #0B192C;
 }
 
@@ -2327,42 +2662,26 @@ body.kyogre-page {
   height: 100% !important;
 }
 
-/* Region Selector Button (Top Left of Map) */
-.ky-map-region-select {
-  position: absolute;
-  top: 14px;
-  left: 14px;
-  z-index: 20;
+/* Small muted text line directly below map card outside canvas */
+.ky-fisheries-map-disclaimer {
+  font-size: 11.5px;
+  color: #64748B;
+  margin-top: 8px;
+  margin-bottom: 0;
+  line-height: 1.4;
+  padding-left: 2px;
 }
 
-.ky-map-region-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: #FFFFFF;
-  border: 1px solid rgba(226, 232, 240, 0.95);
-  border-radius: 10px;
-  padding: 8px 14px;
-  font-size: 13px;
-  font-weight: 600;
-  color: #1E293B;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
-  cursor: pointer;
-  transition: all 0.15s ease;
-  font-family: inherit;
+.ky-fisheries-map-disclaimer em {
+  font-style: italic;
 }
 
-.ky-map-region-btn:hover {
-  background: #F8FAFC;
-  border-color: #93C5FD;
-}
-
-/* Map Tools (Top Right) */
+/* Map Tools (Top Right: Zoom +/- ONLY) */
 .ky-map-tools-top-right {
   position: absolute;
   top: 14px;
   right: 14px;
-  z-index: 20;
+  z-index: 30;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -2371,11 +2690,13 @@ body.kyogre-page {
 .ky-zoom-btn-group {
   display: flex;
   flex-direction: column;
-  background: #FFFFFF;
-  border: 1px solid rgba(226, 232, 240, 0.95);
+  background: #FFFFFF !important;
+  border: 1px solid #E2E8F0;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
   overflow: hidden;
+  z-index: 30;
+  opacity: 1 !important;
 }
 
 .ky-tool-btn {
@@ -2384,12 +2705,14 @@ body.kyogre-page {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #FFFFFF;
+  background: #FFFFFF !important;
+  opacity: 1 !important;
   border: none;
   color: #334155;
   cursor: pointer;
   transition: all 0.15s ease;
   font-family: inherit;
+  z-index: 30;
 }
 
 .ky-zoom-btn-group .ky-tool-btn:first-child {
@@ -2397,14 +2720,8 @@ body.kyogre-page {
 }
 
 .ky-tool-btn:hover {
-  background: #F1F5F9;
+  background: #F1F5F9 !important;
   color: #1D4ED8;
-}
-
-.ky-map-tools-top-right > .ky-tool-btn {
-  border-radius: 8px;
-  border: 1px solid rgba(226, 232, 240, 0.95);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
 }
 
 /* Map Tools (Bottom Right: North Compass & Scale Bar) */
@@ -2508,8 +2825,50 @@ body.kyogre-page {
   font-weight: 600;
 }
 
-/* Small fish badge on dashed PFZ zones */
+/* Small fish badge on dashed PFZ zones (Jitter-Free MapLibre Marker Container) */
+.pfz-fish-marker-wrap {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  cursor: pointer;
+  transition: none !important; /* Zero transition on position/transform prevents pan/zoom jitter */
+  will-change: transform;
+  pointer-events: auto;
+}
+
+/* Pulsing highlight ring around fish icons - separate child animated via scale/opacity only */
+.pfz-fish-pulse {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.7);
+  pointer-events: none;
+  transform-origin: center center;
+  animation: pfzFishPulse 2.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite;
+}
+
+@keyframes pfzFishPulse {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.85;
+  }
+  70% {
+    transform: scale(1.75);
+    opacity: 0.15;
+  }
+  100% {
+    transform: scale(2.0);
+    opacity: 0;
+  }
+}
+
+/* Inner fish badge on dashed PFZ zones (hover scale operates on child, not maplibregl-marker) */
 .pfz-fish-badge {
+  position: relative;
+  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2518,15 +2877,24 @@ body.kyogre-page {
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.28);
   backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   border: 1.5px dashed rgba(255, 255, 255, 0.9);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   cursor: pointer;
-  transition: transform 0.15s ease;
+  transform-origin: center center;
+  transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
 }
 
+.pfz-fish-marker-wrap:hover .pfz-fish-badge,
 .pfz-fish-badge:hover {
   transform: scale(1.18);
   background: rgba(37, 99, 235, 0.5);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+/* Ensure all MapLibre markers have zero transition lag during pan/zoom */
+.maplibregl-marker {
+  transition: none !important;
 }
 
 /* Tuna zone speech bubble popup */
@@ -2629,50 +2997,7 @@ body.ky-argo-body-theme {
   letter-spacing: -0.01em;
 }
 
-.ky-argo-nav-right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-left: auto;
-}
 
-.ky-argo-live-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: #DCFCE7;
-  color: #15803D;
-  font-size: 12px;
-  font-weight: 600;
-  padding: 4px 10px;
-  border-radius: 9999px;
-}
-
-.ky-argo-live-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #16A34A;
-}
-
-.ky-argo-avatar-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: #F1F5F9;
-  border: 1px solid #E2E8F0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #64748B;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.ky-argo-avatar-btn:hover {
-  background: #E2E8F0;
-  color: #1E293B;
-}
 
 /* Main scrollable container */
 .ky-argo-main-container {
@@ -2763,7 +3088,7 @@ body.ky-argo-body-theme {
 /* 3 & 4. Middle Two-Column Grid */
 .ky-argo-content-split {
   display: grid;
-  grid-template-columns: 1.4fr 1fr;
+  grid-template-columns: 1.15fr 1fr;
   gap: 16px;
   min-height: 470px;
   flex-shrink: 0;
@@ -2999,6 +3324,79 @@ body.ky-argo-body-theme {
   display: block;
   width: 100%;
   height: 100%;
+}
+
+/* Dual Side-by-Side Profile & Error Charts */
+.ky-argo-chart-box.ky-argo-charts-row,
+.ky-argo-charts-row {
+  display: grid;
+  grid-template-columns: 1.08fr 0.92fr;
+  gap: 12px;
+  flex: 1;
+  min-height: 270px;
+  width: 100%;
+}
+
+.ky-argo-chart-box[style*="display: none"],
+.ky-argo-charts-row[style*="display: none"] {
+  display: none !important;
+}
+
+.ky-argo-chart-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0; /* Prevents CSS grid canvas blowout */
+  position: relative;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  padding: 8px 10px 10px;
+}
+
+.ky-argo-subchart-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  gap: 6px;
+}
+
+.ky-argo-subchart-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #1E293B;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.ky-argo-subchart-badge {
+  font-size: 9.5px;
+  font-weight: 600;
+  color: #475569;
+  background: #E2E8F0;
+  padding: 1.5px 5px;
+  border-radius: 4px;
+}
+
+.ky-argo-canvas-wrapper {
+  position: relative;
+  flex: 1;
+  min-height: 250px;
+  height: 250px;
+  width: 100%;
+}
+
+.ky-argo-canvas-wrapper canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+@media (max-width: 900px) {
+  .ky-argo-chart-box.ky-argo-charts-row,
+  .ky-argo-charts-row {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Date Pending Chart Placeholder */
@@ -3464,4 +3862,608 @@ body.ky-argo-body-theme {
   border: 1px solid #BBF7D0;
   color: #166534;
 }
+
+/* ============================================================
+   ARGO Validation: Model vs Climatology Skill Score Panel
+   ============================================================ */
+
+.ky-argo-skill-panel {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ky-argo-skill-header {
+  margin-bottom: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.ky-argo-skill-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ky-argo-skill-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  background: #DCFCE7;
+  color: #166534;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid #BBF7D0;
+  letter-spacing: -0.01em;
+}
+
+.ky-argo-skill-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+@media (max-width: 1024px) {
+  .ky-argo-skill-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ky-argo-skill-summary-col {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ky-argo-skill-headline-card {
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ky-argo-skill-headline-label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748B;
+}
+
+.ky-argo-skill-headline-value {
+  font-size: 36px;
+  font-weight: 800;
+  color: #059669;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.ky-argo-skill-headline-sub {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #334155;
+  margin-top: 2px;
+  flex-wrap: wrap;
+}
+
+.ky-argo-skill-sub-divider {
+  color: #94A3B8;
+}
+
+.ky-argo-skill-caption {
+  margin: 6px 0 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #64748B;
+}
+
+.ky-argo-basin-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.ky-argo-basin-card {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: border-color 0.15s ease;
+}
+
+.ky-argo-basin-card:hover {
+  border-color: #CBD5E1;
+}
+
+.ky-argo-basin-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1E293B;
+}
+
+.ky-argo-basin-skill {
+  font-size: 20px;
+  font-weight: 700;
+  color: #059669;
+  line-height: 1.1;
+}
+
+.ky-argo-basin-meta {
+  font-size: 10.5px;
+  color: #64748B;
+  line-height: 1.3;
+}
+
+.ky-argo-skill-chart-col {
+  display: flex;
+  flex-direction: column;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  padding: 14px 16px;
+  gap: 10px;
+}
+
+.ky-argo-skill-chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ky-argo-skill-chart-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0F172A;
+}
+
+.ky-argo-skill-chart-legend-hint {
+  font-size: 11px;
+  color: #64748B;
+  display: inline-flex;
+  align-items: center;
+}
+
+.ky-skill-legend-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 4px;
+}
+
+.ky-skill-legend-dot--pos {
+  background: #10B981;
+}
+
+.ky-skill-legend-dot--neg {
+  background: #F43F5E;
+}
+
+.ky-argo-skill-chart-box {
+  position: relative;
+  width: 100%;
+  height: 380px;
+}
+
+.ky-argo-skill-notes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 4px;
+}
+
+@media (max-width: 900px) {
+  .ky-argo-skill-notes {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ky-argo-skill-note-item {
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ky-argo-skill-note-item p {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: #475569;
+}
+
+.ky-skill-note-tag {
+  align-self: flex-start;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+.ky-skill-note-tag--pos {
+  background: #DCFCE7;
+  color: #166534;
+  border: 1px solid #BBF7D0;
+}
+
+.ky-skill-note-tag--warn {
+  background: #FEF3C7;
+  color: #92400E;
+  border: 1px solid #FDE68A;
+}
+
+.ky-skill-note-tag--neg {
+  background: #FEE2E2;
+  color: #991B1B;
+  border: 1px solid #FCA5A5;
+}
+
+/* ============================================================
+   Fisheries Mode: Operational Range Caveat Banner
+   ============================================================ */
+
+.ky-fisheries-operational-caveat {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-left: 3.5px solid #F59E0B;
+  border-radius: 8px;
+  padding: 8px 14px;
+  margin-top: -6px;
+  margin-bottom: 14px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #334155;
+}
+
+.ky-fisheries-caveat-icon {
+  flex-shrink: 0;
+  color: #D97706;
+}
+
+.ky-fisheries-caveat-text {
+  flex: 1;
+}
+
+.ky-fisheries-caveat-link {
+  color: #1D4ED8;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: color 0.15s ease;
+}
+
+.ky-fisheries-caveat-link:hover {
+  color: #1E40AF;
+}
+
+/* ============================================================
+   PAGE 4 — Marine Ecology & Heatwave Mode (marine-ecology.html)
+   ============================================================ */
+
+.ky-stat-card__icon--coral {
+  background: #FEF2F2;
+  color: #DC2626;
+}
+
+/* Category & Envelope Status Badges */
+.ky-mhw-badge--normal {
+  background: #ECFDF5;
+  color: #047857;
+  border: 1px solid #A7F3D0;
+  font-weight: 600;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.ky-mhw-badge--cat1 {
+  background: #FEF3C7;
+  color: #B45309;
+  border: 1px solid #FCD34D;
+  font-weight: 600;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.ky-mhw-badge--cat2 {
+  background: #FFEDD5;
+  color: #C2410C;
+  border: 1px solid #FDBA74;
+  font-weight: 600;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.ky-mhw-badge--cat3 {
+  background: #FEE2E2;
+  color: #B91C1C;
+  border: 1px solid #FCA5A5;
+  font-weight: 600;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.ky-mhw-badge--cat4 {
+  background: #EDE9FE;
+  color: #6D28D9;
+  border: 1px solid #DDD6FE;
+  font-weight: 600;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+/* Two-Column Content Grid */
+.ky-mhw-content-row {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+  margin-top: 0;
+}
+
+.ky-mhw-map-col {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.ky-mhw-map-card {
+  background: #FFFFFF;
+  border-radius: 16px;
+  border: 1px solid rgba(226, 235, 246, 0.8);
+  box-shadow: 0 2px 10px rgba(0, 30, 60, 0.04);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+}
+
+.ky-mhw-coord-pill {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1D4ED8;
+  background: #EFF6FF;
+  border: 1px solid #DBEAFE;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ky-mhw-map-wrap {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  flex: 1;
+  min-height: 0;
+}
+
+.ky-mhw-map-wrap #map {
+  width: 100%;
+  height: 100%;
+}
+
+.ky-mhw-side-col {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.ky-mhw-panel {
+  background: #FFFFFF;
+  border-radius: 16px;
+  border: 1px solid rgba(226, 235, 246, 0.8);
+  box-shadow: 0 2px 10px rgba(0, 30, 60, 0.04);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 18px;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.ky-mhw-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.ky-mhw-panel__title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0F172A;
+}
+
+.ky-mhw-panel__sub {
+  font-size: 12px;
+  color: #64748B;
+  margin-top: 2px;
+}
+
+.ky-mhw-panel__header-badges {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.ky-mhw-event-count-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: #DC2626;
+  background: #FEF2F2;
+  border: 1px solid #FECACA;
+  padding: 3px 9px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+/* Right Panel Empty State View & Text Styling */
+#mhw-empty-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 24px 16px;
+  gap: 8px;
+  margin: auto 0;
+}
+
+.ky-tvd-empty__title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1E293B;
+  margin: 4px 0 0;
+}
+
+.ky-tvd-empty__sub {
+  font-size: 12.5px;
+  color: #64748B;
+  max-width: 290px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* Time series summary metrics bar */
+.ky-mhw-summary-bar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+}
+
+.ky-mhw-summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ky-mhw-summary-label {
+  font-size: 11px;
+  color: #64748B;
+  font-weight: 500;
+}
+
+.ky-mhw-summary-val {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1E293B;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Chart Canvas Wrapper */
+.ky-mhw-chart-container {
+  position: relative;
+  height: 250px;
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+/* Legend Row */
+.ky-mhw-legend-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  font-size: 11px;
+  color: #475569;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.ky-mhw-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.ky-mhw-legend-line {
+  width: 16px;
+  display: inline-block;
+}
+
+.ky-mhw-legend-line--sst {
+  border-top: 2.5px solid #2563EB;
+}
+
+.ky-mhw-legend-line--thresh {
+  border-top: 2px dashed #EF4444;
+}
+
+.ky-mhw-legend-line--mean {
+  border-top: 2px dashed #64748B;
+}
+
+.ky-mhw-legend-box--heatwave {
+  width: 12px;
+  height: 12px;
+  background: rgba(239, 68, 68, 0.16);
+  border: 1px solid #EF4444;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+/* Mandatory Methodology Disclaimer Card */
+.ky-mhw-methodology-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-left: 3.5px solid #2563EB;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-top: auto;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #334155;
+}
+
+.ky-mhw-methodology-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.ky-mhw-methodology-text {
+  flex: 1;
+  margin: 0;
+}
+
+
 

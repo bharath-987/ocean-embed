@@ -66,10 +66,10 @@
         </div>
 
         <div class="ky-live-indicator">
-          <span class="ky-live-dot"></span>
+          <span class="ky-live-dot ky-live-dot--reanalysis"></span>
           <div class="ky-live-text">
-            <div class="ky-live-title">Live Data</div>
-            <div class="ky-live-sub">Real-time updates</div>
+            <div class="ky-live-title">Historical Reanalysis</div>
+            <div class="ky-live-sub">Reconstructed Data</div>
           </div>
         </div>
       </div>
@@ -104,7 +104,7 @@
             <span class="ky-nav-item__label">Fisheries Mode</span>
           </button>
 
-          <button class="ky-nav-item" data-nav="ecology">
+          <button class="ky-nav-item" data-nav="ecology" onclick="window.location.href='marine-ecology.html'">
             <span class="ky-nav-item__icon">
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z"/>
@@ -140,7 +140,7 @@
         <div class="ky-stat-row">
           <!-- 1: Mixed Layer Depth (MLD) -->
           <div class="ky-stat-card">
-            <div class="ky-stat-card__icon ky-stat-card__icon--blue">
+            <div class="ky-stat-card__icon ky-stat-card__icon--teal">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
                 <path d="M2 6c.6.5 1.2 1 2.5 1C7 7 7 5 9.5 5c2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/>
                 <path d="M2 12c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/>
@@ -148,8 +148,14 @@
               </svg>
             </div>
             <div class="ky-stat-card__body">
-              <div class="ky-stat-card__label">Mixed Layer Depth (MLD)</div>
+              <div class="ky-stat-card__label-row">
+                <span class="ky-stat-card__label">Mixed Layer Depth (MLD)</span>
+                <div class="ky-stat-card__pill-row">
+                  <span class="ky-provenance-pill ky-provenance-pill--model" title="Calculated from CNN-LSTM predicted temperature profile using de Boyer Montégut (0.2°C) criterion">Model-Derived</span>
+                </div>
+              </div>
               <div class="ky-stat-card__val" id="stat-mld-val">—</div>
+              <div class="ky-stat-card__confidence" id="stat-mld-confidence" title="Reflects historical model accuracy (RMSE) at depths 0–50 m, validated against 41 ARGO float profiles — scaled by proximity to the nearest ARGO float. Not a per-prediction uncertainty estimate."></div>
             </div>
           </div>
 
@@ -161,8 +167,14 @@
               </svg>
             </div>
             <div class="ky-stat-card__body">
-              <div class="ky-stat-card__label">Ocean Heat Content – 300m (OHC₃₀₀)</div>
+              <div class="ky-stat-card__label-row">
+                <span class="ky-stat-card__label">Ocean Heat Content – 300m (OHC₃₀₀)</span>
+                <div class="ky-stat-card__pill-row">
+                  <span class="ky-provenance-pill ky-provenance-pill--model" title="Calculated from CNN-LSTM predicted temperature profile by vertical thermal integration (0–300m)">Model-Derived</span>
+                </div>
+              </div>
               <div class="ky-stat-card__val" id="stat-ohc-val">—</div>
+              <div class="ky-stat-card__confidence" id="stat-ohc-confidence" title="Reflects historical model accuracy (RMSE) at depths 0–300 m, validated against 41 ARGO float profiles — scaled by proximity to the nearest ARGO float. Not a per-prediction uncertainty estimate."></div>
             </div>
           </div>
 
@@ -175,8 +187,14 @@
               </svg>
             </div>
             <div class="ky-stat-card__body">
-              <div class="ky-stat-card__label">Sound Velocity / Acoustic Shadow Depth</div>
+              <div class="ky-stat-card__label-row">
+                <span class="ky-stat-card__label">Sound Velocity / Acoustic Shadow Depth</span>
+                <div class="ky-stat-card__pill-row">
+                  <span class="ky-provenance-pill ky-provenance-pill--heuristic" title="Mackenzie (1981) with regional climatological halocline salinity approximation">Estimated Heuristic</span>
+                </div>
+              </div>
               <div class="ky-stat-card__val" id="stat-svad-val">—</div>
+              <div class="ky-stat-card__confidence" id="stat-svad-confidence" title="Reflects historical model accuracy (RMSE) at the depth nearest to the computed sonic layer — validated against 41 ARGO float profiles, scaled by ARGO proximity. Not a per-prediction uncertainty estimate."></div>
               <div class="ky-stat-card__sub" id="stat-svad-sub" style="display: none;"></div>
             </div>
           </div>
@@ -189,8 +207,14 @@
               </svg>
             </div>
             <div class="ky-stat-card__body">
-              <div class="ky-stat-card__label">D20 Isotherm Depth</div>
+              <div class="ky-stat-card__label-row">
+                <span class="ky-stat-card__label">D20 Isotherm Depth</span>
+                <div class="ky-stat-card__pill-row">
+                  <span class="ky-provenance-pill ky-provenance-pill--model" title="Calculated from CNN-LSTM predicted temperature profile via 20°C isotherm interpolation">Model-Derived</span>
+                </div>
+              </div>
               <div class="ky-stat-card__val" id="stat-d20-val">—</div>
+              <div class="ky-stat-card__confidence" id="stat-d20-confidence" title="Reflects historical model accuracy (RMSE) at the depth nearest to the 20°C isotherm — validated against 41 ARGO float profiles, scaled by ARGO proximity. Not a per-prediction uncertainty estimate."></div>
             </div>
           </div>
         </div>
@@ -279,6 +303,7 @@
                     <span>30</span>
                     <span>32</span>
                   </div>
+                  <div class="ky-map-legend__caption" id="map-legend-caption" style="display:none;"></div>
                 </div>
 
                 <!-- 4: Bottom-Right Scale Indicator -->
@@ -420,6 +445,27 @@
                   </svg>
                 </button>
 
+                <!-- 7: Prediction Confidence -->
+                <button class="ky-param-tile ky-param-tile--wide" data-param="confidence" id="param-confidence">
+                  <div class="ky-param-tile__icon ky-param-tile__icon--shield">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                      <path d="m9 12 2 2 4-4"/>
+                    </svg>
+                  </div>
+                  <div class="ky-param-tile__body">
+                    <div class="ky-param-tile__name-row">
+                      <span class="ky-param-tile__name">Prediction Confidence</span>
+                      <span class="ky-provenance-pill ky-provenance-pill--heuristic" title="Confidence reflects distance and recency to the nearest of 41 validated ARGO float profiles — not a direct measure of prediction accuracy at this location.">Estimated Heuristic</span>
+                    </div>
+                    <div class="ky-param-tile__sub">ARGO Proximity &amp; Temporal Weighting</div>
+                    <div class="ky-param-tile__val" id="param-confidence-val">—</div>
+                  </div>
+                  <svg class="ky-param-tile__arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="9 18 15 12 9 6"/>
+                  </svg>
+                </button>
+
               </div>
             </div>
             <!-- end ocean params card -->
@@ -494,19 +540,26 @@
                   <canvas id="profile-chart" aria-label="Depth profile chart"></canvas>
                 </div>
 
-                <!-- TABLE view (2 columns: Depth, Temperature — Hidden until location + date selected) -->
+                <!-- TABLE view (3 columns: Depth, Temperature, Confidence — Hidden until location + date selected) -->
                 <div id="tvd-table-view" class="ky-tvd-table-wrap" style="display:none;">
                   <table class="ky-tvd-table">
+                    <colgroup>
+                      <col style="width: 30%;">
+                      <col style="width: 35%;">
+                      <col style="width: 35%;">
+                    </colgroup>
                     <thead>
                       <tr>
                         <th>Depth (m)</th>
                         <th>Temperature (°C)</th>
+                        <th title="Reflects historical model accuracy (RMSE) at this depth, validated against 41 ARGO float profiles — scaled by proximity to the nearest ARGO float in space and time. Not a per-prediction uncertainty estimate." style="cursor:help;">Confidence ⓘ</th>
                       </tr>
                     </thead>
                     <tbody id="tvd-table-body">
                       <!-- Populated when location + date are chosen -->
                     </tbody>
                   </table>
+                  <p class="ky-tvd-table-note"><em>0–100 m: model output blended with satellite SST and adjusted for physical consistency. 125 m+: direct model output (anomaly + climatology, unmodified).</em></p>
                 </div>
 
                 <!-- Preserved hidden containers for app.js data integrity without cluttering UI -->

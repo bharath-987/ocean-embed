@@ -51,17 +51,12 @@
         </div>
       </div>
 
-      <div class="ky-argo-nav-right">
-        <div class="ky-argo-live-badge">
-          <span class="ky-argo-live-dot"></span>
-          <span>Live</span>
+      <div class="ky-live-indicator">
+        <span class="ky-live-dot ky-live-dot--reanalysis"></span>
+        <div class="ky-live-text">
+          <div class="ky-live-title">Historical Reanalysis</div>
+          <div class="ky-live-sub">In-situ Observational Data</div>
         </div>
-        <button type="button" class="ky-argo-avatar-btn" aria-label="Account profile">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-            <circle cx="12" cy="7" r="4"/>
-          </svg>
-        </button>
       </div>
     </header>
 
@@ -94,7 +89,7 @@
             <span class="ky-nav-item__label">Fisheries Mode</span>
           </button>
 
-          <button class="ky-nav-item" data-nav="ecology">
+          <button class="ky-nav-item" data-nav="ecology" onclick="window.location.href='marine-ecology.html'">
             <span class="ky-nav-item__icon">
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z"/>
@@ -137,7 +132,7 @@
             </div>
             <div class="ky-argo-mini-card__body">
               <span class="ky-argo-mini-card__label">Basin RMSE</span>
-              <span class="ky-argo-mini-card__val" id="stat-argo-rmse">1.34 °C</span>
+              <span class="ky-argo-mini-card__val" id="stat-argo-rmse">1.35 °C</span>
             </div>
           </div>
 
@@ -150,7 +145,7 @@
             </div>
             <div class="ky-argo-mini-card__body">
               <span class="ky-argo-mini-card__label">Mean Thermal Bias</span>
-              <span class="ky-argo-mini-card__val" id="stat-argo-bias">0.41 °C</span>
+              <span class="ky-argo-mini-card__val" id="stat-argo-bias">0.42 °C</span>
             </div>
           </div>
 
@@ -282,10 +277,10 @@
                 <div class="ky-argo-date-sub" id="argo-date-sub">Choose an available observation date (2021–2023)</div>
               </div>
 
-              <!-- Temperature Profile Section -->
+              <!-- Temperature Profile & Per-Depth Error Section -->
               <div class="ky-argo-chart-section">
                 <div class="ky-argo-chart-header">
-                  <div class="ky-argo-chart-title">Temperature Profile</div>
+                  <div class="ky-argo-chart-title">Temperature Profile &amp; Depth Error Analysis</div>
                 </div>
 
                 <!-- State 2 Placeholder: Shown before date is picked -->
@@ -299,12 +294,32 @@
                     </svg>
                   </div>
                   <div class="ky-argo-chart-placeholder__title">Select a date to compare</div>
-                  <div class="ky-argo-chart-placeholder__desc">Pick an observation date above to generate the vertical temperature profile comparison.</div>
+                  <div class="ky-argo-chart-placeholder__desc">Pick an observation date above to generate the vertical temperature profile and per-depth error comparison.</div>
                 </div>
 
-                <!-- State 3 Chart Box: Shown after date is picked -->
-                <div class="ky-argo-chart-box" id="argo-chart-box" style="display: none;">
-                  <canvas id="argo-chart-canvas"></canvas>
+                <!-- State 3 Chart Box (Dual Side-by-Side Canvases): Shown after date is picked -->
+                <div class="ky-argo-chart-box ky-argo-charts-row" id="argo-chart-box" style="display: none;">
+                  <!-- Left Chart: AI vs ARGO Profile Comparison -->
+                  <div class="ky-argo-chart-col">
+                    <div class="ky-argo-subchart-header">
+                      <span class="ky-argo-subchart-title">Temperature Profile</span>
+                      <span class="ky-argo-subchart-badge">T vs. Depth</span>
+                    </div>
+                    <div class="ky-argo-canvas-wrapper">
+                      <canvas id="argo-chart-canvas"></canvas>
+                    </div>
+                  </div>
+
+                  <!-- Right Chart: Signed Error by Depth (AI − ARGO) -->
+                  <div class="ky-argo-chart-col">
+                    <div class="ky-argo-subchart-header">
+                      <span class="ky-argo-subchart-title">Signed Error by Depth</span>
+                      <span class="ky-argo-subchart-badge">AI − ARGO (°C)</span>
+                    </div>
+                    <div class="ky-argo-canvas-wrapper">
+                      <canvas id="argo-depth-error-canvas"></canvas>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -327,6 +342,87 @@
 
           </div>
 
+        </div>
+
+        <!-- 4.5 MIDDLE SECTION: Model Validation & Skill Score (vs Climatology Baseline) -->
+        <div class="ky-argo-panel ky-argo-skill-panel">
+          <div class="ky-argo-panel-header ky-argo-skill-header">
+            <div class="ky-argo-skill-title-wrap">
+              <h2 class="ky-argo-panel-title">Model vs. Climatology Baseline (Skill Score)</h2>
+              <span class="ky-provenance-pill ky-provenance-pill--model">Model Validation</span>
+            </div>
+            <div class="ky-argo-skill-badge" id="argo-skill-headline-badge">+45.9% Overall Skill</div>
+          </div>
+
+          <div class="ky-argo-skill-grid">
+            <!-- Left: Overall Headline & Basin Cards -->
+            <div class="ky-argo-skill-summary-col">
+              <div class="ky-argo-skill-headline-card">
+                <div class="ky-argo-skill-headline-label">Pooled Basin Skill Score</div>
+                <div class="ky-argo-skill-headline-value" id="argo-skill-headline-val">+45.9%</div>
+                <div class="ky-argo-skill-headline-sub">
+                  <span class="ky-argo-skill-sub-pair"><strong>AI Model RMSE:</strong> <span id="argo-skill-model-rmse">1.35 °C</span></span>
+                  <span class="ky-argo-skill-sub-divider">•</span>
+                  <span class="ky-argo-skill-sub-pair"><strong>Climatology RMSE:</strong> <span id="argo-skill-clim-rmse">1.83 °C</span></span>
+                </div>
+                <p class="ky-argo-skill-caption">
+                  Skill Score SS = 1 − (RMSE_model² / RMSE_climatology²) evaluated across 615 pooled observation points (41 ARGO floats).
+                  A score of <strong>0.0</strong> represents no improvement over seasonal historical averages; positive scores indicate real predictive skill from deep learning.
+                </p>
+              </div>
+
+              <!-- 4 Sub-Basin Cards -->
+              <div class="ky-argo-basin-grid">
+                <div class="ky-argo-basin-card">
+                  <div class="ky-argo-basin-name">Bay of Bengal</div>
+                  <div class="ky-argo-basin-skill" id="basin-skill-bob">+57.0%</div>
+                  <div class="ky-argo-basin-meta" id="basin-meta-bob">Model 1.07°C vs Clim 1.64°C (15 floats)</div>
+                </div>
+                <div class="ky-argo-basin-card">
+                  <div class="ky-argo-basin-name">Arabian Sea</div>
+                  <div class="ky-argo-basin-skill" id="basin-skill-as">+52.0%</div>
+                  <div class="ky-argo-basin-meta" id="basin-meta-as">Model 1.11°C vs Clim 1.60°C (15 floats)</div>
+                </div>
+                <div class="ky-argo-basin-card">
+                  <div class="ky-argo-basin-name">Equatorial Indian Ocean</div>
+                  <div class="ky-argo-basin-skill" id="basin-skill-eio">+34.8%</div>
+                  <div class="ky-argo-basin-meta" id="basin-meta-eio">Model 1.93°C vs Clim 2.39°C (10 floats)</div>
+                </div>
+                <div class="ky-argo-basin-card">
+                  <div class="ky-argo-basin-name">Andaman Sea</div>
+                  <div class="ky-argo-basin-skill" id="basin-skill-andaman">+19.9%</div>
+                  <div class="ky-argo-basin-meta" id="basin-meta-andaman">Model 1.23°C vs Clim 1.37°C (1 float)</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right: Per-Depth Skill Score Chart (Chart.js) -->
+            <div class="ky-argo-skill-chart-col">
+              <div class="ky-argo-skill-chart-header">
+                <span class="ky-argo-skill-chart-title">Vertical Skill Score by Depth (0–1000m)</span>
+                <span class="ky-argo-skill-chart-legend-hint"><span class="ky-skill-legend-dot ky-skill-legend-dot--pos"></span> &gt;0 Improvement &nbsp; <span class="ky-skill-legend-dot ky-skill-legend-dot--neg"></span> &lt;0 Climatology Baseline Superior</span>
+              </div>
+              <div class="ky-argo-skill-chart-box">
+                <canvas id="argo-skill-chart"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- Physical Oceanographic Explanations & Notes (Transparent Scientific Rationale) -->
+          <div class="ky-argo-skill-notes">
+            <div class="ky-argo-skill-note-item">
+              <span class="ky-skill-note-tag ky-skill-note-tag--pos">High Skill (0–75m, up to +85.4%)</span>
+              <p>Deep learning achieves substantial variance reduction over climatology driven by multi-satellite surface dynamic forcing (SST, SSH, SSS, and wind stress curl).</p>
+            </div>
+            <div class="ky-argo-skill-note-item">
+              <span class="ky-skill-note-tag ky-skill-note-tag--warn">Thermocline Core (100m, 200m)</span>
+              <p>Error increases sharply near the thermocline core — a known challenge for satellite-trained models, possibly related to sub-grid-scale internal wave activity, though this specific mechanism has not been isolated in this analysis.</p>
+            </div>
+            <div class="ky-argo-skill-note-item">
+              <span class="ky-skill-note-tag ky-skill-note-tag--neg">Abyssal Regime (700–1000m)</span>
+              <p>Deep ocean water masses are near-isothermal with tiny seasonal variability (RMSE_climatology ≈ 0.45°C). The neural network's unweighted MSE loss allows residual noise (~0.6–0.8°C), making static climatology mathematically superior at depths below 700m.</p>
+            </div>
+          </div>
         </div>
 
         <!-- 5. BOTTOM FULL-WIDTH ROW: Profile Comparison Data Table -->
