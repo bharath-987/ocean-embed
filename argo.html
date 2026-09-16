@@ -124,15 +124,17 @@
         <!-- 2. STAT CARDS ROW (4 Cards: icon + label + big number only) -->
         <div class="ky-argo-stat-grid">
           <!-- Card 1: Basin RMSE -->
-          <div class="ky-argo-mini-card">
+          <div class="ky-argo-mini-card" title="RMSE: 0.75 °C (vs monthly climatology baseline, n=41 Argo profiles, full validation set)">
             <div class="ky-argo-mini-card__icon ky-argo-mini-card__icon--blue">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                 <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
               </svg>
             </div>
             <div class="ky-argo-mini-card__body">
-              <span class="ky-argo-mini-card__label">Basin RMSE</span>
-              <span class="ky-argo-mini-card__val" id="stat-argo-rmse">1.35 °C</span>
+              <span class="ky-argo-mini-card__label" title="RMSE: 0.75 °C (vs monthly climatology baseline, n=41 Argo profiles, full validation set)">Basin RMSE</span>
+              <span class="ky-argo-mini-card__val" id="stat-argo-rmse">0.75 °C</span>
+              <span class="ky-argo-mini-card__baseline">(full validation set, n=41 Argo profiles)</span>
+              <span class="ky-argo-mini-card__baseline" style="margin-top:2px;color:#1d4ed8;" title="Trimmed demo-window subset: 27 of 41 profiles that fall inside the trimmed data window. Source: collaborator HANDOFF.md.">0.715 °C (trimmed demo-window subset, n=27 profiles)</span>
             </div>
           </div>
 
@@ -145,7 +147,7 @@
             </div>
             <div class="ky-argo-mini-card__body">
               <span class="ky-argo-mini-card__label">Mean Thermal Bias</span>
-              <span class="ky-argo-mini-card__val" id="stat-argo-bias">0.42 °C</span>
+              <span class="ky-argo-mini-card__val" id="stat-argo-bias">+0.12 °C</span>
             </div>
           </div>
 
@@ -160,7 +162,7 @@
             </div>
             <div class="ky-argo-mini-card__body">
               <span class="ky-argo-mini-card__label">Profile Coherence</span>
-              <span class="ky-argo-mini-card__val" id="stat-argo-corr">0.986</span>
+              <span class="ky-argo-mini-card__val" id="stat-argo-corr">0.995</span>
             </div>
           </div>
 
@@ -348,10 +350,10 @@
         <div class="ky-argo-panel ky-argo-skill-panel">
           <div class="ky-argo-panel-header ky-argo-skill-header">
             <div class="ky-argo-skill-title-wrap">
-              <h2 class="ky-argo-panel-title">Model vs. Climatology Baseline (Skill Score)</h2>
+              <h2 class="ky-argo-panel-title">Model vs. Monthly Climatology Baseline (Skill Score, n=41)</h2>
               <span class="ky-provenance-pill ky-provenance-pill--model">Model Validation</span>
             </div>
-            <div class="ky-argo-skill-badge" id="argo-skill-headline-badge">+45.9% Overall Skill</div>
+            <div class="ky-argo-skill-badge" id="argo-skill-headline-badge">+20.0% Overall Skill</div>
           </div>
 
           <div class="ky-argo-skill-grid">
@@ -359,14 +361,14 @@
             <div class="ky-argo-skill-summary-col">
               <div class="ky-argo-skill-headline-card">
                 <div class="ky-argo-skill-headline-label">Pooled Basin Skill Score</div>
-                <div class="ky-argo-skill-headline-value" id="argo-skill-headline-val">+45.9%</div>
+                <div class="ky-argo-skill-headline-value" id="argo-skill-headline-val">+20.0%</div>
                 <div class="ky-argo-skill-headline-sub">
-                  <span class="ky-argo-skill-sub-pair"><strong>AI Model RMSE:</strong> <span id="argo-skill-model-rmse">1.35 °C</span></span>
+                  <span class="ky-argo-skill-sub-pair"><strong>AI Model RMSE:</strong> <span id="argo-skill-model-rmse">0.75 °C</span></span>
                   <span class="ky-argo-skill-sub-divider">•</span>
-                  <span class="ky-argo-skill-sub-pair"><strong>Climatology RMSE:</strong> <span id="argo-skill-clim-rmse">1.83 °C</span></span>
+                  <span class="ky-argo-skill-sub-pair"><strong>Climatology RMSE:</strong> <span id="argo-skill-clim-rmse">0.84 °C</span></span>
                 </div>
                 <p class="ky-argo-skill-caption">
-                  Skill Score SS = 1 − (RMSE_model² / RMSE_climatology²) evaluated across 615 pooled observation points (41 ARGO floats).
+                  Skill Score SS = 1 − (RMSE_model² / RMSE_climatology²) evaluated across 615 pooled observation points (vs monthly climatology baseline, n=41 Argo profiles).
                   A score of <strong>0.0</strong> represents no improvement over seasonal historical averages; positive scores indicate real predictive skill from deep learning.
                 </p>
               </div>
@@ -375,23 +377,23 @@
               <div class="ky-argo-basin-grid">
                 <div class="ky-argo-basin-card">
                   <div class="ky-argo-basin-name">Bay of Bengal</div>
-                  <div class="ky-argo-basin-skill" id="basin-skill-bob">+57.0%</div>
-                  <div class="ky-argo-basin-meta" id="basin-meta-bob">Model 1.07°C vs Clim 1.64°C (15 floats)</div>
+                  <div class="ky-argo-basin-skill" id="basin-skill-bob">+21.9%</div>
+                  <div class="ky-argo-basin-meta" id="basin-meta-bob">Model 0.65°C vs Clim 0.73°C (vs monthly climatology baseline, n=15 Argo profiles)</div>
                 </div>
                 <div class="ky-argo-basin-card">
                   <div class="ky-argo-basin-name">Arabian Sea</div>
-                  <div class="ky-argo-basin-skill" id="basin-skill-as">+52.0%</div>
-                  <div class="ky-argo-basin-meta" id="basin-meta-as">Model 1.11°C vs Clim 1.60°C (15 floats)</div>
+                  <div class="ky-argo-basin-skill" id="basin-skill-as">+22.8%</div>
+                  <div class="ky-argo-basin-meta" id="basin-meta-as">Model 0.74°C vs Clim 0.84°C (vs monthly climatology baseline, n=15 Argo profiles)</div>
                 </div>
                 <div class="ky-argo-basin-card">
                   <div class="ky-argo-basin-name">Equatorial Indian Ocean</div>
-                  <div class="ky-argo-basin-skill" id="basin-skill-eio">+34.8%</div>
-                  <div class="ky-argo-basin-meta" id="basin-meta-eio">Model 1.93°C vs Clim 2.39°C (10 floats)</div>
+                  <div class="ky-argo-basin-skill" id="basin-skill-eio">+18.1%</div>
+                  <div class="ky-argo-basin-meta" id="basin-meta-eio">Model 0.90°C vs Clim 0.99°C (vs monthly climatology baseline, n=10 Argo profiles)</div>
                 </div>
                 <div class="ky-argo-basin-card">
                   <div class="ky-argo-basin-name">Andaman Sea</div>
-                  <div class="ky-argo-basin-skill" id="basin-skill-andaman">+19.9%</div>
-                  <div class="ky-argo-basin-meta" id="basin-meta-andaman">Model 1.23°C vs Clim 1.37°C (1 float)</div>
+                  <div class="ky-argo-basin-skill" id="basin-skill-andaman">-30.0%</div>
+                  <div class="ky-argo-basin-meta" id="basin-meta-andaman">Model 0.85°C vs Clim 0.74°C (vs monthly climatology baseline, n=1 Argo profile)</div>
                 </div>
               </div>
             </div>

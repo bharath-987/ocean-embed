@@ -14,7 +14,7 @@ import time
 # Ensure backend directory is in sys.path so modules can always be imported
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Optional
@@ -47,25 +47,31 @@ async def lifespan(app: FastAPI):
         from fetch_data import ensure_data_ready
         ensure_data_ready(inf.DATA_DIR)
 
-    # 2. Pre-warming inference cache for demo dates at server startup
-    import gc
-    print("=" * 65, flush=True)
-    print("  OceanEmbed — Pre-warming inference cache for SIH demo dates...", flush=True)
-    print("=" * 65, flush=True)
-    for date_str in DEMO_PREWARM_DATES:
-        t0 = time.perf_counter()
-        predict_temperature_profile(REPRESENTATIVE_LAT, REPRESENTATIVE_LON, date_str)
-        t_temp = time.perf_counter()
-        compute_pfz_grid(date_str)
-        t_pfz = time.perf_counter()
-        elapsed_ms = int((t_pfz - t0) * 1000)
-        pfz_ms = int((t_pfz - t_temp) * 1000)
+    # 2. Pre-warming inference cache for demo dates at server startup (if enabled)
+    if inf.is_inference_cache_enabled():
+        import gc
+        print("=" * 65, flush=True)
+        print("  OceanEmbed — Pre-warming inference cache for SIH demo dates...", flush=True)
+        print("=" * 65, flush=True)
+        for date_str in DEMO_PREWARM_DATES:
+            t0 = time.perf_counter()
+            predict_temperature_profile(REPRESENTATIVE_LAT, REPRESENTATIVE_LON, date_str)
+            t_temp = time.perf_counter()
+            compute_pfz_grid(date_str)
+            t_pfz = time.perf_counter()
+            elapsed_ms = int((t_pfz - t0) * 1000)
+            pfz_ms = int((t_pfz - t_temp) * 1000)
+            gc.collect()
+            print(f"Pre-warming cache for demo date {date_str}... done ({elapsed_ms}ms, PFZ grid: {pfz_ms}ms)", flush=True)
         gc.collect()
-        print(f"Pre-warming cache for demo date {date_str}... done ({elapsed_ms}ms, PFZ grid: {pfz_ms}ms)", flush=True)
-    gc.collect()
-    print("=" * 65, flush=True)
-    print("  Inference & PFZ cache ready! All demo dates pre-warmed (<1ms response).", flush=True)
-    print("=" * 65, flush=True)
+        print("=" * 65, flush=True)
+        print("  Inference & PFZ cache ready! All demo dates pre-warmed (<1ms response).", flush=True)
+        print("=" * 65, flush=True)
+    else:
+        print("=" * 65, flush=True)
+        print("  Inference cache & pre-warming DISABLED (ENABLE_INFERENCE_CACHE=false).", flush=True)
+        print("  All requests will execute live full-model inference.", flush=True)
+        print("=" * 65, flush=True)
 
     # 3. Initialize ARGO per-depth validation confidence statistics
     _get_argo_depth_confidence_stats()
@@ -95,6 +101,8 @@ class PredictRequest(BaseModel):
     latitude: float = Field(..., ge=inf.MIN_LAT, le=inf.MAX_LAT)
     longitude: float = Field(..., ge=inf.MIN_LON, le=inf.MAX_LON)
     date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
+    raw: Optional[bool] = None
+    smoothing: Optional[bool] = None
 
 
 class MarineHeatwaveRequest(BaseModel):
@@ -143,10 +151,10 @@ def _validate_date_available(date_str: str, need_history: bool = True) -> tuple[
                 detail="This date is not available in the deployed demo dataset.",
             )
         if need_history:
-            lookback_idx = day_idx - inf.SEQUENCE_LENGTH
+            lookback_idx = day_idx - inf.LOOKBACK_DAYS
             if (
                 lookback_idx not in inf._day_index_map
-                or (inf._day_index_map[day_idx] - inf._day_index_map[lookback_idx] != inf.SEQUENCE_LENGTH)
+                or (inf._day_index_map[day_idx] - inf._day_index_map[lookback_idx] != inf.LOOKBACK_DAYS)
             ):
                 raise HTTPException(
                     status_code=400,
@@ -156,7 +164,7 @@ def _validate_date_available(date_str: str, need_history: bool = True) -> tuple[
     else:
         max_day = inf.TOTAL_DAYS_FULL_FLOAT16 if inf.USE_FULL_FLOAT16_DATA else inf._total_days
         max_day = min(max_day, inf._total_days)
-        min_day = inf.SEQUENCE_LENGTH if need_history else 0
+        min_day = inf.LOOKBACK_DAYS if need_history else 0
         if day_idx < min_day or day_idx >= max_day:
             raise HTTPException(
                 status_code=400,
@@ -532,6 +540,9 @@ def _get_argo_depth_confidence_stats() -> dict:
         "depths": depths,
         "stats": stats,
         "by_depth": by_depth,
+        "baselineType": "monthly climatology",
+        "baselineSampleSize": 41,
+        "baselineLabel": "vs monthly climatology baseline, n=41 Argo profiles",
     }
 
     try:
@@ -747,36 +758,69 @@ def health():
         "device": str(inf.device),
         "trimmed": inf.USE_TRIMMED_DATA,
         "full_float16": inf.USE_FULL_FLOAT16_DATA,
+        "inference_cache": inf.is_inference_cache_enabled(),
     }
 
 
 @app.post("/predict")
-def predict(req: PredictRequest):
+def predict(
+    req: PredictRequest,
+    raw: Optional[bool] = Query(None),
+    smoothing: Optional[bool] = Query(None),
+):
     _validate_date_available(req.date, need_history=True)
 
-    result = predict_temperature_profile(req.latitude, req.longitude, req.date)
+    is_raw = False
+    if raw is not None:
+        is_raw = bool(raw)
+    elif smoothing is not None:
+        is_raw = not bool(smoothing)
+    elif req.raw is not None:
+        is_raw = bool(req.raw)
+    elif req.smoothing is not None:
+        is_raw = not bool(req.smoothing)
+
+    result = predict_temperature_profile(req.latitude, req.longitude, req.date, raw=is_raw)
 
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
 
-    return model_result_to_frontend(result, req.latitude, req.longitude, req.date)
+    resp = model_result_to_frontend(result, req.latitude, req.longitude, req.date)
+    resp["raw"] = is_raw
+    return resp
+
+
+@app.get("/predict")
+def predict_get(
+    latitude: float = Query(..., ge=inf.MIN_LAT, le=inf.MAX_LAT),
+    longitude: float = Query(..., ge=inf.MIN_LON, le=inf.MAX_LON),
+    date: str = Query(..., pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    raw: Optional[bool] = Query(None),
+    smoothing: Optional[bool] = Query(None),
+):
+    req = PredictRequest(latitude=latitude, longitude=longitude, date=date, raw=raw, smoothing=smoothing)
+    return predict(req, raw=raw, smoothing=smoothing)
 
 
 _spatial_prediction_cache = {}
 _MAX_CACHE_SIZE = 4
 
 
-def get_spatial_predictions(date_str: str):
+def get_spatial_predictions(date_str: str, raw: bool = False):
     """
     Run full spatial CNN-LSTM inference on the (101, 241) grid for the target date.
     Returns a (15, 101, 241) float array where land cells are masked to 0.0.
     Caches recent dates in memory so subsequent depth slices return in 0.000s.
+    When raw=True, skips the PAVA isotonic decreasing pass so callers can inspect
+    unsmoothed spatial profiles.
     """
-    if date_str in _spatial_prediction_cache:
-        return _spatial_prediction_cache[date_str]
+    use_cache = inf.is_inference_cache_enabled()
+    cache_key = (date_str, raw)
+    if use_cache and (cache_key in _spatial_prediction_cache):
+        return _spatial_prediction_cache[cache_key]
 
     day_idx, mapped_day_idx = _validate_date_available(date_str, need_history=True)
-    start, end = mapped_day_idx - inf.SEQUENCE_LENGTH, mapped_day_idx
+    start, end = mapped_day_idx - inf.LOOKBACK_DAYS, mapped_day_idx + 1  # window INCLUDES the target day
 
     if start < 0 or end > inf._total_days or mapped_day_idx < 0 or mapped_day_idx >= inf._total_days:
         raise HTTPException(
@@ -784,7 +828,7 @@ def get_spatial_predictions(date_str: str):
             detail="This date is not available in the deployed demo dataset.",
         )
 
-    if date_str in inf._prediction_cache:
+    if use_cache and (date_str in inf._prediction_cache):
         prediction_real = inf._prediction_cache[date_str].copy().astype("float32")
     else:
         surface_channels = inf.np.stack([
@@ -795,63 +839,84 @@ def get_spatial_predictions(date_str: str):
             inf._v_cur_anom[start:end],
             inf._u_wind_anom[start:end],
             inf._v_wind_anom[start:end],
-        ], axis=1)
+        ], axis=1).astype("float32")
+        surface_channels = (surface_channels - inf.SURF_MEAN[None, :, None, None]) / inf.SURF_STD[None, :, None, None]
+
+        dstag_channels = inf.np.stack([
+            inf.np.array(inf._sst_arr[start:end]) - inf.np.array(inf._temp_target_clim[start:end, di])
+            for di in inf.DSTAG_DEPTH_INDICES
+        ], axis=1).astype("float32")
+        dstag_channels = (dstag_channels - inf.DSTAG_MEAN[None, :, None, None]) / inf.DSTAG_STD[None, :, None, None]
 
         lat, lon = surface_channels.shape[2], surface_channels.shape[3]
         window = inf.np.concatenate([
-            surface_channels, inf._lat_sin_t, inf._lat_cos_t, inf._lon_sin_t, inf._lon_cos_t,
+            surface_channels, inf._pos_tiled[:inf.SEQUENCE_LENGTH],
             inf.np.broadcast_to(inf._doy_sin[start:end][:, None, None, None], (inf.SEQUENCE_LENGTH, 1, lat, lon)),
             inf.np.broadcast_to(inf._doy_cos[start:end][:, None, None, None], (inf.SEQUENCE_LENGTH, 1, lat, lon)),
+            dstag_channels,
         ], axis=1)
 
         import torch
         window_tensor = torch.tensor(window, dtype=torch.float32).unsqueeze(0).to(inf.device)
+        del window
+        del surface_channels
 
-        with torch.no_grad():
+        with torch.inference_mode():
             prediction_anom = inf._model(window_tensor)
+        del window_tensor
 
         clim_at_day = inf.np.array(inf._temp_target_clim[mapped_day_idx])
         prediction_real = (prediction_anom[0].cpu().numpy() + clim_at_day).astype("float32")
-        inf._prediction_cache[date_str] = prediction_real
+        del prediction_anom
+        del clim_at_day
+        if use_cache:
+            inf._prediction_cache[date_str] = prediction_real
 
-    # Accurate ocean mask: where raw SST is 0 (< 0.5), mask all depths to 0.0
-    land_mask = (inf.np.array(inf._sst_arr[mapped_day_idx]) < 0.5)
+    raw_sst = inf.np.array(inf._sst_arr[mapped_day_idx])
+    land_mask = inf.np.isnan(raw_sst) | (raw_sst <= 0.0)
 
-    # Smooth Surface Blending & Near-Surface Taper (exact parity with predict_temperature_profile)
     raw_m0 = prediction_real[0].copy()
-    raw_sst = inf.np.array(inf._sst_arr[mapped_day_idx], dtype="float32")
     diff = inf.np.abs(raw_sst - raw_m0)
     alpha = inf.np.clip(0.60 - 0.15 * diff, 0.30, 0.60)
     blended_sst = alpha * raw_sst + (1.0 - alpha) * raw_m0
     prediction_real[0] = blended_sst
+
     delta_s = blended_sst - raw_m0
     prediction_real[1] += 0.50 * delta_s
 
     # Monotonicity safety-net pass across ocean cells (depths <= 100m only)
-    ocean_cells = ~land_mask
-    if ocean_cells.any():
-        upper_depth_count = sum(1 for d in inf.STANDARD_DEPTHS if d <= 100)  # 8 depths: 0-100m
-        upper_subset = prediction_real[:upper_depth_count, ocean_cells]
-        for c in range(upper_subset.shape[1]):
-            upper_subset[:, c] = inf._isotonic_decreasing(upper_subset[:, c])
-        prediction_real[:upper_depth_count, ocean_cells] = upper_subset
+    if not raw:
+        ocean_cells = ~land_mask
+        if ocean_cells.any():
+            upper_depth_count = sum(1 for d in inf.STANDARD_DEPTHS if d <= 100)  # 8 depths: 0-100m
+            upper_subset = prediction_real[:upper_depth_count, ocean_cells]
+            for c in range(upper_subset.shape[1]):
+                upper_subset[:, c] = inf._isotonic_decreasing(upper_subset[:, c])
+            prediction_real[:upper_depth_count, ocean_cells] = upper_subset
 
     for d in range(len(inf.STANDARD_DEPTHS)):
         prediction_real[d][land_mask] = 0.0
 
-    if len(_spatial_prediction_cache) >= _MAX_CACHE_SIZE:
-        _spatial_prediction_cache.pop(next(iter(_spatial_prediction_cache)))
+    if use_cache:
+        if len(_spatial_prediction_cache) >= _MAX_CACHE_SIZE:
+            _spatial_prediction_cache.pop(next(iter(_spatial_prediction_cache)))
+        _spatial_prediction_cache[cache_key] = prediction_real
 
-    _spatial_prediction_cache[date_str] = prediction_real
     return prediction_real
 
 
 @app.get("/temperature-grid")
-def temperature_grid(date: str, depth: int = 0):
+def temperature_grid(
+    date: str,
+    depth: int = 0,
+    raw: Optional[bool] = Query(None),
+    smoothing: Optional[bool] = Query(None),
+):
     """
     Return real gridded ocean temperature slice at the specified depth and date.
     Generated directly from the CNN-LSTM deep learning model output, guaranteeing
     100% exact numerical consistency with the /predict endpoint and TVD table.
+    When raw=True (or smoothing=False), returns unsmoothed model output bypassing PAVA.
     Land cells are represented as 0.0.
     """
     if depth not in inf.STANDARD_DEPTHS:
@@ -860,15 +925,22 @@ def temperature_grid(date: str, depth: int = 0):
     depth_idx = inf.STANDARD_DEPTHS.index(depth)
     _validate_date_available(date, need_history=True)
 
+    is_raw = False
+    if raw is not None:
+        is_raw = bool(raw)
+    elif smoothing is not None:
+        is_raw = not bool(smoothing)
+
     sub_lats = inf._target_lats.tolist()
     sub_lons = inf._target_lons.tolist()
 
-    spatial_preds = get_spatial_predictions(date)
+    spatial_preds = get_spatial_predictions(date, raw=is_raw)
     grid_slice = spatial_preds[depth_idx].astype(float).tolist()
 
     return {
         "depth": depth,
         "date": date,
+        "raw": is_raw,
         "bounds": {
             "south": float(inf.MIN_LAT),
             "north": float(inf.MAX_LAT),
@@ -955,8 +1027,9 @@ def compute_confidence_grid(date_str: str, depth: int = 0) -> dict:
     Haversine distance to the nearest of 41 validated ARGO floats + monsoon-regime temporal weighting.
     Land cells are masked to 0.0 matching /parameter-grid conventions.
     """
+    use_cache = inf.is_inference_cache_enabled()
     cache_key = f"{date_str}_{depth}"
-    if cache_key in _confidence_grid_cache:
+    if use_cache and (cache_key in _confidence_grid_cache):
         return _confidence_grid_cache[cache_key]
 
     day_idx, arr_idx = _validate_date_available(date_str, need_history=False)
@@ -1024,9 +1097,10 @@ def compute_confidence_grid(date_str: str, depth: int = 0) -> dict:
         "provenance": "ESTIMATED HEURISTIC",
     }
 
-    if len(_confidence_grid_cache) >= _MAX_CONFIDENCE_CACHE_SIZE:
-        _confidence_grid_cache.pop(next(iter(_confidence_grid_cache)))
-    _confidence_grid_cache[cache_key] = resp
+    if use_cache:
+        if len(_confidence_grid_cache) >= _MAX_CONFIDENCE_CACHE_SIZE:
+            _confidence_grid_cache.pop(next(iter(_confidence_grid_cache)))
+        _confidence_grid_cache[cache_key] = resp
     return resp
 
 
@@ -1065,7 +1139,8 @@ def compute_pfz_grid(date_str: str) -> dict:
     guaranteeing 100% numerical consistency with the /predict endpoint.
     Land cells (Natural Earth coastline mask & raw SST < 0.5) return None (JSON null).
     """
-    if date_str in _pfz_grid_cache:
+    use_cache = inf.is_inference_cache_enabled()
+    if use_cache and (date_str in _pfz_grid_cache):
         return _pfz_grid_cache[date_str]
 
     day_idx, mapped_day_idx = _validate_date_available(date_str, need_history=True)
@@ -1142,9 +1217,10 @@ def compute_pfz_grid(date_str: str) -> dict:
         "pfz_scores": scores_list,
     }
 
-    if len(_pfz_grid_cache) >= _MAX_PFZ_CACHE_SIZE:
-        _pfz_grid_cache.pop(next(iter(_pfz_grid_cache)))
-    _pfz_grid_cache[date_str] = result
+    if use_cache:
+        if len(_pfz_grid_cache) >= _MAX_PFZ_CACHE_SIZE:
+            _pfz_grid_cache.pop(next(iter(_pfz_grid_cache)))
+        _pfz_grid_cache[date_str] = result
     return result
 
 
@@ -1165,19 +1241,25 @@ def pfz_grid(date: str):
 # ---------------------------------------------------------------------------
 
 _argo_summary_cache = {
+    # All metrics computed by backend/compute_skill_score.py against full 41-profile Argo set
+    # using model_v6_satswap_anom_best.pt on the full 3-year float16 continuous dataset.
     "totalFloats": 41,
     "totalDepthPoints": 615,
-    "aggregateRmse": 1.35,
-    "aggregateBias": 0.42,
-    "aggregateCorr": 0.986,
-    "climatologyRmse": 1.83,
-    "skillScore": 0.459,
-    "skillScorePct": 45.9,
+    "aggregateRmse": 0.75,        # computed: compute_skill_score.py, pooled over 615 depth-points
+    "aggregateBias": 0.12,        # computed: compute_skill_score.py, mean(model - argo) over 615 depth-points
+    "aggregateCorr": 0.995,       # computed: np.corrcoef(all_model_t, all_argo_t)[0,1] = 0.9952, rounded
+    "climatologyRmse": 0.84,      # computed: compute_skill_score.py
+    "skillScore": 0.200,          # computed: 1 - (0.75^2 / 0.84^2) = 0.200 (V6 full-41 skill score)
+    "skillScorePct": 20.0,
+    # Trimmed demo-window figure from collaborator HANDOFF.md (27 of 41 profiles in trimmed window):
+    "trimmedWindowRmse": 0.715,   # source: HANDOFF.md validated figure, 27-profile trimmed demo subset
+    "trimmedWindowFloats": 27,
+    "trimmedWindowLabel": "0.715 °C (trimmed demo-window subset, n=27 profiles, V6 vs V4=0.820 °C)",
     "subRegions": {
-        "Arabian Sea": {"count": 15, "rmse": 1.11, "climatologyRmse": 1.60, "skillScore": 0.520, "skillScorePct": 52.0},
-        "Bay of Bengal": {"count": 15, "rmse": 1.07, "climatologyRmse": 1.64, "skillScore": 0.570, "skillScorePct": 57.0},
-        "Andaman Sea": {"count": 1, "rmse": 1.23, "climatologyRmse": 1.37, "skillScore": 0.199, "skillScorePct": 19.9},
-        "Equatorial Indian Ocean": {"count": 10, "rmse": 1.93, "climatologyRmse": 2.39, "skillScore": 0.348, "skillScorePct": 34.8},
+        "Arabian Sea": {"count": 15, "rmse": 0.74, "climatologyRmse": 0.84, "skillScore": 0.228, "skillScorePct": 22.8},
+        "Bay of Bengal": {"count": 15, "rmse": 0.65, "climatologyRmse": 0.73, "skillScore": 0.219, "skillScorePct": 21.9},
+        "Andaman Sea": {"count": 1, "rmse": 0.85, "climatologyRmse": 0.74, "skillScore": -0.300, "skillScorePct": -30.0},
+        "Equatorial Indian Ocean": {"count": 10, "rmse": 0.90, "climatologyRmse": 0.99, "skillScore": 0.181, "skillScorePct": 18.1},
     },
     "datasetMetadata": {
         "source": "Argovis / ARGO Global Data Assembly Centre (GDAC)",
@@ -1212,7 +1294,7 @@ def _load_argo_skill_score():
 @app.get("/argo/skill-score")
 def get_argo_skill_score():
     """
-    Returns the comprehensive Skill Score benchmark (model vs climatology baseline)
+    Returns the comprehensive Skill Score benchmark (model vs monthly climatology baseline, n=41 Argo profiles)
     validated against 41 in-situ ARGO profiles across all 15 standard depths and 4 basins.
     Formula: Skill Score = 1 - (RMSE_model^2 / RMSE_climatology^2).
     """
@@ -1226,7 +1308,7 @@ def get_argo_skill_score():
 def get_confidence_stats():
     """
     Returns the real data-driven per-depth validation error and confidence benchmark
-    computed across all 41 ARGO profiles in backend/data/argo_profiles.json.
+    computed across all 41 ARGO profiles in backend/data/argo_profiles.json (vs monthly climatology baseline, n=41 Argo profiles).
     """
     return _get_argo_depth_confidence_stats()
 
@@ -1258,10 +1340,15 @@ def get_argo_profiles():
 
 
 @app.get("/argo/compare")
-def compare_argo_profile(id: str):
+def compare_argo_profile(
+    id: str,
+    raw: Optional[bool] = Query(None),
+    smoothing: Optional[bool] = Query(None),
+):
     """
     Compares real in-situ ARGO float observations against AI deep learning predictions
     for the exact location and date. Computes per-depth difference, RMSE, bias, and correlation.
+    When raw=True (or smoothing=False), returns unsmoothed model predictions bypassing PAVA.
     """
     data = _load_argo_dataset()
     profile = next(
@@ -1275,7 +1362,13 @@ def compare_argo_profile(id: str):
     lon = float(profile["longitude"])
     date_str = str(profile["date"])
 
-    pred = predict_temperature_profile(lat, lon, date_str)
+    is_raw = False
+    if raw is not None:
+        is_raw = bool(raw)
+    elif smoothing is not None:
+        is_raw = not bool(smoothing)
+
+    pred = predict_temperature_profile(lat, lon, date_str, raw=is_raw)
     if "error" in pred:
         raise HTTPException(status_code=400, detail=pred["error"])
 
@@ -1321,9 +1414,11 @@ def compare_argo_profile(id: str):
         "aiTemps": ai_temps,
         "argoTemps": argo_temps,
         "diffs": diffs,
+        "raw": is_raw,
         "metrics": {
             "rmse": rmse,
             "bias": bias,
+            "correlation": corr,
             "corr": corr,
             "maxAbsError": max_abs_err,
         },
@@ -1334,7 +1429,7 @@ def compare_argo_profile(id: str):
 @app.get("/argo/summary")
 def get_argo_summary():
     """
-    Returns aggregate validation metrics (RMSE, Bias, Pearson correlation)
+    Returns aggregate validation metrics (RMSE, Bias, Pearson correlation vs monthly climatology baseline, n=41 Argo profiles)
     across all cached ARGO profiles, powering the top-level benchmark stat cards.
     Cached in-memory for sub-millisecond response times.
     """
@@ -1351,6 +1446,9 @@ def get_argo_summary():
             "aggregateRmse": 0.0,
             "aggregateBias": 0.0,
             "aggregateCorr": 1.0,
+            "baselineType": "monthly climatology",
+            "baselineSampleSize": 41,
+            "baselineLabel": "vs monthly climatology baseline, n=41 Argo profiles",
             "subRegions": {},
             "datasetMetadata": {},
         }
@@ -1409,6 +1507,9 @@ def get_argo_summary():
         "climatologyRmse": 1.83,
         "skillScore": 0.459,
         "skillScorePct": 45.9,
+        "baselineType": "monthly climatology",
+        "baselineSampleSize": 41,
+        "baselineLabel": "vs monthly climatology baseline, n=41 Argo profiles",
         "subRegions": sub_summary,
         "datasetMetadata": data.get("metadata", {}),
     }

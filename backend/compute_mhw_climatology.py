@@ -13,7 +13,7 @@ import pandas as pd
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, 'data')
-SST_PATH = os.path.join(DATA_DIR, 'sst.npy')
+SST_PATH = os.path.join(DATA_DIR, 'float16', 'sst.npy') if os.path.exists(os.path.join(DATA_DIR, 'float16', 'sst.npy')) else os.path.join(DATA_DIR, 'sst.npy')
 OUTPUT_PATH = os.path.join(DATA_DIR, 'mhw_climatology.npz')
 
 def compute_climatology():

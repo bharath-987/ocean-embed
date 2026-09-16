@@ -155,7 +155,7 @@
                 </div>
               </div>
               <div class="ky-stat-card__val" id="stat-mld-val">—</div>
-              <div class="ky-stat-card__confidence" id="stat-mld-confidence" title="Reflects historical model accuracy (RMSE) at depths 0–50 m, validated against 41 ARGO float profiles — scaled by proximity to the nearest ARGO float. Not a per-prediction uncertainty estimate."></div>
+              <div class="ky-stat-card__confidence" id="stat-mld-confidence" title="Reflects historical model accuracy (RMSE) at depths 0–50 m, validated against 41 ARGO float profiles (vs monthly climatology baseline, n=41 Argo profiles) — scaled by proximity to the nearest ARGO float. Not a per-prediction uncertainty estimate."></div>
             </div>
           </div>
 
@@ -174,7 +174,7 @@
                 </div>
               </div>
               <div class="ky-stat-card__val" id="stat-ohc-val">—</div>
-              <div class="ky-stat-card__confidence" id="stat-ohc-confidence" title="Reflects historical model accuracy (RMSE) at depths 0–300 m, validated against 41 ARGO float profiles — scaled by proximity to the nearest ARGO float. Not a per-prediction uncertainty estimate."></div>
+              <div class="ky-stat-card__confidence" id="stat-ohc-confidence" title="Reflects historical model accuracy (RMSE) at depths 0–300 m, validated against 41 ARGO float profiles (vs monthly climatology baseline, n=41 Argo profiles) — scaled by proximity to the nearest ARGO float. Not a per-prediction uncertainty estimate."></div>
             </div>
           </div>
 
@@ -194,7 +194,7 @@
                 </div>
               </div>
               <div class="ky-stat-card__val" id="stat-svad-val">—</div>
-              <div class="ky-stat-card__confidence" id="stat-svad-confidence" title="Reflects historical model accuracy (RMSE) at the depth nearest to the computed sonic layer — validated against 41 ARGO float profiles, scaled by ARGO proximity. Not a per-prediction uncertainty estimate."></div>
+              <div class="ky-stat-card__confidence" id="stat-svad-confidence" title="Reflects historical model accuracy (RMSE) at the depth nearest to the computed sonic layer — validated against 41 ARGO float profiles (vs monthly climatology baseline, n=41 Argo profiles), scaled by ARGO proximity. Not a per-prediction uncertainty estimate."></div>
               <div class="ky-stat-card__sub" id="stat-svad-sub" style="display: none;"></div>
             </div>
           </div>
@@ -214,7 +214,7 @@
                 </div>
               </div>
               <div class="ky-stat-card__val" id="stat-d20-val">—</div>
-              <div class="ky-stat-card__confidence" id="stat-d20-confidence" title="Reflects historical model accuracy (RMSE) at the depth nearest to the 20°C isotherm — validated against 41 ARGO float profiles, scaled by ARGO proximity. Not a per-prediction uncertainty estimate."></div>
+              <div class="ky-stat-card__confidence" id="stat-d20-confidence" title="Reflects historical model accuracy (RMSE) at the depth nearest to the 20°C isotherm — validated against 41 ARGO float profiles (vs monthly climatology baseline, n=41 Argo profiles), scaled by ARGO proximity. Not a per-prediction uncertainty estimate."></div>
             </div>
           </div>
         </div>
@@ -456,7 +456,7 @@
                   <div class="ky-param-tile__body">
                     <div class="ky-param-tile__name-row">
                       <span class="ky-param-tile__name">Prediction Confidence</span>
-                      <span class="ky-provenance-pill ky-provenance-pill--heuristic" title="Confidence reflects distance and recency to the nearest of 41 validated ARGO float profiles — not a direct measure of prediction accuracy at this location.">Estimated Heuristic</span>
+                      <span class="ky-provenance-pill ky-provenance-pill--heuristic" title="Confidence reflects distance and recency to the nearest of 41 validated ARGO float profiles (vs monthly climatology baseline, n=41 Argo profiles) — not a direct measure of prediction accuracy at this location.">Estimated Heuristic</span>
                     </div>
                     <div class="ky-param-tile__sub">ARGO Proximity &amp; Temporal Weighting</div>
                     <div class="ky-param-tile__val" id="param-confidence-val">—</div>
@@ -537,6 +537,16 @@
 
                 <!-- GRAPH view -->
                 <div id="tvd-graph-view" class="ky-tvd-chart-wrap" style="display:none;">
+                  <div class="ky-tvd-raw-toggle-wrap">
+                    <label class="ky-tvd-raw-toggle-label" for="toggle-raw-profile" title="Bypass isotonic monotonicity smoothing to inspect raw model output">
+                      <input type="checkbox" id="toggle-raw-profile" class="ky-tvd-raw-checkbox" />
+                      <span>Show raw model output (unsmoothed)</span>
+                    </label>
+                  </div>
+                  <div id="raw-profile-note" class="ky-tvd-raw-note" style="display:none;">
+                    <span class="ky-tvd-raw-note__icon">ⓘ</span>
+                    <span>Raw view displays unsmoothed model output. Subsurface temperature inversions may appear due to real physical phenomena (e.g. barrier layers in the Bay of Bengal).</span>
+                  </div>
                   <canvas id="profile-chart" aria-label="Depth profile chart"></canvas>
                 </div>
 
@@ -552,7 +562,7 @@
                       <tr>
                         <th>Depth (m)</th>
                         <th>Temperature (°C)</th>
-                        <th title="Reflects historical model accuracy (RMSE) at this depth, validated against 41 ARGO float profiles — scaled by proximity to the nearest ARGO float in space and time. Not a per-prediction uncertainty estimate." style="cursor:help;">Confidence ⓘ</th>
+                        <th title="Reflects historical model accuracy (RMSE) at this depth, validated against 41 ARGO float profiles (vs monthly climatology baseline, n=41 Argo profiles) — scaled by proximity to the nearest ARGO float in space and time. Not a per-prediction uncertainty estimate." style="cursor:help;">Confidence ⓘ</th>
                       </tr>
                     </thead>
                     <tbody id="tvd-table-body">

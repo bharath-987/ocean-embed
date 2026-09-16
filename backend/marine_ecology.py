@@ -162,7 +162,7 @@ def detect_marine_heatwaves(
                 
                 # Category multiplier M = (T_peak - Mean) / (Threshold_90 - Mean)
                 if thresh_dist > 1e-4:
-                    mult = peak_anomaly / thresh_dist
+                    mult = round(float(peak_anomaly / thresh_dist), 2)
                     cat_num = min(4, max(1, math.floor(mult)))
                 else:
                     mult = 1.0

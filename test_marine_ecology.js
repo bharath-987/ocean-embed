@@ -72,7 +72,7 @@ async function runTests() {
   // SECTION 2: Backend API Schema & Endpoint Verification
   // --------------------------------------------------------------------------
   console.log('\nSECTION 2: Backend API POST /marine-heatwave');
-  const queryCoord = { latitude: 15.0, longitude: 65.0, reference_date: '2021-03-25' };
+  const queryCoord = { latitude: 15.0, longitude: 65.0, reference_date: '2021-07-03' };
   const res = await makePostRequest('http://localhost:8000/marine-heatwave', queryCoord);
   assert(res.status === 200, `POST /marine-heatwave returns 200 OK (status=${res.status})`);
 
@@ -132,11 +132,11 @@ async function runTests() {
   // SECTION 5: Reference Date Status Evaluation (Active vs Inactive)
   // --------------------------------------------------------------------------
   console.log('\nSECTION 5: Reference Date Evaluation');
-  // Active test (2021-03-25 at 15N, 65E is day 3 of 9-day event 2021-03-23 to 2021-03-31)
+  // Active test (2021-07-03 at 15N, 65E is day 3 of 8-day event 2021-07-01 to 2021-07-08)
   const activeStatus = body.current_status;
-  assert(activeStatus.in_heatwave === true, '2021-03-25 correctly identified as in_heatwave=true');
-  assert(activeStatus.days_elapsed === 3, `2021-03-25 has days_elapsed=3 (got ${activeStatus.days_elapsed})`);
-  assert(activeStatus.category === 1, '2021-03-25 category is 1');
+  assert(activeStatus.in_heatwave === true, '2021-07-03 correctly identified as in_heatwave=true');
+  assert(activeStatus.days_elapsed === 3, `2021-07-03 has days_elapsed=3 (got ${activeStatus.days_elapsed})`);
+  assert(activeStatus.category === 1, '2021-07-03 category is 1');
   assert(activeStatus.category_label === 'Category I (Moderate)', 'category_label is Category I (Moderate)');
 
   // Inactive test (2021-01-01 at 15N, 65E is not in heatwave)

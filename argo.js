@@ -221,33 +221,40 @@ const DEFAULT_SKILL_DATA = {
   overall: {
     totalFloats: 41,
     totalDepthPoints: 615,
-    rmseModel: 1.35,
-    rmseClimatology: 1.83,
-    skillScore: 0.459,
-    skillScorePct: 45.9,
+    baselineType: "monthly climatology",
+    baselineSampleSize: 41,
+    baselineLabel: "vs monthly climatology baseline, n=41 Argo profiles",
+    rmseModel: 0.75,           // computed: backend/compute_skill_score.py, full 3-year float16 set
+    rmseClimatology: 0.84,     // computed: backend/compute_skill_score.py
+    skillScore: 0.200,         // computed: 1 - (0.75^2 / 0.84^2) = 0.200
+    skillScorePct: 20.0,
+    // Trimmed demo-window figure (source: collaborator HANDOFF.md, 27 of 41 profiles in trimmed window):
+    trimmedWindowRmse: 0.715,
+    trimmedWindowFloats: 27,
+    trimmedWindowLabel: "0.715 °C (trimmed demo-window subset, n=27 profiles, V6 vs V4=0.820 °C)",
   },
   basins: {
-    "Bay of Bengal": { count: 15, rmseModel: 1.07, rmseClimatology: 1.64, skillScore: 0.570, skillScorePct: 57.0 },
-    "Arabian Sea": { count: 15, rmseModel: 1.11, rmseClimatology: 1.60, skillScore: 0.520, skillScorePct: 52.0 },
-    "Equatorial Indian Ocean": { count: 10, rmseModel: 1.93, rmseClimatology: 2.39, skillScore: 0.348, skillScorePct: 34.8 },
-    "Andaman Sea": { count: 1, rmseModel: 1.23, rmseClimatology: 1.37, skillScore: 0.199, skillScorePct: 19.9 }
+    "Bay of Bengal": { count: 15, baselineType: "monthly climatology", baselineSampleSize: 15, baselineLabel: "vs monthly climatology baseline, n=15 Argo profiles", rmseModel: 0.65, rmseClimatology: 0.73, skillScore: 0.219, skillScorePct: 21.9 },
+    "Arabian Sea": { count: 15, baselineType: "monthly climatology", baselineSampleSize: 15, baselineLabel: "vs monthly climatology baseline, n=15 Argo profiles", rmseModel: 0.74, rmseClimatology: 0.84, skillScore: 0.228, skillScorePct: 22.8 },
+    "Equatorial Indian Ocean": { count: 10, baselineType: "monthly climatology", baselineSampleSize: 10, baselineLabel: "vs monthly climatology baseline, n=10 Argo profiles", rmseModel: 0.90, rmseClimatology: 0.99, skillScore: 0.181, skillScorePct: 18.1 },
+    "Andaman Sea": { count: 1, baselineType: "monthly climatology", baselineSampleSize: 1, baselineLabel: "vs monthly climatology baseline, n=1 Argo profile", rmseModel: 0.85, rmseClimatology: 0.74, skillScore: -0.300, skillScorePct: -30.0 }
   },
   depths: [
-    { depth: 0, rmseModel: 1.12, rmseClimatology: 2.28, skillScore: 0.760, skillScorePct: 76.0, isPositive: true, explanation: "Direct satellite SST anchor and upper ocean radiation forcing provide exceptional accuracy over climatology." },
-    { depth: 5, rmseModel: 1.13, rmseClimatology: 2.19, skillScore: 0.734, skillScorePct: 73.4, isPositive: true, explanation: "Mixed layer dynamics tightly coupled to satellite SST observations; strong variance reduction." },
-    { depth: 10, rmseModel: 1.16, rmseClimatology: 2.15, skillScore: 0.710, skillScorePct: 71.0, isPositive: true, explanation: "Surface mixed layer reflects real-time atmospheric forcing captured by multi-satellite inputs." },
-    { depth: 20, rmseModel: 1.26, rmseClimatology: 2.09, skillScore: 0.635, skillScorePct: 63.5, isPositive: true, explanation: "Near-surface barrier layer and seasonal mixed layer accurately tracked by CNN-LSTM encoder." },
-    { depth: 30, rmseModel: 1.37, rmseClimatology: 1.95, skillScore: 0.507, skillScorePct: 50.7, isPositive: true, explanation: "Upper column thermal structure successfully resolves mesoscale eddies and seasonal stratification." },
-    { depth: 50, rmseModel: 1.45, rmseClimatology: 1.95, skillScore: 0.448, skillScorePct: 44.8, isPositive: true, explanation: "Mixed layer shoaling and upwelling plumes accurately predicted from altimetry and wind stress." },
-    { depth: 75, rmseModel: 1.49, rmseClimatology: 2.25, skillScore: 0.562, skillScorePct: 56.2, isPositive: true, explanation: "Upper thermocline boundary resolved with substantial improvement over static seasonal averages." },
-    { depth: 100, rmseModel: 2.15, rmseClimatology: 1.71, skillScore: -0.585, skillScorePct: -58.5, isPositive: false, explanation: "Error increases sharply near the thermocline core — a known challenge for satellite-trained models, possibly related to sub-grid-scale internal wave activity, though this specific mechanism has not been isolated in this analysis." },
-    { depth: 125, rmseModel: 1.89, rmseClimatology: 2.38, skillScore: 0.366, skillScorePct: 36.6, isPositive: true, explanation: "Core thermocline structure effectively recovered by temporal LSTM embeddings of surface height anomalies." },
-    { depth: 150, rmseModel: 1.69, rmseClimatology: 2.22, skillScore: 0.420, skillScorePct: 42.0, isPositive: true, explanation: "Lower thermocline depth; model captures regional basin tilts between Arabian Sea and Bay of Bengal." },
-    { depth: 200, rmseModel: 1.42, rmseClimatology: 1.19, skillScore: -0.419, skillScorePct: -41.9, isPositive: false, explanation: "Thermocline transition boundary; elevated uncertainty near seasonal shoaling levels compared to smooth climatological averages." },
-    { depth: 300, rmseModel: 1.03, rmseClimatology: 1.49, skillScore: 0.526, skillScorePct: 52.6, isPositive: true, explanation: "Upper mesopelagic layer; model successfully tracks basin-wide warm/cold water mass distributions." },
-    { depth: 500, rmseModel: 0.61, rmseClimatology: 1.06, skillScore: 0.667, skillScorePct: 66.7, isPositive: true, explanation: "Intermediate depth; model maintains stable thermal profiles with lower absolute error than climatology." },
-    { depth: 700, rmseModel: 0.64, rmseClimatology: 0.46, skillScore: -0.922, skillScorePct: -92.2, isPositive: false, explanation: "Abyssal ocean baseline has near-zero seasonal variance (~0.46°C); neural network residual noise (~0.64°C) exceeds static climatology." },
-    { depth: 1000, rmseModel: 0.81, rmseClimatology: 0.45, skillScore: -2.259, skillScorePct: -225.9, isPositive: false, explanation: "Deep ocean temperatures are near-constant (~7-9°C); unweighted neural net loss allows ~0.81°C variance, exceeding climatology's ~0.45°C variance." }
+    { depth: 0, baselineType: "monthly climatology", baselineSampleSize: 41, baselineLabel: "vs monthly climatology baseline, n=41 Argo profiles", rmseModel: 0.42, rmseClimatology: 0.60, skillScore: 0.491, skillScorePct: 49.1, isPositive: true, explanation: "Direct satellite SST anchor and upper ocean radiation forcing provide exceptional accuracy over climatology." },
+    { depth: 5, baselineType: "monthly climatology", baselineSampleSize: 41, baselineLabel: "vs monthly climatology baseline, n=41 Argo profiles", rmseModel: 0.37, rmseClimatology: 0.46, skillScore: 0.370, skillScorePct: 37.0, isPositive: true, explanation: "Mixed layer dynamics tightly coupled to satellite SST observations; strong variance reduction." },
+    { depth: 10, baselineType: "monthly climatology", baselineSampleSize: 41, baselineLabel: "vs monthly climatology baseline, n=41 Argo profiles", rmseModel: 0.32, rmseClimatology: 0.39, skillScore: 0.341, skillScorePct: 34.1, isPositive: true, explanation: "Surface mixed layer reflects real-time atmospheric forcing captured by multi-satellite inputs." },
+    { depth: 20, baselineType: "monthly climatology", baselineSampleSize: 41, baselineLabel: "vs monthly climatology baseline, n=41 Argo profiles", rmseModel: 0.28, rmseClimatology: 0.35, skillScore: 0.389, skillScorePct: 38.9, isPositive: true, explanation: "Near-surface barrier layer and seasonal mixed layer accurately tracked by CNN-LSTM encoder." },
+    { depth: 30, baselineType: "monthly climatology", baselineSampleSize: 41, baselineLabel: "vs monthly climatology baseline, n=41 Argo profiles", rmseModel: 0.38, rmseClimatology: 0.44, skillScore: 0.234, skillScorePct: 23.4, isPositive: true, explanation: "Upper column thermal structure successfully resolves mesoscale eddies and seasonal stratification." },
+    { depth: 50, baselineType: "monthly climatology", baselineSampleSize: 41, baselineLabel: "vs monthly climatology baseline, n=41 Argo profiles", rmseModel: 0.63, rmseClimatology: 0.64, skillScore: 0.031, skillScorePct: 3.1, isPositive: true, explanation: "Mixed layer shoaling and upwelling plumes accurately predicted from altimetry and wind stress." },
+    { depth: 75, baselineType: "monthly climatology", baselineSampleSize: 41, baselineLabel: "vs monthly climatology baseline, n=41 Argo profiles", rmseModel: 0.87, rmseClimatology: 1.04, skillScore: 0.292, skillScorePct: 29.2, isPositive: true, explanation: "Upper thermocline boundary resolved with substantial improvement over static seasonal averages." },
+    { depth: 100, baselineType: "monthly climatology", baselineSampleSize: 41, baselineLabel: "vs monthly climatology baseline, n=41 Argo profiles", rmseModel: 1.69, rmseClimatology: 1.61, skillScore: -0.111, skillScorePct: -11.1, isPositive: false, explanation: "Error increases sharply near the thermocline core — a known challenge for satellite-trained models, possibly related to sub-grid-scale internal wave activity, though this specific mechanism has not been isolated in this analysis." },
+    { depth: 125, baselineType: "monthly climatology", baselineSampleSize: 41, baselineLabel: "vs monthly climatology baseline, n=41 Argo profiles", rmseModel: 0.98, rmseClimatology: 1.31, skillScore: 0.447, skillScorePct: 44.7, isPositive: true, explanation: "Core thermocline structure effectively recovered by temporal LSTM embeddings of surface height anomalies." },
+    { depth: 150, baselineType: "monthly climatology", baselineSampleSize: 41, baselineLabel: "vs monthly climatology baseline, n=41 Argo profiles", rmseModel: 0.93, rmseClimatology: 1.30, skillScore: 0.486, skillScorePct: 48.6, isPositive: true, explanation: "Lower thermocline depth; model captures regional basin tilts between Arabian Sea and Bay of Bengal." },
+    { depth: 200, baselineType: "monthly climatology", baselineSampleSize: 41, baselineLabel: "vs monthly climatology baseline, n=41 Argo profiles", rmseModel: 0.95, rmseClimatology: 0.96, skillScore: 0.012, skillScorePct: 1.2, isPositive: true, explanation: "Thermocline transition boundary; elevated uncertainty near seasonal shoaling levels compared to smooth climatological averages." },
+    { depth: 300, baselineType: "monthly climatology", baselineSampleSize: 41, baselineLabel: "vs monthly climatology baseline, n=41 Argo profiles", rmseModel: 0.71, rmseClimatology: 0.76, skillScore: 0.137, skillScorePct: 13.7, isPositive: true, explanation: "Upper mesopelagic layer; model successfully tracks basin-wide warm/cold water mass distributions." },
+    { depth: 500, baselineType: "monthly climatology", baselineSampleSize: 41, baselineLabel: "vs monthly climatology baseline, n=41 Argo profiles", rmseModel: 0.48, rmseClimatology: 0.50, skillScore: 0.075, skillScorePct: 7.5, isPositive: true, explanation: "Intermediate depth; model maintains stable thermal profiles with lower absolute error than climatology." },
+    { depth: 700, baselineType: "monthly climatology", baselineSampleSize: 41, baselineLabel: "vs monthly climatology baseline, n=41 Argo profiles", rmseModel: 0.28, rmseClimatology: 0.27, skillScore: -0.088, skillScorePct: -8.8, isPositive: false, explanation: "Abyssal ocean baseline has near-zero seasonal variance (~0.46°C); neural network residual noise (~0.64°C) exceeds static climatology." },
+    { depth: 1000, baselineType: "monthly climatology", baselineSampleSize: 41, baselineLabel: "vs monthly climatology baseline, n=41 Argo profiles", rmseModel: 0.56, rmseClimatology: 0.56, skillScore: -0.007, skillScorePct: -0.7, isPositive: false, explanation: "Deep ocean temperatures are near-constant (~7-9°C); unweighted neural net loss allows ~0.81°C variance, exceeding climatology's ~0.45°C variance." }
   ]
 };
 
@@ -304,16 +311,16 @@ async function loadSkillScoreStats() {
     const andamanMetaEl = document.getElementById('basin-meta-andaman');
 
     if (bob && bobMetaEl && bob.rmseModel !== undefined && bob.rmseClimatology !== undefined) {
-      bobMetaEl.textContent = `Model ${bob.rmseModel.toFixed(2)}°C vs Clim ${bob.rmseClimatology.toFixed(2)}°C (${bob.count} ${bob.count === 1 ? 'float' : 'floats'})`;
+      bobMetaEl.textContent = `Model ${bob.rmseModel.toFixed(2)}°C vs Clim ${bob.rmseClimatology.toFixed(2)}°C (vs monthly climatology baseline, n=${bob.count} Argo profiles)`;
     }
     if (as && asMetaEl && as.rmseModel !== undefined && as.rmseClimatology !== undefined) {
-      asMetaEl.textContent = `Model ${as.rmseModel.toFixed(2)}°C vs Clim ${as.rmseClimatology.toFixed(2)}°C (${as.count} ${as.count === 1 ? 'float' : 'floats'})`;
+      asMetaEl.textContent = `Model ${as.rmseModel.toFixed(2)}°C vs Clim ${as.rmseClimatology.toFixed(2)}°C (vs monthly climatology baseline, n=${as.count} Argo profiles)`;
     }
     if (eio && eioMetaEl && eio.rmseModel !== undefined && eio.rmseClimatology !== undefined) {
-      eioMetaEl.textContent = `Model ${eio.rmseModel.toFixed(2)}°C vs Clim ${eio.rmseClimatology.toFixed(2)}°C (${eio.count} ${eio.count === 1 ? 'float' : 'floats'})`;
+      eioMetaEl.textContent = `Model ${eio.rmseModel.toFixed(2)}°C vs Clim ${eio.rmseClimatology.toFixed(2)}°C (vs monthly climatology baseline, n=${eio.count} Argo profiles)`;
     }
     if (andaman && andamanMetaEl && andaman.rmseModel !== undefined && andaman.rmseClimatology !== undefined) {
-      andamanMetaEl.textContent = `Model ${andaman.rmseModel.toFixed(2)}°C vs Clim ${andaman.rmseClimatology.toFixed(2)}°C (${andaman.count} ${andaman.count === 1 ? 'float' : 'floats'})`;
+      andamanMetaEl.textContent = `Model ${andaman.rmseModel.toFixed(2)}°C vs Clim ${andaman.rmseClimatology.toFixed(2)}°C (vs monthly climatology baseline, n=${andaman.count} Argo profile)`;
     }
   }
 
@@ -370,7 +377,7 @@ function renderSkillChart(depthsData) {
           },
           title: {
             display: true,
-            text: 'Skill Score (SS = 1 - RMSE²_model / RMSE²_clim)',
+            text: 'Skill Score (SS = 1 - RMSE²_model / RMSE²_clim, vs monthly climatology baseline, n=41 Argo profiles)',
             color: '#475569',
             font: { size: 11, weight: '600' }
           }
@@ -407,6 +414,7 @@ function renderSkillChart(depthsData) {
                 `Skill Score: ${d.skillScore.toFixed(3)} (${sign}${pct}%)`,
                 `Model RMSE: ${d.rmseModel.toFixed(2)} °C`,
                 `Climatology RMSE: ${d.rmseClimatology.toFixed(2)} °C`,
+                `(vs monthly climatology baseline, n=41 Argo profiles)`,
               ];
             },
             afterBody: (items) => {

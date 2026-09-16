@@ -118,6 +118,9 @@ for r in regions:
         basin_summary[r] = {
             'count': r_data['count'],
             'totalPoints': r_data['count'] * len(depths),
+            'baselineType': 'monthly climatology',
+            'baselineSampleSize': r_data['count'],
+            'baselineLabel': f"vs monthly climatology baseline, n={r_data['count']} Argo {'profile' if r_data['count'] == 1 else 'profiles'}",
             'rmseModel': round(r_rmse_m, 2),
             'rmseClimatology': round(r_rmse_c, 2),
             'skillScore': round(r_ss, 3),
@@ -154,6 +157,9 @@ for d in depths:
     
     depth_summary.append({
         'depth': d,
+        'baselineType': 'monthly climatology',
+        'baselineSampleSize': 41,
+        'baselineLabel': 'vs monthly climatology baseline, n=41 Argo profiles',
         'rmseModel': round(d_rmse_m, 2),
         'rmseClimatology': round(d_rmse_c, 2),
         'skillScore': round(d_ss, 3),
@@ -168,12 +174,18 @@ payload = {
         'benchmarkDataset': '41 in-situ ARGO profiling floats (backend/data/argo_profiles.json)',
         'climatologyMethod': 'Monthly Climatological Normals (12 calendar months, 2021-2023 pooled range)',
         'climatologyRationale': 'Grouping days by calendar month (~90 days/month per grid cell) provides robust physical oceanographic smoothing over the 3-year record, avoiding 3-year daily synoptic noise while capturing the seasonal monsoonal cycle.',
+        'baselineType': 'monthly climatology',
+        'baselineSampleSize': 41,
+        'baselineLabel': 'vs monthly climatology baseline, n=41 Argo profiles',
         'formula': 'Skill Score = 1 - (RMSE_model^2 / RMSE_climatology^2)',
         'interpretation': '1.0 = Perfect prediction, 0.0 = Climatology baseline (no value-add), < 0 = Climatology outperformed model at that level.',
     },
     'overall': {
         'totalFloats': total_floats,
         'totalDepthPoints': total_points,
+        'baselineType': 'monthly climatology',
+        'baselineSampleSize': 41,
+        'baselineLabel': 'vs monthly climatology baseline, n=41 Argo profiles',
         'rmseModel': round(overall_rmse_model, 2),
         'rmseClimatology': round(overall_rmse_clim, 2),
         'skillScore': round(overall_ss, 3),

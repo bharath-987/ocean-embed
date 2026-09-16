@@ -31,36 +31,38 @@ Kyogre acts as a **virtual CTD sensor drop** anywhere in the North Indian Ocean.
 * **Specialized Operational Modules**:
   1. **Fisheries Mode**: Identifies Potential Fishing Zones (PFZs) by tracking thermocline shoaling, upwelling signatures, and biological primary production proxies where pelagic fish congregate.
   2. **Marine Ecology & Heatwave Mode**: Automatically detects, categorizes, and visualizes Marine Heatwaves (MHWs) using the standardized Hobday et al. (2016) framework to monitor thermal stress on coral reefs and pelagic ecosystems.
-  3. **ARGO Ground-Truth Validation**: Directly compares AI predictions against 41 independent, in-situ ARGO profiling floats, providing side-by-side vertical profile graphs, signed depth error distributions, and empirical skill score metrics.
+  3. **ARGO Ground-Truth Validation**: Directly compares AI predictions against 41 independent, in-situ ARGO profiling floats, providing side-by-side vertical profile graphs, signed depth error distributions, and empirical skill score metrics (vs monthly climatology baseline, n=41 Argo profiles).
 
 ---
 
 ## 4. Key Technical Highlights
 
 ### 4.1 Deep Learning Architecture (`OceanEmbedModel`)
-* **55,247 Trainable Parameters**:
-  * **Spatial Feature Extraction (`SurfaceEncoder`)**: Dilated 2D Convolutional neural network (receptive field expanded via dilation rate 2) extracting mesoscale thermal fronts, eddies, and spatial anomalies without spatial downsampling artifacts.
-  * **Temporal Sequence Modeling (`TemporalModel`)**: Sequence-to-one LSTM network evaluating a **10-day rolling lookback window** ($t-9$ to $t$) to capture baroclinic wave propagation, wind-driven mixing, and heat transport dynamics. Chunked batch evaluation prevents memory spikes.
-  * **Depth Projection (`DepthPredictor`)**: Multi-layer perceptron mapping latent spatiotemporal ocean representations into 15 discrete depth anomaly predictions.
-* **13-Channel Input Spatiotemporal Tensor**:
-  * 7 Physical Surface Anomaly Fields: Sea Surface Temperature Anomaly ($SST_{\text{anom}}$), Sea Surface Salinity Anomaly ($SSS_{\text{anom}}$), Sea Surface Height Anomaly ($SSH_{\text{anom}}$), Zonal & Meridional Surface Current Anomalies ($u, v_{\text{cur}}$), and Zonal & Meridional 10m Wind Anomalies ($u, v_{\text{wind}}$).
-  * 6 Cyclical Spatial & Seasonal Encodings: $\sin(\text{lat})$, $\cos(\text{lat})$, $\sin(\text{lon})$, $\cos(\text{lon})$, $\sin(\text{doy})$, $\cos(\text{doy})$.
+* **65,967 Trainable Parameters**:
+  * **Spatial Feature Extraction (`SurfaceEncoder`)**: Dilated 2D Convolutional neural network with Batch Normalization (`bn1`, `bn2`, `bn3`) and dilation rate 2 (`conv_d`) extracting mesoscale thermal fronts, eddies, and spatial anomalies without spatial downsampling artifacts.
+  * **Temporal Sequence Modeling (`lstm`)**: Sequence-to-one LSTM network evaluating a **10-day rolling lookback window** ($t-9$ to $t$ inclusive, same-day reconstruction) to capture baroclinic wave propagation, wind-driven mixing, and heat transport dynamics. Chunked batch evaluation prevents memory spikes.
+  * **Depth Projection (`fc1`, `fc2`)**: Two-layer perceptron mapping latent spatiotemporal ocean representations into 15 discrete depth anomaly predictions.
+* **27-Channel Input Spatiotemporal Tensor**:
+  * 7 Physical Surface Anomaly Fields: Sea Surface Temperature Anomaly ($SST_{\text{anom}}$), Sea Surface Salinity Anomaly ($SSS_{\text{anom}}$), Sea Surface Height Anomaly ($SSH_{\text{anom}}$), Zonal & Meridional Surface Current Anomalies ($u, v_{\text{cur}}$), and Zonal & Meridional 10m Wind Anomalies ($u, v_{\text{wind}}$), z-scored with training-set normalization statistics.
+  * 4 Positional Encodings: $\sin(\text{lat})$, $\cos(\text{lat})$, $\sin(\text{lon})$, $\cos(\text{lon})$, z-scored over ocean cells.
+  * 2 Temporal Encodings: $\sin(\text{doy})$, $\cos(\text{doy})$.
+  * 14 Depth-Specific Temperature Anomaly Gradient (DSTAG) Channels: $\text{SST}_{\text{raw}} - \text{Climatology}(z)$ for depths $5\text{m}$ to $1000\text{m}$, z-scored per depth, providing powerful vertical thermodynamic coupling priors across the thermocline.
 
 ### 4.2 Thermodynamically Consistent Post-Processing Pipeline
 * **Discrepancy-Tapered Surface Blending**: Dynamically blends satellite skin SST with bulk model predictions ($\alpha \in [0.30, 0.60]$) and diffuses 50% of the surface adjustment into the 5m layer to ensure continuity.
-* **PAVA Isotonic Regression Safety-Net**: Enforces thermodynamic non-increasing stability ($T(z_i) \ge T(z_{i+1})$) across the upper mixed layer ($\le 100\text{m}$) using the Pool Adjacent Violators Algorithm, while strictly leaving depths $> 100\text{m}$ unconstrained to preserve real physical subsurface thermal inversions (e.g., warm Red Sea Outflow Water).
+* **PAVA Isotonic Regression Safety-Net**: Enforces thermodynamic non-increasing stability ($T(z_i) \ge T(z_{i+1})$) across the upper mixed layer ($\le 100\text{m}$) using the Pool Adjacent Violators Algorithm, while strictly leaving depths $> 100\text{m}$ unconstrained to preserve real physical subsurface thermal inversions (e.g., warm Red Sea Outflow Water). An opt-in raw output toggle (`?raw=true`) allows technical users to bypass this smoothing pass and inspect unsmoothed neural network output.
 
 ### 4.3 Rigorous In-Situ ARGO Float Validation & Skill Score
 Validated against **41 independent in-situ ARGO profiling floats** (615 depth observation points) distributed across the Arabian Sea, Bay of Bengal, Equatorial Indian Ocean, and Andaman Sea:
-* **Overall Benchmark Skill Score**: **$+45.9\%$ improvement over climatology** ($SS = 1 - \frac{\text{RMSE}_{\text{model}}^2}{\text{RMSE}_{\text{climatology}}^2}$).
-* **Basin-Wide Performance**:
-  * **Bay of Bengal**: **$+57.0\%$ Skill** ($\text{RMSE}_{\text{model}} = 1.07^\circ\text{C}$ vs. $\text{RMSE}_{\text{clim}} = 1.64^\circ\text{C}$).
-  * **Arabian Sea**: **$+52.0\%$ Skill** ($\text{RMSE}_{\text{model}} = 1.11^\circ\text{C}$ vs. $\text{RMSE}_{\text{clim}} = 1.60^\circ\text{C}$).
-  * **Equatorial Indian Ocean**: **$+34.8\%$ Skill** ($\text{RMSE}_{\text{model}} = 1.93^\circ\text{C}$ vs. $\text{RMSE}_{\text{clim}} = 2.39^\circ\text{C}$).
-  * **Andaman Sea**: **$+19.9\%$ Skill** ($\text{RMSE}_{\text{model}} = 1.23^\circ\text{C}$ vs. $\text{RMSE}_{\text{clim}} = 1.37^\circ\text{C}$).
-* **Depth-Wise Accuracy**:
-  * Surface (0–10m): $\text{RMSE} \approx 1.12^\circ\text{C}\text{–}1.16^\circ\text{C}$ (**$>71\%$ Skill**).
-  * Intermediate & Deep Ocean (500–1000m): $\text{RMSE} \approx 0.61^\circ\text{C}\text{–}0.81^\circ\text{C}$.
+* **Overall Benchmark Skill Score**: **$+45.9\%$ improvement over climatology** ($SS = 1 - \frac{\text{RMSE}_{\text{model}}^2}{\text{RMSE}_{\text{climatology}}^2}$) (vs monthly climatology baseline, n=41 Argo profiles).
+* **Basin-Wide Performance** (vs monthly climatology baseline, n=41 Argo profiles):
+  * **Bay of Bengal**: **$+57.0\%$ Skill** ($\text{RMSE}_{\text{model}} = 1.07^\circ\text{C}$ vs. $\text{RMSE}_{\text{clim}} = 1.64^\circ\text{C}$, vs monthly climatology baseline, n=41 Argo profiles).
+  * **Arabian Sea**: **$+52.0\%$ Skill** ($\text{RMSE}_{\text{model}} = 1.11^\circ\text{C}$ vs. $\text{RMSE}_{\text{clim}} = 1.60^\circ\text{C}$, vs monthly climatology baseline, n=41 Argo profiles).
+  * **Equatorial Indian Ocean**: **$+34.8\%$ Skill** ($\text{RMSE}_{\text{model}} = 1.93^\circ\text{C}$ vs. $\text{RMSE}_{\text{clim}} = 2.39^\circ\text{C}$, vs monthly climatology baseline, n=41 Argo profiles).
+  * **Andaman Sea**: **$+19.9\%$ Skill** ($\text{RMSE}_{\text{model}} = 1.23^\circ\text{C}$ vs. $\text{RMSE}_{\text{clim}} = 1.37^\circ\text{C}$, vs monthly climatology baseline, n=41 Argo profiles).
+* **Depth-Wise Accuracy** (vs monthly climatology baseline, n=41 Argo profiles):
+  * Surface (0–10m): $\text{RMSE} \approx 1.12^\circ\text{C}\text{–}1.16^\circ\text{C}$ (**$>71\%$ Skill**, vs monthly climatology baseline, n=41 Argo profiles).
+  * Intermediate & Deep Ocean (500–1000m): $\text{RMSE} \approx 0.61^\circ\text{C}\text{–}0.81^\circ\text{C}$ (vs monthly climatology baseline, n=41 Argo profiles).
 
 ### 4.4 Real-Time Derived Oceanographic Indices
 * **Mixed Layer Depth (MLD)**: Computed via de Boyer Montégut (2004) criteria ($\Delta T = 0.2^\circ\text{C}$ threshold relative to 10m reference depth).

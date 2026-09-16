@@ -1,6 +1,9 @@
 {
   "formula": "absolute_v2",
   "max_rmse": 2.15,
+  "baselineType": "monthly climatology",
+  "baselineSampleSize": 41,
+  "baselineLabel": "vs monthly climatology baseline, n=41 Argo profiles",
   "depths": [
     0,
     5,

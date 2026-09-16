@@ -6,7 +6,7 @@ for a given latitude, longitude, and date, using the trained OceanEmbed
 CNN-LSTM model.
 
 WHAT YOU NEED TO RUN THIS:
-1. model_v4_dilated_checkpoint_epoch30.pt   -- the trained weights
+1. model_v6_satswap_anom_best.pt   -- the trained weights (V6 architecture, 27 channels)
 2. The precomputed data arrays (.npy files) listed below, in a folder
    called `data/` next to this script
 3. Python packages: torch, numpy, pandas  (see requirements.txt)
@@ -59,16 +59,20 @@ elif _env_trimmed is not None and _env_trimmed.lower() in ("false", "0", "no"):
     USE_FLOAT16_DATA = False
 else:
     # Auto-detection when no environment variable is explicitly set
-    if (not os.path.exists(untrimmed_sst)) and os.path.exists(trimmed_sst):
-        USE_TRIMMED_DATA = True
-        USE_FULL_FLOAT16_DATA = False
-        USE_FLOAT16_DATA = False
-    elif (not os.path.exists(untrimmed_sst)) and os.path.exists(float16_sst):
+    if os.path.exists(float16_sst):
         USE_TRIMMED_DATA = False
         USE_FULL_FLOAT16_DATA = True
         USE_FLOAT16_DATA = True
-    else:
+    elif (not os.path.exists(untrimmed_sst)) and os.path.exists(trimmed_sst):
+        USE_TRIMMED_DATA = True
+        USE_FULL_FLOAT16_DATA = False
+        USE_FLOAT16_DATA = False
+    elif os.path.exists(untrimmed_sst):
         USE_TRIMMED_DATA = False
+        USE_FULL_FLOAT16_DATA = False
+        USE_FLOAT16_DATA = False
+    else:
+        USE_TRIMMED_DATA = True
         USE_FULL_FLOAT16_DATA = False
         USE_FLOAT16_DATA = False
 
@@ -94,17 +98,36 @@ if USE_FULL_FLOAT16_DATA or USE_FLOAT16_DATA:
     from fetch_data import ensure_data_ready
     ensure_data_ready(DATA_DIR)
 
-CHECKPOINT_PATH = os.path.join(BASE_DIR, "model_v4_dilated_checkpoint_epoch30.pt")
+CHECKPOINT_PATH = os.path.join(BASE_DIR, "model_v6_satswap_anom_best.pt")
 
 MIN_LON, MAX_LON = 45, 105             # region: North Indian Ocean
 MIN_LAT, MAX_LAT = 5, 30
 YEARS_COVERED = list(range(2021, 2024))  # <- valid date range: 2021-01-01 to 2023-12-31
-                                          #    (V4 checkpoint was trained on the 3-year dataset)
+                                          #    (V6 checkpoint was also trained on the 3-year dataset)
 DATASET_START_DATE = f"{YEARS_COVERED[0]}-01-01"
-SEQUENCE_LENGTH = 10                   # (item 7) model needs the PAST 10 DAYS of data, not just 1 day
+SEQUENCE_LENGTH = 10                   # (item 7) model reads a 10-day window of data
+LOOKBACK_DAYS = SEQUENCE_LENGTH - 1    # window is [target_day - 9, target_day] INCLUSIVE (same-day
+                                        # reconstruction) -- V4 used [target_day-10, target_day-1],
+                                        # a 1-day-forecast bug fixed in V6; see channel_stats note below.
 STANDARD_DEPTHS = [0, 5, 10, 20, 30, 50, 75, 100, 125, 150, 200, 300, 500, 700, 1000]  # (item 9)
-IN_CHANNELS = 13                       # (item 6) channel order below
+IN_CHANNELS = 27                       # (item 6) channel order below -- V6: 7 surface anomaly +
+                                        # 4 positional + 2 temporal + 14 DSTAG (was 13 under V4:
+                                        # no DSTAG, no BatchNorm in the encoder)
 TOTAL_DAYS_FULL_FLOAT16 = 1095         # Total continuous days in 2021-01-01 through 2023-12-31
+
+# --------------------------------------------------------------------------- V6 channel normalization
+# The 7 surface-anomaly channels and the 14 DSTAG channels are z-scored (mean/std fit ONCE on
+# train-only days during training) before being fed to the model -- V4 fed raw physical-unit
+# anomalies straight in, which V6's checkpoint was never trained on. These constants are exactly
+# `channel_stats_v6_satswap_anom.npz` from the training run (order: sst, sss, ssh, u_cur, v_cur,
+# u_wind, v_wind for SURF_*; depths 5,10,20,30,50,75,100,125,150,200,300,500,700,1000m for DSTAG_*).
+SURF_MEAN = np.array([2.95e-10, 3.88e-10, -4.32e-12, 4.55e-12, 1.46e-12, -6.21e-11, 7.25e-11], dtype="float32")
+SURF_STD = np.array([0.48491135, 0.3317702, 0.05517631, 0.1591553, 0.1557218, 2.3828635, 2.1260521], dtype="float32")
+DSTAG_MEAN = np.array([0.03025478, 0.24102248, 0.5683777, 1.2950898, 2.6567838, 5.4854794, 6.8095574,
+                        10.547416, 12.580494, 14.293592, 17.416727, 19.15396, 19.820772, 21.436916], dtype="float32")
+DSTAG_STD = np.array([0.5437714, 2.422959, 3.705896, 5.3166757, 6.963868, 8.472091, 8.394373,
+                       7.4827805, 6.877068, 6.3293815, 5.238609, 4.6756783, 4.478994, 3.9518988], dtype="float32")
+DSTAG_DEPTH_INDICES = list(range(1, len(STANDARD_DEPTHS)))  # depths[1:] -- depth-0 dropped, duplicate of sst_anom
 
 
 def translate_day_idx(day_idx: int) -> int | None:
@@ -123,13 +146,17 @@ def translate_day_idx(day_idx: int) -> int | None:
         return None
     return _day_index_map.get(day_idx)
 
-# Channel order (item 6) -- this is what the model's 13 input channels are, in order:
+# Channel order (item 6) -- this is what the model's 27 input channels are, in order:
 #  0: SST anomaly          1: SSS anomaly          2: SSH anomaly
 #  3: U-current anomaly    4: V-current anomaly
 #  5: U-wind anomaly       6: V-wind anomaly
+#  (0-6 z-scored with SURF_MEAN/SURF_STD)
 #  7: latitude sin         8: latitude cos
 #  9: longitude sin       10: longitude cos
+#  (7-10 z-scored over ocean cells)
 # 11: day-of-year sin     12: day-of-year cos
+# 13-26: DSTAG = SST_raw - target_climatology(depth), depths 5,10,20,30,50,75,100,125,150,
+#         200,300,500,700,1000m in order (z-scored with DSTAG_MEAN/DSTAG_STD)
 # (all "anomaly" = value minus the location's seasonal-average climatology)
 
 # Cap PyTorch CPU threads in constrained container environments (e.g. Render 512MB RAM)
@@ -143,28 +170,42 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 # 2. MODEL DEFINITION (item 2) -- must match exactly what the checkpoint was trained with
 # ---------------------------------------------------------------------------
 class SurfaceEncoder(nn.Module):
-    def __init__(self, in_channels=13, embedding_channels=32, dropout_p=0.1):
+    """Matches oceanembed/model.py's SurfaceEncoder exactly (V6 architecture) -- this is what
+    model_v6_satswap_anom_best.pt was trained with: conv1 goes straight 27->32 (not 13->16->32
+    like V4), and every conv except the last has a BatchNorm2d. State-dict key names
+    (encoder.conv1/bn1/conv2/bn2/conv_d/bn3/conv3) must match the checkpoint exactly."""
+    def __init__(self, in_channels=27, embedding_channels=32, dropout_p=0.1):
         super().__init__()
-        self.conv1 = nn.Conv2d(in_channels, 16, kernel_size=3, padding=1)
-        self.conv2 = nn.Conv2d(16, 32, kernel_size=3, padding=1)
-        self.conv_dilated = nn.Conv2d(32, 32, kernel_size=3, padding=2, dilation=2)
+        self.conv1 = nn.Conv2d(in_channels, 32, kernel_size=3, padding=1)
+        self.bn1 = nn.BatchNorm2d(32)
+        self.conv2 = nn.Conv2d(32, 32, kernel_size=3, padding=1)
+        self.bn2 = nn.BatchNorm2d(32)
+        self.conv_d = nn.Conv2d(32, 32, kernel_size=3, padding=2, dilation=2)
+        self.bn3 = nn.BatchNorm2d(32)
         self.conv3 = nn.Conv2d(32, embedding_channels, kernel_size=3, padding=1)
         self.dropout = nn.Dropout2d(dropout_p)
 
     def forward(self, x):
-        x = F.relu(self.conv1(x)); x = self.dropout(x)
-        x = F.relu(self.conv2(x)); x = self.dropout(x)
-        x = F.relu(self.conv_dilated(x)); x = self.dropout(x)
-        x = self.conv3(x)
-        return x
+        x = self.dropout(F.relu(self.bn1(self.conv1(x))))
+        x = self.dropout(F.relu(self.bn2(self.conv2(x))))
+        x = self.dropout(F.relu(self.bn3(self.conv_d(x))))
+        return self.conv3(x)
 
 
-class TemporalModel(nn.Module):
-    def __init__(self, embedding_channels=32, hidden_size=64):
+class OceanEmbedModel(nn.Module):
+    """V6 architecture: encoder -> LSTM -> 2-layer depth head. `lstm`/`fc1`/`fc2` are direct
+    attributes (not wrapped in TemporalModel/DepthPredictor submodules like V4 was) because the
+    checkpoint's state_dict keys are `lstm.*`, `fc1.*`, `fc2.*` at the top level."""
+    def __init__(self, in_channels=27, embedding_channels=32, hidden_size=64, num_depths=15):
         super().__init__()
+        self.encoder = SurfaceEncoder(in_channels, embedding_channels)
         self.lstm = nn.LSTM(input_size=embedding_channels, hidden_size=hidden_size, batch_first=True)
+        self.fc1 = nn.Linear(hidden_size, 64)
+        self.fc2 = nn.Linear(64, num_depths)
+        self.dropout = nn.Dropout(0.1)
+        self.num_depths = num_depths
 
-    def forward(self, x):
+    def _run_lstm(self, x):
         # Process in chunks along batch dimension to prevent PyTorch C++ LSTM from allocating massive scratch buffers
         if x.shape[0] <= 4096:
             _, (h_n, _) = self.lstm(x)
@@ -176,31 +217,8 @@ class TemporalModel(nn.Module):
             outputs.append(h_n[-1])
         return torch.cat(outputs, dim=0)
 
-
-class DepthPredictor(nn.Module):
-    def __init__(self, hidden_size=64, num_depths=15, dropout_p=0.1):
-        super().__init__()
-        self.fc1 = nn.Linear(hidden_size, 64)
-        self.fc2 = nn.Linear(64, num_depths)
-        self.dropout = nn.Dropout(dropout_p)
-
     def forward(self, x):
-        x = F.relu(self.fc1(x))
-        x = self.dropout(x)
-        x = self.fc2(x)
-        return x
-
-
-class OceanEmbedModel(nn.Module):
-    def __init__(self, in_channels=13, embedding_channels=32, hidden_size=64, num_depths=15):
-        super().__init__()
-        self.encoder = SurfaceEncoder(in_channels, embedding_channels)
-        self.temporal = TemporalModel(embedding_channels, hidden_size)
-        self.predictor = DepthPredictor(hidden_size, num_depths)
-        self.num_depths = num_depths
-
-    def forward(self, x):
-        # x shape: (batch, time=10, channels=13, lat=101, lon=241)  <- item 5: full input shape
+        # x shape: (batch, time=10, channels=27, lat=101, lon=241)  <- item 5: full input shape
         batch, time, channels, lat, lon = x.shape
         emb_channels = 32
         # Assign slices in-place into pre-allocated tensor to avoid 60+ MB intermediate stacks and permutes
@@ -208,9 +226,10 @@ class OceanEmbedModel(nn.Module):
         for t in range(time):
             emb_t = self.encoder(x[:, t])
             reshaped[:, t, :] = emb_t.permute(0, 2, 3, 1).reshape(batch * lat * lon, emb_channels)
-        temporal_summary = self.temporal(reshaped)
+        temporal_summary = self._run_lstm(reshaped)
         del reshaped
-        predictions = self.predictor(temporal_summary)
+        z = self.dropout(F.relu(self.fc1(temporal_summary)))
+        predictions = self.fc2(z)
         del temporal_summary
         predictions_map = predictions.reshape(batch, lat, lon, self.num_depths).permute(0, 3, 1, 2)
         return predictions_map  # output is a TEMPERATURE ANOMALY -- climatology is added back below (item 8)
@@ -242,17 +261,39 @@ _prediction_cache: OrderedDict[str, np.ndarray] = OrderedDict()
 _MAX_PREDICTION_CACHE_SIZE = 4
 
 
+def is_inference_cache_enabled() -> bool:
+    """
+    Checks if inference result caching and startup pre-warming are enabled.
+    Controlled by environment variable ENABLE_INFERENCE_CACHE (default: True).
+    Set ENABLE_INFERENCE_CACHE=false to force live model recomputation on every request
+    (useful during accuracy verification, testing, or profiling).
+    """
+    val = os.environ.get("ENABLE_INFERENCE_CACHE", "true")
+    return str(val).strip().lower() not in ("false", "0", "no", "off")
+
+
+ENABLE_INFERENCE_CACHE = is_inference_cache_enabled()
+
+
 _total_days = _sst_arr.shape[0]
 
+# Positional channels (lat/lon sin/cos) are z-scored over ocean cells during training (see
+# oceanembed/features.py stage: "pos[i] = (pos_raw[i] - v.mean()) / v.std()" fit over the ocean
+# mask). Recomputed here from this deployment's own ocean mask rather than the exact training-time
+# satellite mask (10,916 cells vs this array's ~11,854) -- both cover the same 5-30N/45-105E grid
+# at the same 0.25 deg resolution, so the mean/std of a smooth geometric field over either mask
+# differ by a negligible amount; not a bit-for-bit match to training, but close enough to matter.
+_ocean_mask_2d = np.array(_sst_arr[0]) >= 0.5
 _lat_grid, _lon_grid = np.meshgrid(_target_lats, _target_lons, indexing='ij')
-_lat_sin = np.sin(np.radians(_lat_grid)).astype('float32')
-_lat_cos = np.cos(np.radians(_lat_grid)).astype('float32')
-_lon_sin = np.sin(np.radians(_lon_grid)).astype('float32')
-_lon_cos = np.cos(np.radians(_lon_grid)).astype('float32')
-_lat_sin_t = np.tile(_lat_sin, (SEQUENCE_LENGTH, 1, 1))[:, None, :, :]
-_lat_cos_t = np.tile(_lat_cos, (SEQUENCE_LENGTH, 1, 1))[:, None, :, :]
-_lon_sin_t = np.tile(_lon_sin, (SEQUENCE_LENGTH, 1, 1))[:, None, :, :]
-_lon_cos_t = np.tile(_lon_cos, (SEQUENCE_LENGTH, 1, 1))[:, None, :, :]
+_pos_raw = np.stack([
+    np.sin(np.radians(_lat_grid)), np.cos(np.radians(_lat_grid)),
+    np.sin(np.radians(_lon_grid)), np.cos(np.radians(_lon_grid)),
+]).astype('float32')
+_pos = np.zeros_like(_pos_raw)
+for _i in range(4):
+    _v = _pos_raw[_i][_ocean_mask_2d]
+    _pos[_i] = (_pos_raw[_i] - _v.mean()) / max(_v.std(), 1e-6)
+_pos_tiled = np.tile(_pos[None], (SEQUENCE_LENGTH, 1, 1, 1))  # (SEQUENCE_LENGTH, 4, lat, lon)
 
 if USE_TRIMMED_DATA and _day_index_map is not None:
     ordered_orig_indices = [orig for orig, trim in sorted(_day_index_map.items(), key=lambda x: x[1])]
@@ -304,12 +345,15 @@ def _isotonic_decreasing(y: np.ndarray, weights: np.ndarray = None) -> np.ndarra
 # ---------------------------------------------------------------------------
 # 4. THE FUNCTION YOUR FRONTEND CALLS
 # ---------------------------------------------------------------------------
-def predict_temperature_profile(latitude: float, longitude: float, date_str: str) -> dict:
+def predict_temperature_profile(latitude: float, longitude: float, date_str: str, raw: bool = False) -> dict:
     """
     latitude:  5.0 to 30.0
     longitude: 45.0 to 105.0
     date_str:  'YYYY-MM-DD', must be between 2021-01-11 and 2023-12-31
                (first 10 days of 2021 are excluded -- need 10 days of history)
+    raw:       If True, skips the PAVA isotonic decreasing smoothing pass and returns
+               the raw model output, preserving genuine physical subsurface inversions
+               (e.g., barrier layers). Default is False (smoothed).
 
     Returns: {depth_in_meters: temperature_celsius, ...} for all 15 standard depths,
              or {"error": "..."} if the date/location can't be served.
@@ -328,19 +372,19 @@ def predict_temperature_profile(latitude: float, longitude: float, date_str: str
         if (
             _day_index_map is None
             or day_idx not in _day_index_map
-            or (day_idx - SEQUENCE_LENGTH) not in _day_index_map
-            or (_day_index_map[day_idx] - _day_index_map[day_idx - SEQUENCE_LENGTH] != SEQUENCE_LENGTH)
+            or (day_idx - LOOKBACK_DAYS) not in _day_index_map
+            or (_day_index_map[day_idx] - _day_index_map[day_idx - LOOKBACK_DAYS] != LOOKBACK_DAYS)
         ):
             return {"error": "This date is not available in the deployed demo dataset."}
         mapped_day_idx = _day_index_map[day_idx]
-        start, end = mapped_day_idx - SEQUENCE_LENGTH, mapped_day_idx
+        start, end = mapped_day_idx - LOOKBACK_DAYS, mapped_day_idx + 1  # window INCLUDES the target day
     else:
         max_days = TOTAL_DAYS_FULL_FLOAT16 if USE_FULL_FLOAT16_DATA else _total_days
         max_days = min(max_days, _total_days)
-        if day_idx < SEQUENCE_LENGTH or day_idx >= max_days:
+        if day_idx < LOOKBACK_DAYS or day_idx >= max_days:
             return {"error": "This date is not available in the deployed demo dataset."}
         mapped_day_idx = day_idx
-        start, end = day_idx - SEQUENCE_LENGTH, day_idx
+        start, end = day_idx - LOOKBACK_DAYS, day_idx + 1  # window INCLUDES the target day
 
     if start < 0 or end > _total_days or mapped_day_idx < 0 or mapped_day_idx >= _total_days:
         return {"error": "This date is not available in the deployed demo dataset."}
@@ -349,7 +393,8 @@ def predict_temperature_profile(latitude: float, longitude: float, date_str: str
     if np.abs(raw_sst_window).max() < 0.01:
         return {"error": "no satellite data available for this location/date (likely land or data gap)"}
 
-    if date_str in _prediction_cache:
+    use_cache = is_inference_cache_enabled()
+    if use_cache and (date_str in _prediction_cache):
         prediction_real = _prediction_cache[date_str]
         _prediction_cache.move_to_end(date_str)
     else:
@@ -357,13 +402,21 @@ def predict_temperature_profile(latitude: float, longitude: float, date_str: str
             _sst_anom[start:end], _sss_anom[start:end], _ssh_anom[start:end],
             _u_cur_anom[start:end], _v_cur_anom[start:end],
             _u_wind_anom[start:end], _v_wind_anom[start:end],
-        ], axis=1)
+        ], axis=1).astype("float32")
+        surface_channels = (surface_channels - SURF_MEAN[None, :, None, None]) / SURF_STD[None, :, None, None]
+
+        dstag_channels = np.stack([
+            np.array(_sst_arr[start:end]) - np.array(_temp_target_clim[start:end, di])
+            for di in DSTAG_DEPTH_INDICES
+        ], axis=1).astype("float32")
+        dstag_channels = (dstag_channels - DSTAG_MEAN[None, :, None, None]) / DSTAG_STD[None, :, None, None]
 
         lat, lon = surface_channels.shape[2], surface_channels.shape[3]
         window = np.concatenate([
-            surface_channels, _lat_sin_t, _lat_cos_t, _lon_sin_t, _lon_cos_t,
+            surface_channels, _pos_tiled[:SEQUENCE_LENGTH],
             np.broadcast_to(_doy_sin[start:end][:, None, None, None], (SEQUENCE_LENGTH, 1, lat, lon)),
             np.broadcast_to(_doy_cos[start:end][:, None, None, None], (SEQUENCE_LENGTH, 1, lat, lon)),
+            dstag_channels,
         ], axis=1)
 
         window_tensor = torch.tensor(window, dtype=torch.float32).unsqueeze(0).to(device)
@@ -379,9 +432,10 @@ def predict_temperature_profile(latitude: float, longitude: float, date_str: str
         del prediction_anom
         del clim_at_day
 
-        _prediction_cache[date_str] = prediction_real
-        if len(_prediction_cache) > _MAX_PREDICTION_CACHE_SIZE:
-            _prediction_cache.popitem(last=False)
+        if use_cache:
+            _prediction_cache[date_str] = prediction_real
+            if len(_prediction_cache) > _MAX_PREDICTION_CACHE_SIZE:
+                _prediction_cache.popitem(last=False)
 
     profile = prediction_real[:, lat_idx, lon_idx].copy()
     raw_m0 = float(profile[0])
@@ -401,9 +455,11 @@ def predict_temperature_profile(latitude: float, longitude: float, date_str: str
 
     # STEP 2: Monotonicity Safety-Net Pass in upper ocean (depths <= 100m only)
     # STANDARD_DEPTHS[:8] corresponds to [0, 5, 10, 20, 30, 50, 75, 100] m
-    # Depths > 100m (125m to 1000m) are strictly untouched to preserve real physical thermocline structures
-    upper_mask = [i for i, d in enumerate(STANDARD_DEPTHS) if d <= 100]
-    profile[upper_mask] = _isotonic_decreasing(profile[upper_mask])
+    # Depths > 100m (125m to 1000m) are strictly untouched to preserve real physical thermocline structures.
+    # When raw=True, skips isotonic regression so callers can inspect unsmoothed model predictions.
+    if not raw:
+        upper_mask = [i for i, d in enumerate(STANDARD_DEPTHS) if d <= 100]
+        profile[upper_mask] = _isotonic_decreasing(profile[upper_mask])
 
     return {int(d): round(float(t), 2) for d, t in zip(STANDARD_DEPTHS, profile)}
 

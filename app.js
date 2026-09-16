@@ -328,17 +328,19 @@ function calculateOceanTemp(lat, lon, depth, dateStr) {
 }
 
 // Full prediction at clicked coordinate: 15 depths + surface inputs + Argo reference + validation stats
-function mockPredict(lat, lon, dateStr) {
+function mockPredict(lat, lon, dateStr, raw = false) {
   const seed = hashSeed(`profile|${lat.toFixed(4)}|${lon.toFixed(4)}|${dateStr}`);
   const rng  = makeRng(seed);
 
   // 15 standard oceanographic depths
   const temps = DEPTHS.map(d => calculateOceanTemp(lat, lon, d, dateStr));
 
-  // Monotonic physical stabilization
-  for (let i = 1; i < temps.length; i++) {
-    if (temps[i] > temps[i - 1]) {
-      temps[i] = parseFloat((temps[i - 1] - 0.05).toFixed(2));
+  // Monotonic physical stabilization (bypassed in raw mode)
+  if (!raw) {
+    for (let i = 1; i < temps.length; i++) {
+      if (temps[i] > temps[i - 1]) {
+        temps[i] = parseFloat((temps[i - 1] - 0.05).toFixed(2));
+      }
     }
   }
 
@@ -2671,9 +2673,9 @@ function updateStatCards(prediction) {
       const labelClass = (metricConf.confidence_label || 'Moderate').toLowerCase();
       confEl.innerHTML = `<span class="ky-stat-card__confidence-dot ky-stat-card__confidence-dot--${labelClass}"></span><span>${metricConf.confidence_pct}% confidence</span>`;
       if (nearest_argo && nearest_argo.distance_km !== undefined) {
-        confEl.title = `Nearest ARGO validation: ${nearest_argo.distance_km}km, ${nearest_argo.date} (Float #${nearest_argo.float_id}) · Proximity factor: ${nearest_argo.proximity_factor}`;
+        confEl.title = `Nearest ARGO validation: ${nearest_argo.distance_km}km, ${nearest_argo.date} (Float #${nearest_argo.float_id}) · Proximity factor: ${nearest_argo.proximity_factor} (vs monthly climatology baseline, n=41 Argo profiles)`;
       } else {
-        confEl.title = `Validation RMSE: ±${r}°C (${metricConf.confidence_label || 'Moderate'} confidence)`;
+        confEl.title = `Validation RMSE: ±${r}°C (vs monthly climatology baseline, n=41 Argo profiles) (${metricConf.confidence_label || 'Moderate'} confidence)`;
       }
       confEl.style.display = 'inline-flex';
     } else {
@@ -2762,13 +2764,13 @@ function updateDepthTable(depths, temps, profile = null, nearestArgo = null) {
     const labelClass = label.toLowerCase();
     const rmseStr = typeof conf.rmse === 'number' ? conf.rmse.toFixed(2) : String(conf.rmse);
 
-    let cellTitle = `${label} Confidence (${pct}%) · RMSE ±${rmseStr}°C`;
+    let cellTitle = `${label} Confidence (${pct}%) · RMSE ±${rmseStr}°C (vs monthly climatology baseline, n=41 Argo profiles)`;
     const dist = conf.nearest_argo_distance_km !== undefined ? conf.nearest_argo_distance_km : (nearestArgo ? nearestArgo.distance_km : null);
     const aDate = conf.nearest_argo_date || (nearestArgo ? nearestArgo.date : null);
     const pFactor = conf.proximity_factor !== undefined ? conf.proximity_factor : (nearestArgo ? nearestArgo.proximity_factor : null);
 
     if (dist !== null && aDate && pFactor !== null) {
-      cellTitle = `Validation RMSE: ±${rmseStr}°C · Nearest ARGO: ${dist}km (${aDate}) · Proximity: ${pFactor}`;
+      cellTitle = `Validation RMSE: ±${rmseStr}°C (vs monthly climatology baseline, n=41 Argo profiles) · Nearest ARGO: ${dist}km (${aDate}) · Proximity: ${pFactor}`;
     }
 
     tr.innerHTML = `<td>${depth}</td><td>${temps[i].toFixed(1)}</td><td><div class="ky-tvd-conf-cell" title="${cellTitle}"><div class="ky-tvd-conf-bar-bg"><div class="ky-tvd-conf-bar-fill ky-tvd-conf-bar-fill--${labelClass}" style="width: ${pct}%;"></div></div><span class="ky-tvd-conf-pct">${pct}%</span></div></td>`;
@@ -2853,6 +2855,27 @@ function initTableGraphToggle() {
 
 initTableGraphToggle();
 
+/* ── Raw Model Profile Toggle ────────────────────────────── */
+
+function initRawProfileToggle() {
+  const rawToggle = document.getElementById('toggle-raw-profile');
+  const rawNote = document.getElementById('raw-profile-note');
+  if (!rawToggle) return;
+
+  rawToggle.addEventListener('change', () => {
+    if (rawNote) {
+      rawNote.style.display = rawToggle.checked ? 'flex' : 'none';
+    }
+    // If a prediction point and date are already chosen, refresh prediction with new mode
+    if (clickedLatLng && hasSelectedDate) {
+      const castBtn = document.getElementById('btn-cast');
+      if (castBtn) castBtn.click();
+    }
+  });
+}
+
+initRawProfileToggle();
+
 /* ── Ocean Parameters tile active state & Legend sync ──────── */
 
 const PARAM_CONFIG = {
@@ -2866,7 +2889,7 @@ const PARAM_CONFIG = {
     title: 'Prediction Confidence (%)',
     ticks: ['30%', '45%', '60%', '75%', '90%+'],
     bar: 'linear-gradient(to right, #DC2626 0%, #EA580C 20%, #F59E0B 40%, #10B981 65%, #06B6D4 82%, #1D4ED8 100%)',
-    caption: 'Confidence reflects distance and recency to the nearest of 41 validated ARGO float profiles — not a direct measure of prediction accuracy at this location.',
+    caption: 'Confidence reflects distance and recency to the nearest of 41 validated ARGO float profiles (vs monthly climatology baseline, n=41 Argo profiles) — not a direct measure of prediction accuracy at this location.',
     provenance: 'ESTIMATED HEURISTIC'
   },
 };
@@ -2958,7 +2981,7 @@ function renderValidation(val, argo) {
   }
 
   const metrics = [
-    { label: 'RMSE', val: `±${val.rmse}°C`, sub: 'vs in-situ ARGO' },
+    { label: 'RMSE', val: `±${val.rmse}°C`, sub: 'vs in-situ ARGO (vs monthly climatology baseline, n=41 Argo profiles)' },
     { label: 'Correlation (r)', val: `${val.corr}`, sub: 'profile coherence' },
     { label: 'Mean Bias', val: `${val.bias >= 0 ? '+' : ''}${val.bias}°C`, sub: 'systematic error' },
   ];
@@ -3390,11 +3413,14 @@ document.getElementById('btn-cast').addEventListener('click', function () {
   // Clear stale prediction data and show in-flight "Generating prediction..." loading state
   clearPreviousPredictionUI();
 
+  const rawToggle = document.getElementById('toggle-raw-profile');
+  const isRaw = Boolean(rawToggle && rawToggle.checked);
+
   if (USE_MOCK) {
     // ── Offline dev fallback ─────────────────────────────────
     setTimeout(function () {
       if (reqId !== currentPredictRequestId) return;
-      const prediction = mockPredict(lat, lon, dateStr);
+      const prediction = mockPredict(lat, lon, dateStr, isRaw);
       renderPrediction(prediction, lat, lon, dateObj);
     }, 620);
     return;
@@ -3402,7 +3428,7 @@ document.getElementById('btn-cast').addEventListener('click', function () {
 
   // ── Real inference via FastAPI backend with 90s timeout ──────
   const startTime = Date.now();
-  console.log(`[OceanEmbed API] POST /predict started for (${lat.toFixed(3)}, ${lon.toFixed(3)}) on ${dateStr}`);
+  console.log(`[OceanEmbed API] POST /predict started for (${lat.toFixed(3)}, ${lon.toFixed(3)}) on ${dateStr}${isRaw ? ' (raw=true)' : ''}`);
 
   currentPredictController = typeof AbortController !== 'undefined' ? new AbortController() : null;
   currentPredictTimeoutId = currentPredictController ? setTimeout(() => currentPredictController.abort(), API_REQUEST_TIMEOUT_MS) : null;
@@ -3412,12 +3438,13 @@ document.getElementById('btn-cast').addEventListener('click', function () {
     (window.location && new URLSearchParams(window.location.search).get('simulateBackendDown') === '1') ||
     window.simulateBackendDown === true
   );
-  const predictEndpoint = shouldSimulateDown ? 'http://localhost:9999/predict' : `${API_BASE}/predict`;
+  const baseEndpoint = shouldSimulateDown ? 'http://localhost:9999/predict' : `${API_BASE}/predict`;
+  const predictEndpoint = isRaw ? `${baseEndpoint}?raw=true` : baseEndpoint;
 
   fetch(predictEndpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ latitude: lat, longitude: lon, date: dateStr }),
+    body: JSON.stringify({ latitude: lat, longitude: lon, date: dateStr, raw: isRaw }),
     signal: currentPredictController ? currentPredictController.signal : undefined,
   })
     .then(function (res) {
@@ -3538,6 +3565,13 @@ function renderPrediction(prediction, lat, lon, dateObj) {
   } else {
     if (graphView) graphView.style.display = '';
     if (tableView) tableView.style.display = 'none';
+  }
+
+  // Sync raw model profile note visibility
+  const rawToggle = document.getElementById('toggle-raw-profile');
+  const rawNote = document.getElementById('raw-profile-note');
+  if (rawNote) {
+    rawNote.style.display = (rawToggle && rawToggle.checked) ? 'flex' : 'none';
   }
 
   // Show result panel

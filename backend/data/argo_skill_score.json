@@ -4,186 +4,249 @@
     "benchmarkDataset": "41 in-situ ARGO profiling floats (backend/data/argo_profiles.json)",
     "climatologyMethod": "Monthly Climatological Normals (12 calendar months, 2021-2023 pooled range)",
     "climatologyRationale": "Grouping days by calendar month (~90 days/month per grid cell) provides robust physical oceanographic smoothing over the 3-year record, avoiding 3-year daily synoptic noise while capturing the seasonal monsoonal cycle.",
+    "baselineType": "monthly climatology",
+    "baselineSampleSize": 41,
+    "baselineLabel": "vs monthly climatology baseline, n=41 Argo profiles",
     "formula": "Skill Score = 1 - (RMSE_model^2 / RMSE_climatology^2)",
     "interpretation": "1.0 = Perfect prediction, 0.0 = Climatology baseline (no value-add), < 0 = Climatology outperformed model at that level."
   },
   "overall": {
     "totalFloats": 41,
     "totalDepthPoints": 615,
-    "rmseModel": 1.35,
-    "rmseClimatology": 1.83,
-    "skillScore": 0.459,
-    "skillScorePct": 45.9,
-    "biasModel": 0.42,
-    "biasClimatology": -1.23
+    "baselineType": "monthly climatology",
+    "baselineSampleSize": 41,
+    "baselineLabel": "vs monthly climatology baseline, n=41 Argo profiles",
+    "rmseModel": 0.75,
+    "rmseClimatology": 0.84,
+    "skillScore": 0.2,
+    "skillScorePct": 20.0,
+    "biasModel": 0.12,
+    "biasClimatology": 0.04
   },
   "basins": {
     "Bay of Bengal": {
       "count": 15,
       "totalPoints": 225,
-      "rmseModel": 1.07,
-      "rmseClimatology": 1.64,
-      "skillScore": 0.57,
-      "skillScorePct": 57.0
+      "baselineType": "monthly climatology",
+      "baselineSampleSize": 15,
+      "baselineLabel": "vs monthly climatology baseline, n=15 Argo profiles",
+      "rmseModel": 0.65,
+      "rmseClimatology": 0.73,
+      "skillScore": 0.219,
+      "skillScorePct": 21.9
     },
     "Arabian Sea": {
       "count": 15,
       "totalPoints": 225,
-      "rmseModel": 1.11,
-      "rmseClimatology": 1.6,
-      "skillScore": 0.52,
-      "skillScorePct": 52.0
+      "baselineType": "monthly climatology",
+      "baselineSampleSize": 15,
+      "baselineLabel": "vs monthly climatology baseline, n=15 Argo profiles",
+      "rmseModel": 0.74,
+      "rmseClimatology": 0.84,
+      "skillScore": 0.228,
+      "skillScorePct": 22.8
     },
     "Equatorial Indian Ocean": {
       "count": 10,
       "totalPoints": 150,
-      "rmseModel": 1.93,
-      "rmseClimatology": 2.39,
-      "skillScore": 0.348,
-      "skillScorePct": 34.8
+      "baselineType": "monthly climatology",
+      "baselineSampleSize": 10,
+      "baselineLabel": "vs monthly climatology baseline, n=10 Argo profiles",
+      "rmseModel": 0.9,
+      "rmseClimatology": 0.99,
+      "skillScore": 0.181,
+      "skillScorePct": 18.1
     },
     "Andaman Sea": {
       "count": 1,
       "totalPoints": 15,
-      "rmseModel": 1.23,
-      "rmseClimatology": 1.37,
-      "skillScore": 0.199,
-      "skillScorePct": 19.9
+      "baselineType": "monthly climatology",
+      "baselineSampleSize": 1,
+      "baselineLabel": "vs monthly climatology baseline, n=1 Argo profile",
+      "rmseModel": 0.85,
+      "rmseClimatology": 0.74,
+      "skillScore": -0.3,
+      "skillScorePct": -30.0
     }
   },
   "depths": [
     {
       "depth": 0,
-      "rmseModel": 1.12,
-      "rmseClimatology": 2.28,
-      "skillScore": 0.76,
-      "skillScorePct": 76.0,
+      "baselineType": "monthly climatology",
+      "baselineSampleSize": 41,
+      "baselineLabel": "vs monthly climatology baseline, n=41 Argo profiles",
+      "rmseModel": 0.42,
+      "rmseClimatology": 0.6,
+      "skillScore": 0.491,
+      "skillScorePct": 49.1,
       "isPositive": true,
       "explanation": "Direct satellite SST anchor and upper ocean radiation forcing provide exceptional accuracy over climatology."
     },
     {
       "depth": 5,
-      "rmseModel": 1.13,
-      "rmseClimatology": 2.19,
-      "skillScore": 0.734,
-      "skillScorePct": 73.4,
+      "baselineType": "monthly climatology",
+      "baselineSampleSize": 41,
+      "baselineLabel": "vs monthly climatology baseline, n=41 Argo profiles",
+      "rmseModel": 0.37,
+      "rmseClimatology": 0.46,
+      "skillScore": 0.37,
+      "skillScorePct": 37.0,
       "isPositive": true,
       "explanation": "Mixed layer dynamics tightly coupled to satellite SST observations; strong variance reduction."
     },
     {
       "depth": 10,
-      "rmseModel": 1.16,
-      "rmseClimatology": 2.15,
-      "skillScore": 0.71,
-      "skillScorePct": 71.0,
+      "baselineType": "monthly climatology",
+      "baselineSampleSize": 41,
+      "baselineLabel": "vs monthly climatology baseline, n=41 Argo profiles",
+      "rmseModel": 0.32,
+      "rmseClimatology": 0.39,
+      "skillScore": 0.341,
+      "skillScorePct": 34.1,
       "isPositive": true,
       "explanation": "Surface mixed layer reflects real-time atmospheric forcing captured by multi-satellite inputs."
     },
     {
       "depth": 20,
-      "rmseModel": 1.26,
-      "rmseClimatology": 2.09,
-      "skillScore": 0.635,
-      "skillScorePct": 63.5,
+      "baselineType": "monthly climatology",
+      "baselineSampleSize": 41,
+      "baselineLabel": "vs monthly climatology baseline, n=41 Argo profiles",
+      "rmseModel": 0.28,
+      "rmseClimatology": 0.35,
+      "skillScore": 0.389,
+      "skillScorePct": 38.9,
       "isPositive": true,
       "explanation": "Near-surface barrier layer and seasonal mixed layer accurately tracked by CNN-LSTM encoder."
     },
     {
       "depth": 30,
-      "rmseModel": 1.37,
-      "rmseClimatology": 1.95,
-      "skillScore": 0.507,
-      "skillScorePct": 50.7,
+      "baselineType": "monthly climatology",
+      "baselineSampleSize": 41,
+      "baselineLabel": "vs monthly climatology baseline, n=41 Argo profiles",
+      "rmseModel": 0.38,
+      "rmseClimatology": 0.44,
+      "skillScore": 0.234,
+      "skillScorePct": 23.4,
       "isPositive": true,
       "explanation": "Upper column thermal structure successfully resolves mesoscale eddies and seasonal stratification."
     },
     {
       "depth": 50,
-      "rmseModel": 1.45,
-      "rmseClimatology": 1.95,
-      "skillScore": 0.448,
-      "skillScorePct": 44.8,
+      "baselineType": "monthly climatology",
+      "baselineSampleSize": 41,
+      "baselineLabel": "vs monthly climatology baseline, n=41 Argo profiles",
+      "rmseModel": 0.63,
+      "rmseClimatology": 0.64,
+      "skillScore": 0.031,
+      "skillScorePct": 3.1,
       "isPositive": true,
       "explanation": "Mixed layer shoaling and upwelling plumes accurately predicted from altimetry and wind stress."
     },
     {
       "depth": 75,
-      "rmseModel": 1.49,
-      "rmseClimatology": 2.25,
-      "skillScore": 0.562,
-      "skillScorePct": 56.2,
+      "baselineType": "monthly climatology",
+      "baselineSampleSize": 41,
+      "baselineLabel": "vs monthly climatology baseline, n=41 Argo profiles",
+      "rmseModel": 0.87,
+      "rmseClimatology": 1.04,
+      "skillScore": 0.292,
+      "skillScorePct": 29.2,
       "isPositive": true,
       "explanation": "Upper thermocline boundary resolved with substantial improvement over static seasonal averages."
     },
     {
       "depth": 100,
-      "rmseModel": 2.15,
-      "rmseClimatology": 1.71,
-      "skillScore": -0.585,
-      "skillScorePct": -58.5,
+      "baselineType": "monthly climatology",
+      "baselineSampleSize": 41,
+      "baselineLabel": "vs monthly climatology baseline, n=41 Argo profiles",
+      "rmseModel": 1.69,
+      "rmseClimatology": 1.61,
+      "skillScore": -0.111,
+      "skillScorePct": -11.1,
       "isPositive": false,
       "explanation": "Error increases sharply near the thermocline core \u2014 a known challenge for satellite-trained models, possibly related to sub-grid-scale internal wave activity, though this specific mechanism has not been isolated in this analysis."
     },
     {
       "depth": 125,
-      "rmseModel": 1.89,
-      "rmseClimatology": 2.38,
-      "skillScore": 0.366,
-      "skillScorePct": 36.6,
+      "baselineType": "monthly climatology",
+      "baselineSampleSize": 41,
+      "baselineLabel": "vs monthly climatology baseline, n=41 Argo profiles",
+      "rmseModel": 0.98,
+      "rmseClimatology": 1.31,
+      "skillScore": 0.447,
+      "skillScorePct": 44.7,
       "isPositive": true,
       "explanation": "Core thermocline structure effectively recovered by temporal LSTM embeddings of surface height anomalies."
     },
     {
       "depth": 150,
-      "rmseModel": 1.69,
-      "rmseClimatology": 2.22,
-      "skillScore": 0.42,
-      "skillScorePct": 42.0,
+      "baselineType": "monthly climatology",
+      "baselineSampleSize": 41,
+      "baselineLabel": "vs monthly climatology baseline, n=41 Argo profiles",
+      "rmseModel": 0.93,
+      "rmseClimatology": 1.3,
+      "skillScore": 0.486,
+      "skillScorePct": 48.6,
       "isPositive": true,
       "explanation": "Lower thermocline depth; model captures regional basin tilts between Arabian Sea and Bay of Bengal."
     },
     {
       "depth": 200,
-      "rmseModel": 1.42,
-      "rmseClimatology": 1.19,
-      "skillScore": -0.419,
-      "skillScorePct": -41.9,
-      "isPositive": false,
+      "baselineType": "monthly climatology",
+      "baselineSampleSize": 41,
+      "baselineLabel": "vs monthly climatology baseline, n=41 Argo profiles",
+      "rmseModel": 0.95,
+      "rmseClimatology": 0.96,
+      "skillScore": 0.012,
+      "skillScorePct": 1.2,
+      "isPositive": true,
       "explanation": "Thermocline transition boundary; elevated uncertainty near seasonal shoaling levels compared to smooth climatological averages."
     },
     {
       "depth": 300,
-      "rmseModel": 1.03,
-      "rmseClimatology": 1.49,
-      "skillScore": 0.526,
-      "skillScorePct": 52.6,
+      "baselineType": "monthly climatology",
+      "baselineSampleSize": 41,
+      "baselineLabel": "vs monthly climatology baseline, n=41 Argo profiles",
+      "rmseModel": 0.71,
+      "rmseClimatology": 0.76,
+      "skillScore": 0.137,
+      "skillScorePct": 13.7,
       "isPositive": true,
       "explanation": "Upper mesopelagic layer; model successfully tracks basin-wide warm/cold water mass distributions."
     },
     {
       "depth": 500,
-      "rmseModel": 0.61,
-      "rmseClimatology": 1.06,
-      "skillScore": 0.667,
-      "skillScorePct": 66.7,
+      "baselineType": "monthly climatology",
+      "baselineSampleSize": 41,
+      "baselineLabel": "vs monthly climatology baseline, n=41 Argo profiles",
+      "rmseModel": 0.48,
+      "rmseClimatology": 0.5,
+      "skillScore": 0.075,
+      "skillScorePct": 7.5,
       "isPositive": true,
       "explanation": "Intermediate depth; model maintains stable thermal profiles with lower absolute error than climatology."
     },
     {
       "depth": 700,
-      "rmseModel": 0.64,
-      "rmseClimatology": 0.46,
-      "skillScore": -0.922,
-      "skillScorePct": -92.2,
+      "baselineType": "monthly climatology",
+      "baselineSampleSize": 41,
+      "baselineLabel": "vs monthly climatology baseline, n=41 Argo profiles",
+      "rmseModel": 0.28,
+      "rmseClimatology": 0.27,
+      "skillScore": -0.088,
+      "skillScorePct": -8.8,
       "isPositive": false,
       "explanation": "Abyssal ocean baseline has near-zero seasonal variance (~0.46\u00b0C); neural network residual noise (~0.64\u00b0C) exceeds static climatology."
     },
     {
       "depth": 1000,
-      "rmseModel": 0.81,
-      "rmseClimatology": 0.45,
-      "skillScore": -2.259,
-      "skillScorePct": -225.9,
+      "baselineType": "monthly climatology",
+      "baselineSampleSize": 41,
+      "baselineLabel": "vs monthly climatology baseline, n=41 Argo profiles",
+      "rmseModel": 0.56,
+      "rmseClimatology": 0.56,
+      "skillScore": -0.007,
+      "skillScorePct": -0.7,
       "isPositive": false,
       "explanation": "Deep ocean temperatures are near-constant (~7-9\u00b0C); unweighted neural net loss allows ~0.81\u00b0C variance, exceeding climatology's ~0.45\u00b0C variance."
     }
@@ -197,10 +260,10 @@
       "longitude": 66.62,
       "date": "2021-02-16",
       "subRegion": "Arabian Sea",
-      "rmseModel": 0.5,
-      "rmseClimatology": 0.4,
-      "skillScore": -0.555,
-      "skillScorePct": -55.5
+      "rmseModel": 0.64,
+      "rmseClimatology": 0.87,
+      "skillScore": 0.462,
+      "skillScorePct": 46.2
     },
     {
       "id": "2902211_198",
@@ -210,10 +273,10 @@
       "longitude": 64.975,
       "date": "2021-02-16",
       "subRegion": "Arabian Sea",
-      "rmseModel": 0.65,
-      "rmseClimatology": 0.64,
-      "skillScore": -0.04,
-      "skillScorePct": -4.0
+      "rmseModel": 0.45,
+      "rmseClimatology": 0.49,
+      "skillScore": 0.16,
+      "skillScorePct": 16.0
     },
     {
       "id": "2902210_211",
@@ -223,10 +286,10 @@
       "longitude": 64.371,
       "date": "2021-02-16",
       "subRegion": "Arabian Sea",
-      "rmseModel": 0.77,
-      "rmseClimatology": 0.47,
-      "skillScore": -1.688,
-      "skillScorePct": -168.8
+      "rmseModel": 0.36,
+      "rmseClimatology": 0.46,
+      "skillScore": 0.365,
+      "skillScorePct": 36.5
     },
     {
       "id": "2901337_335",
@@ -236,10 +299,10 @@
       "longitude": 68.111,
       "date": "2021-02-16",
       "subRegion": "Arabian Sea",
-      "rmseModel": 0.4,
-      "rmseClimatology": 0.9,
-      "skillScore": 0.807,
-      "skillScorePct": 80.7
+      "rmseModel": 0.44,
+      "rmseClimatology": 0.35,
+      "skillScore": -0.53,
+      "skillScorePct": -53.0
     },
     {
       "id": "2902283_127",
@@ -249,10 +312,10 @@
       "longitude": 87.794,
       "date": "2021-02-16",
       "subRegion": "Bay of Bengal",
-      "rmseModel": 1.01,
-      "rmseClimatology": 1.19,
-      "skillScore": 0.282,
-      "skillScorePct": 28.2
+      "rmseModel": 0.54,
+      "rmseClimatology": 0.74,
+      "skillScore": 0.483,
+      "skillScorePct": 48.3
     },
     {
       "id": "2902283_126",
@@ -262,10 +325,10 @@
       "longitude": 87.801,
       "date": "2021-02-15",
       "subRegion": "Bay of Bengal",
-      "rmseModel": 0.54,
-      "rmseClimatology": 0.75,
-      "skillScore": 0.473,
-      "skillScorePct": 47.3
+      "rmseModel": 0.46,
+      "rmseClimatology": 0.46,
+      "skillScore": 0.004,
+      "skillScorePct": 0.4
     },
     {
       "id": "2902265_075",
@@ -275,10 +338,10 @@
       "longitude": 71.305,
       "date": "2021-02-15",
       "subRegion": "Arabian Sea",
-      "rmseModel": 0.76,
-      "rmseClimatology": 1.24,
-      "skillScore": 0.618,
-      "skillScorePct": 61.8
+      "rmseModel": 0.88,
+      "rmseClimatology": 0.72,
+      "skillScore": -0.495,
+      "skillScorePct": -49.5
     },
     {
       "id": "2902280_126",
@@ -288,10 +351,10 @@
       "longitude": 92.07,
       "date": "2021-02-14",
       "subRegion": "Bay of Bengal",
-      "rmseModel": 1.21,
-      "rmseClimatology": 1.33,
-      "skillScore": 0.17,
-      "skillScorePct": 17.0
+      "rmseModel": 0.68,
+      "rmseClimatology": 0.78,
+      "skillScore": 0.252,
+      "skillScorePct": 25.2
     },
     {
       "id": "2902282_126",
@@ -301,10 +364,10 @@
       "longitude": 92.594,
       "date": "2021-02-14",
       "subRegion": "Andaman Sea",
-      "rmseModel": 1.23,
-      "rmseClimatology": 1.37,
-      "skillScore": 0.199,
-      "skillScorePct": 19.9
+      "rmseModel": 0.85,
+      "rmseClimatology": 0.74,
+      "skillScore": -0.3,
+      "skillScorePct": -30.0
     },
     {
       "id": "2902278_126",
@@ -314,10 +377,10 @@
       "longitude": 91.796,
       "date": "2021-02-13",
       "subRegion": "Bay of Bengal",
-      "rmseModel": 1.25,
-      "rmseClimatology": 1.39,
-      "skillScore": 0.188,
-      "skillScorePct": 18.8
+      "rmseModel": 0.96,
+      "rmseClimatology": 0.87,
+      "skillScore": -0.235,
+      "skillScorePct": -23.5
     },
     {
       "id": "2902273_066",
@@ -327,10 +390,10 @@
       "longitude": 69.448,
       "date": "2021-02-13",
       "subRegion": "Arabian Sea",
-      "rmseModel": 0.92,
-      "rmseClimatology": 1.28,
-      "skillScore": 0.48,
-      "skillScorePct": 48.0
+      "rmseModel": 0.62,
+      "rmseClimatology": 0.79,
+      "skillScore": 0.377,
+      "skillScorePct": 37.7
     },
     {
       "id": "2902254_134",
@@ -340,10 +403,10 @@
       "longitude": 70.392,
       "date": "2021-02-13",
       "subRegion": "Arabian Sea",
-      "rmseModel": 0.67,
-      "rmseClimatology": 0.8,
-      "skillScore": 0.295,
-      "skillScorePct": 29.5
+      "rmseModel": 0.55,
+      "rmseClimatology": 0.63,
+      "skillScore": 0.247,
+      "skillScorePct": 24.7
     },
     {
       "id": "2902272_066",
@@ -353,10 +416,10 @@
       "longitude": 67.262,
       "date": "2021-02-13",
       "subRegion": "Arabian Sea",
-      "rmseModel": 1.06,
-      "rmseClimatology": 1.01,
-      "skillScore": -0.104,
-      "skillScorePct": -10.4
+      "rmseModel": 1.09,
+      "rmseClimatology": 1.21,
+      "skillScore": 0.196,
+      "skillScorePct": 19.6
     },
     {
       "id": "1901739_123",
@@ -366,10 +429,10 @@
       "longitude": 60.105,
       "date": "2021-02-13",
       "subRegion": "Arabian Sea",
-      "rmseModel": 1.72,
-      "rmseClimatology": 1.12,
-      "skillScore": -1.376,
-      "skillScorePct": -137.6
+      "rmseModel": 0.83,
+      "rmseClimatology": 1.05,
+      "skillScore": 0.372,
+      "skillScorePct": 37.2
     },
     {
       "id": "2902768_038",
@@ -379,10 +442,10 @@
       "longitude": 87.075,
       "date": "2021-02-13",
       "subRegion": "Bay of Bengal",
-      "rmseModel": 0.56,
-      "rmseClimatology": 0.51,
-      "skillScore": -0.183,
-      "skillScorePct": -18.3
+      "rmseModel": 0.61,
+      "rmseClimatology": 0.63,
+      "skillScore": 0.061,
+      "skillScorePct": 6.1
     },
     {
       "id": "2902770_037",
@@ -392,10 +455,10 @@
       "longitude": 90.524,
       "date": "2021-02-13",
       "subRegion": "Bay of Bengal",
-      "rmseModel": 0.74,
-      "rmseClimatology": 0.98,
-      "skillScore": 0.436,
-      "skillScorePct": 43.6
+      "rmseModel": 0.47,
+      "rmseClimatology": 0.39,
+      "skillScore": -0.415,
+      "skillScorePct": -41.5
     },
     {
       "id": "2902772_037",
@@ -405,10 +468,10 @@
       "longitude": 90.761,
       "date": "2021-02-13",
       "subRegion": "Bay of Bengal",
-      "rmseModel": 1.2,
-      "rmseClimatology": 1.38,
-      "skillScore": 0.238,
-      "skillScorePct": 23.8
+      "rmseModel": 0.39,
+      "rmseClimatology": 0.6,
+      "skillScore": 0.574,
+      "skillScorePct": 57.4
     },
     {
       "id": "2902236_267",
@@ -418,10 +481,10 @@
       "longitude": 87.533,
       "date": "2021-02-13",
       "subRegion": "Bay of Bengal",
-      "rmseModel": 0.82,
-      "rmseClimatology": 1.03,
-      "skillScore": 0.365,
-      "skillScorePct": 36.5
+      "rmseModel": 0.7,
+      "rmseClimatology": 0.56,
+      "skillScore": -0.587,
+      "skillScorePct": -58.7
     },
     {
       "id": "2902276_065",
@@ -431,10 +494,10 @@
       "longitude": 67.185,
       "date": "2021-02-12",
       "subRegion": "Arabian Sea",
-      "rmseModel": 0.9,
-      "rmseClimatology": 1.13,
-      "skillScore": 0.368,
-      "skillScorePct": 36.8
+      "rmseModel": 0.98,
+      "rmseClimatology": 0.85,
+      "skillScore": -0.34,
+      "skillScorePct": -34.0
     },
     {
       "id": "2902271_066",
@@ -444,10 +507,10 @@
       "longitude": 69.132,
       "date": "2021-02-12",
       "subRegion": "Arabian Sea",
-      "rmseModel": 2.08,
-      "rmseClimatology": 1.27,
-      "skillScore": -1.665,
-      "skillScorePct": -166.5
+      "rmseModel": 0.96,
+      "rmseClimatology": 1.45,
+      "skillScore": 0.559,
+      "skillScorePct": 55.9
     },
     {
       "id": "2902775_043",
@@ -457,10 +520,10 @@
       "longitude": 78.426,
       "date": "2021-02-12",
       "subRegion": "Equatorial Indian Ocean",
-      "rmseModel": 1.39,
-      "rmseClimatology": 1.74,
-      "skillScore": 0.361,
-      "skillScorePct": 36.1
+      "rmseModel": 0.66,
+      "rmseClimatology": 1.09,
+      "skillScore": 0.633,
+      "skillScorePct": 63.3
     },
     {
       "id": "2901898_241",
@@ -470,10 +533,10 @@
       "longitude": 90.727,
       "date": "2021-02-12",
       "subRegion": "Bay of Bengal",
-      "rmseModel": 0.89,
-      "rmseClimatology": 1.25,
-      "skillScore": 0.501,
-      "skillScorePct": 50.1
+      "rmseModel": 0.82,
+      "rmseClimatology": 0.85,
+      "skillScore": 0.066,
+      "skillScorePct": 6.6
     },
     {
       "id": "2902852_028",
@@ -483,10 +546,10 @@
       "longitude": 86.379,
       "date": "2021-02-12",
       "subRegion": "Equatorial Indian Ocean",
-      "rmseModel": 0.81,
-      "rmseClimatology": 0.94,
-      "skillScore": 0.258,
-      "skillScorePct": 25.8
+      "rmseModel": 0.92,
+      "rmseClimatology": 1.01,
+      "skillScore": 0.18,
+      "skillScorePct": 18.0
     },
     {
       "id": "2902769_038",
@@ -496,10 +559,10 @@
       "longitude": 86.179,
       "date": "2021-02-12",
       "subRegion": "Bay of Bengal",
-      "rmseModel": 0.59,
-      "rmseClimatology": 0.61,
-      "skillScore": 0.051,
-      "skillScorePct": 5.1
+      "rmseModel": 0.75,
+      "rmseClimatology": 0.93,
+      "skillScore": 0.356,
+      "skillScorePct": 35.6
     },
     {
       "id": "2902235_360",
@@ -509,10 +572,10 @@
       "longitude": 91.4,
       "date": "2021-02-12",
       "subRegion": "Bay of Bengal",
-      "rmseModel": 1.56,
-      "rmseClimatology": 1.83,
-      "skillScore": 0.27,
-      "skillScorePct": 27.0
+      "rmseModel": 0.8,
+      "rmseClimatology": 1.09,
+      "skillScore": 0.46,
+      "skillScorePct": 46.0
     },
     {
       "id": "2901860_276",
@@ -522,10 +585,10 @@
       "longitude": 52.253,
       "date": "2021-02-12",
       "subRegion": "Arabian Sea",
-      "rmseModel": 0.78,
-      "rmseClimatology": 1.04,
-      "skillScore": 0.43,
-      "skillScorePct": 43.0
+      "rmseModel": 0.66,
+      "rmseClimatology": 0.68,
+      "skillScore": 0.056,
+      "skillScorePct": 5.6
     },
     {
       "id": "2902710_024",
@@ -535,10 +598,10 @@
       "longitude": 87.836,
       "date": "2021-02-12",
       "subRegion": "Bay of Bengal",
-      "rmseModel": 0.42,
-      "rmseClimatology": 0.72,
-      "skillScore": 0.653,
-      "skillScorePct": 65.3
+      "rmseModel": 0.47,
+      "rmseClimatology": 0.41,
+      "skillScore": -0.314,
+      "skillScorePct": -31.4
     },
     {
       "id": "2902388_206",
@@ -548,10 +611,10 @@
       "longitude": 63.06,
       "date": "2021-05-16",
       "subRegion": "Equatorial Indian Ocean",
-      "rmseModel": 2.25,
-      "rmseClimatology": 2.1,
-      "skillScore": -0.156,
-      "skillScorePct": -15.6
+      "rmseModel": 0.62,
+      "rmseClimatology": 0.74,
+      "skillScore": 0.282,
+      "skillScorePct": 28.2
     },
     {
       "id": "6903060_005",
@@ -561,10 +624,10 @@
       "longitude": 57.289,
       "date": "2021-05-16",
       "subRegion": "Arabian Sea",
-      "rmseModel": 1.83,
-      "rmseClimatology": 3.55,
-      "skillScore": 0.734,
-      "skillScorePct": 73.4
+      "rmseModel": 0.91,
+      "rmseClimatology": 1.03,
+      "skillScore": 0.215,
+      "skillScorePct": 21.5
     },
     {
       "id": "6903007_006",
@@ -574,10 +637,10 @@
       "longitude": 60.996,
       "date": "2021-05-16",
       "subRegion": "Arabian Sea",
-      "rmseModel": 1.11,
-      "rmseClimatology": 2.21,
-      "skillScore": 0.746,
-      "skillScorePct": 74.6
+      "rmseModel": 0.68,
+      "rmseClimatology": 0.62,
+      "skillScore": -0.188,
+      "skillScorePct": -18.8
     },
     {
       "id": "2902265_084",
@@ -587,10 +650,10 @@
       "longitude": 71.563,
       "date": "2021-05-16",
       "subRegion": "Arabian Sea",
-      "rmseModel": 0.87,
-      "rmseClimatology": 3.06,
-      "skillScore": 0.92,
-      "skillScorePct": 92.0
+      "rmseModel": 0.61,
+      "rmseClimatology": 0.73,
+      "skillScore": 0.302,
+      "skillScorePct": 30.2
     },
     {
       "id": "2902394_204",
@@ -600,10 +663,10 @@
       "longitude": 83.278,
       "date": "2021-05-16",
       "subRegion": "Equatorial Indian Ocean",
-      "rmseModel": 1.71,
-      "rmseClimatology": 3.16,
-      "skillScore": 0.707,
-      "skillScorePct": 70.7
+      "rmseModel": 1.12,
+      "rmseClimatology": 0.99,
+      "skillScore": -0.281,
+      "skillScorePct": -28.1
     },
     {
       "id": "2902392_208",
@@ -613,10 +676,10 @@
       "longitude": 55.705,
       "date": "2021-05-16",
       "subRegion": "Equatorial Indian Ocean",
-      "rmseModel": 2.7,
-      "rmseClimatology": 1.75,
-      "skillScore": -1.387,
-      "skillScorePct": -138.7
+      "rmseModel": 0.99,
+      "rmseClimatology": 1.07,
+      "skillScore": 0.142,
+      "skillScorePct": 14.2
     },
     {
       "id": "2902278_144",
@@ -626,10 +689,10 @@
       "longitude": 89.84,
       "date": "2021-05-14",
       "subRegion": "Bay of Bengal",
-      "rmseModel": 0.71,
-      "rmseClimatology": 2.48,
-      "skillScore": 0.919,
-      "skillScorePct": 91.9
+      "rmseModel": 0.56,
+      "rmseClimatology": 0.61,
+      "skillScore": 0.157,
+      "skillScorePct": 15.7
     },
     {
       "id": "2902768_047",
@@ -639,10 +702,10 @@
       "longitude": 87.363,
       "date": "2021-05-14",
       "subRegion": "Bay of Bengal",
-      "rmseModel": 1.66,
-      "rmseClimatology": 3.13,
-      "skillScore": 0.719,
-      "skillScorePct": 71.9
+      "rmseModel": 0.54,
+      "rmseClimatology": 0.82,
+      "skillScore": 0.571,
+      "skillScorePct": 57.1
     },
     {
       "id": "2902770_046",
@@ -652,10 +715,10 @@
       "longitude": 91.156,
       "date": "2021-05-14",
       "subRegion": "Bay of Bengal",
-      "rmseModel": 1.71,
-      "rmseClimatology": 2.92,
-      "skillScore": 0.657,
-      "skillScorePct": 65.7
+      "rmseModel": 0.64,
+      "rmseClimatology": 0.8,
+      "skillScore": 0.355,
+      "skillScorePct": 35.5
     },
     {
       "id": "2902775_061",
@@ -665,10 +728,10 @@
       "longitude": 78.925,
       "date": "2021-05-14",
       "subRegion": "Equatorial Indian Ocean",
-      "rmseModel": 1.12,
-      "rmseClimatology": 3.06,
-      "skillScore": 0.864,
-      "skillScorePct": 86.4
+      "rmseModel": 0.53,
+      "rmseClimatology": 0.73,
+      "skillScore": 0.471,
+      "skillScorePct": 47.1
     },
     {
       "id": "2902852_046",
@@ -678,10 +741,10 @@
       "longitude": 87.831,
       "date": "2021-05-13",
       "subRegion": "Equatorial Indian Ocean",
-      "rmseModel": 2.46,
-      "rmseClimatology": 2.48,
-      "skillScore": 0.015,
-      "skillScorePct": 1.5
+      "rmseModel": 0.91,
+      "rmseClimatology": 0.7,
+      "skillScore": -0.673,
+      "skillScorePct": -67.3
     },
     {
       "id": "2901898_250",
@@ -691,10 +754,10 @@
       "longitude": 89.95,
       "date": "2021-05-13",
       "subRegion": "Equatorial Indian Ocean",
-      "rmseModel": 2.2,
-      "rmseClimatology": 2.82,
-      "skillScore": 0.395,
-      "skillScorePct": 39.5
+      "rmseModel": 1.02,
+      "rmseClimatology": 1.14,
+      "skillScore": 0.209,
+      "skillScorePct": 20.9
     },
     {
       "id": "2901896_262",
@@ -704,10 +767,10 @@
       "longitude": 90.337,
       "date": "2021-08-16",
       "subRegion": "Equatorial Indian Ocean",
-      "rmseModel": 1.71,
-      "rmseClimatology": 2.38,
-      "skillScore": 0.482,
-      "skillScorePct": 48.2
+      "rmseModel": 0.94,
+      "rmseClimatology": 1.29,
+      "skillScore": 0.467,
+      "skillScorePct": 46.7
     },
     {
       "id": "2902294_125",
@@ -717,10 +780,10 @@
       "longitude": 91.196,
       "date": "2021-08-16",
       "subRegion": "Equatorial Indian Ocean",
-      "rmseModel": 2.04,
-      "rmseClimatology": 2.54,
-      "skillScore": 0.355,
-      "skillScorePct": 35.5
+      "rmseModel": 1.06,
+      "rmseClimatology": 0.99,
+      "skillScore": -0.167,
+      "skillScorePct": -16.7
     }
   ]
 }

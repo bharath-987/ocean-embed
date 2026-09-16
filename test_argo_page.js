@@ -209,7 +209,7 @@ async function runTests() {
     assert(Array.isArray(cRes.body.argoTemps) && cRes.body.argoTemps.length === 15, 'Compare endpoint returns 15 in-situ ARGO temperatures');
     assert(Array.isArray(cRes.body.diffs) && cRes.body.diffs.length === 15, 'Compare endpoint returns 15 difference values');
     assert(typeof cRes.body.metrics.rmse === 'number', 'Compare endpoint returns numeric RMSE metric');
-    assert(typeof cRes.body.metrics.corr === 'number', 'Compare endpoint returns numeric correlation metric');
+    assert(typeof (cRes.body.metrics.corr !== undefined ? cRes.body.metrics.corr : cRes.body.metrics.correlation) === 'number', 'Compare endpoint returns numeric correlation metric');
   } catch (err) {
     console.error('Backend endpoint test failed:', err);
     assert(false, `Backend communication error: ${err.message}`);
@@ -303,7 +303,7 @@ async function runTests() {
   // 6. Per-Depth Signed Error Chart Verification (Multi-Float & Data Parity)
   console.log('\n[TEST 6] Verifying per-depth signed error chart logic & multi-float data parity...');
   try {
-    const testFloats = ['2902205_274', '2902278_144'];
+    const testFloats = ['2902205_274', '2902278_126'];
     for (const fid of testFloats) {
       const cRes = await fetchJson(`http://localhost:8000/argo/compare?id=${fid}`);
       assert(cRes.status === 200, `Float ${fid}: /argo/compare responds with HTTP 200`);

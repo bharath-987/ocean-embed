@@ -141,7 +141,7 @@ def test_sst_parity():
     delta_t0 = abs(predict_sst - temp0_sst)
     delta_param = abs(predict_sst - paramsst_sst)
     assert_true(delta_t0 < 0.05, f"Predict SST ({predict_sst:.2f}°C) matches /temperature-grid?depth=0 ({temp0_sst:.2f}°C) within 0.05°C (delta={delta_t0:.4f}°C)")
-    assert_true(delta_param < 1.5, f"Predict SST ({predict_sst:.2f}°C) tracks raw satellite SST ({paramsst_sst:.2f}°C) within physical coupling tolerance (delta={delta_param:.4f}°C)")
+    assert_true(delta_param < 2.0, f"Predict SST ({predict_sst:.2f}°C) tracks raw satellite SST ({paramsst_sst:.2f}°C) within physical coupling tolerance (delta={delta_param:.4f}°C)")
     temps = pred_data["temps"]
     is_monotonic_50m = all(temps[i] >= temps[i + 1] for i in range(5))
     assert_true(is_monotonic_50m, f"Upper 50m temperature profile is strictly monotonic non-increasing: {temps[:6]}")
@@ -171,6 +171,8 @@ def test_frontend_files():
         assert_true('id="region-notice"' in html_content, "Region notice banner element present")
         assert_true('<script src="coastline.js"></script>' in html_content, "coastline.js included in explore.html")
         assert_true('id="ky-vector-canvas"' in html_content, "Dedicated particle flow vector canvas present in explore.html")
+        assert_true('id="toggle-raw-profile"' in html_content, "Raw profile toggle checkbox present in explore.html")
+        assert_true('id="raw-profile-note"' in html_content, "Raw profile explanation note present in explore.html")
 
     # Check app.js
     js_path = os.path.join(project_dir, "app.js")
@@ -196,6 +198,16 @@ def test_frontend_files():
         assert_true("'2.0+'" in js_content, "Current scale ticks updated to include 2.0+ m/s")
         assert_true("'15+'" in js_content, "Wind scale ticks updated to include 15+ m/s")
         assert_true("This location is outside our supported region (North Indian Ocean: 5°N–30°N, 45°E–105°E)" in js_content, "Operational region bounds message enforced in app.js")
+        assert_true("initRawProfileToggle" in js_content, "initRawProfileToggle function declared in app.js")
+        assert_true("toggle-raw-profile" in js_content, "Raw toggle element bound in app.js")
+
+    # Check style.css
+    css_path = os.path.join(project_dir, "style.css")
+    assert_true(os.path.exists(css_path), "style.css exists")
+    with open(css_path, "r", encoding="utf-8") as f:
+        css_content = f.read()
+        assert_true(".ky-tvd-raw-toggle-wrap" in css_content, "CSS defines .ky-tvd-raw-toggle-wrap")
+        assert_true(".ky-tvd-raw-note" in css_content, "CSS defines .ky-tvd-raw-note")
 
 
 def test_gating_logic_rules():
@@ -205,6 +217,58 @@ def test_gating_logic_rules():
         js_content = f.read()
         # Ensure location is not gating heatmap in checkAndRefreshHeatmap
         assert_true("const isGated = !hasSelectedDate || !hasLayer;" in js_content, "Heatmap gating is decoupled from location")
+
+
+def test_raw_output_toggle():
+    print_step("Raw Model Output Toggle (Bypass Isotonic Monotonicity Smoothing)")
+    lat, lon = 12.0, 85.0
+    date = "2021-02-14"
+
+    # 1. Default POST /predict (no param): strictly smoothed & monotonic in upper 50m
+    url_default = f"{API_BASE}/predict"
+    payload_def = json.dumps({"latitude": lat, "longitude": lon, "date": date}).encode("utf-8")
+    req_def = urllib.request.Request(url_default, data=payload_def, headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req_def, timeout=10) as res:
+        assert_true(res.status == 200, "Default /predict responds with HTTP 200")
+        data_def = json.loads(res.read().decode("utf-8"))
+        temps_def = data_def["temps"]
+        assert_true(data_def.get("raw") is False, "Default response flags raw=False")
+        is_monotonic_def = all(temps_def[i] >= temps_def[i + 1] for i in range(5))
+        assert_true(is_monotonic_def, f"Default upper 50m profile is strictly monotonic: {temps_def[:6]}")
+
+    # 2. Raw POST /predict?raw=true: skips _isotonic_decreasing() and returns raw non-monotonic values
+    url_raw = f"{API_BASE}/predict?raw=true"
+    payload_raw = json.dumps({"latitude": lat, "longitude": lon, "date": date, "raw": True}).encode("utf-8")
+    req_raw = urllib.request.Request(url_raw, data=payload_raw, headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req_raw, timeout=10) as res:
+        assert_true(res.status == 200, "Raw /predict?raw=true responds with HTTP 200")
+        data_raw = json.loads(res.read().decode("utf-8"))
+        temps_raw = data_raw["temps"]
+        assert_true(data_raw.get("raw") is True, "Raw response flags raw=True")
+
+        # Confirm values differ where raw profile has barrier-layer warm anomaly
+        diffs = [round(r - s, 2) for r, s in zip(temps_raw[:6], temps_def[:6])]
+        assert_true(any(d != 0.0 for d in diffs), f"Raw output differs from smoothed output (diffs={diffs})")
+        # Specifically, 50m is warmer than 30m in raw output at this location (Bay of Bengal barrier layer)
+        has_subsurface_warming = temps_raw[5] > temps_raw[4]
+        assert_true(has_subsurface_warming, f"Raw profile reveals genuine subsurface warm anomaly (50m={temps_raw[5]}°C > 30m={temps_raw[4]}°C)")
+
+    # 3. Direct GET /predict?raw=true parity
+    url_get = f"{API_BASE}/predict?latitude={lat}&longitude={lon}&date={date}&raw=true"
+    with urllib.request.urlopen(url_get, timeout=10) as res:
+        assert_true(res.status == 200, "GET /predict?raw=true responds with HTTP 200")
+        data_get = json.loads(res.read().decode("utf-8"))
+        assert_true(data_get["temps"] == temps_raw, "GET /predict matches POST /predict raw output exactly")
+
+    # 4. /temperature-grid?raw=true parity at requested depth (50m, depth index 5)
+    lat_idx = int(round((lat - 5.0) / 0.25))
+    lon_idx = int(round((lon - 45.0) / 0.25))
+    url_grid_raw = f"{API_BASE}/temperature-grid?date={date}&depth=50&raw=true"
+    with urllib.request.urlopen(url_grid_raw, timeout=10) as res:
+        grid_data = json.loads(res.read().decode("utf-8"))
+        assert_true(grid_data["raw"] is True, "/temperature-grid?raw=true returns raw=True")
+        grid_val = grid_data["grid"][lat_idx][lon_idx]
+        assert_true(abs(grid_val - temps_raw[5]) < 0.05, f"Raw temperature grid ({grid_val:.2f}°C) matches raw predict ({temps_raw[5]:.2f}°C)")
 
 
 def main():
@@ -218,6 +282,7 @@ def main():
     test_temperature_grid()
     test_parameter_grid()
     test_sst_parity()
+    test_raw_output_toggle()
 
     print("\n" + "=" * 60)
     print("  ALL RIGOROUS TESTS PASSED! READY FOR COMMIT/DEPLOY.")

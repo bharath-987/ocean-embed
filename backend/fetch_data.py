@@ -33,11 +33,8 @@ from typing import Dict, Optional
 try:
     from huggingface_hub import HfApi, hf_hub_download
 except ImportError:
-    print(
-        "ERROR: huggingface_hub is not installed. "
-        "Please run 'pip install huggingface_hub' first."
-    )
-    sys.exit(1)
+    HfApi = None
+    hf_hub_download = None
 
 REPO_ID = os.environ.get("HF_DATASET_REPO_ID", "bharath-987/ocean-embed-data")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -68,6 +65,10 @@ def is_data_complete(dest_dir: str = DATA_DIR) -> bool:
         filepath = os.path.join(dest_dir, filename)
         if not os.path.exists(filepath):
             return False
+        if filename == "day_index_map.json":
+            if os.path.getsize(filepath) < 5000:
+                return False
+            continue
         if os.path.getsize(filepath) != expected_size:
             return False
     return True

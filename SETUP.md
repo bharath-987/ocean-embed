@@ -1,4 +1,4 @@
-﻿# OceanEmbed — Local Setup & Deployment Guide
+# OceanEmbed — Local Setup & Deployment Guide
 
 Welcome to **OceanEmbed** (Kyogre Dashboard). This guide provides everything needed to clone, configure, and run both the FastAPI ML inference backend and the MapLibre frontend dashboard on your local machine.
 
@@ -47,14 +47,20 @@ pip install -r backend/requirements.txt
 > **Packages installed**: `torch`, `numpy<2.0`, `pandas`, `fastapi`, `uvicorn[standard]`, `pydantic`.
 
 ### Step 3.3: Environment Variables (`.env`)
-No environment variables or API keys are required. All paths are automatically resolved relative to `backend/`.
+No environment variables or API keys are required for default operation. All paths are automatically resolved relative to `backend/`.
+
+Optional environment variables:
+- `ENABLE_INFERENCE_CACHE`: (Default: `true`) Controls startup pre-warming and runtime in-memory LRU prediction caching. Set to `false` to disable caching and force live PyTorch CNN-LSTM inference on every request (ideal for profiling, benchmarking, and rigorous accuracy verification).
+- `USE_FULL_FLOAT16_DATA`: (Default: `true` if `backend/data/float16/` exists) Toggle full 3-year (2021–2023) continuous float16 dataset mode vs trimmed mode.
+- `HF_DATASET_REPO_ID`: Target Hugging Face repository for automated remote array streaming fallback.
+- `HF_TOKEN`: Optional Hugging Face access token for private dataset repositories.
 
 ---
 
 ## 4. Dataset Files & Model Weights
 
 ### Included in the Git Repository:
-- **PyTorch Model Checkpoint**: `backend/model_v4_dilated_checkpoint_epoch30.pt` (~227 KB)
+- **PyTorch Model Checkpoint**: `backend/model_v6_satswap_anom_best.pt` (~275 KB, 27 channels, 65,967 params; `backend/model_v4_dilated_checkpoint_epoch30.pt` retained as local fallback)
 - **ARGO Floats Database**: `backend/data/argo_profiles.json` (~65 KB)
 
 ### Large Binary Datasets (`.npy` files):
