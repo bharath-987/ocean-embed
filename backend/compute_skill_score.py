@@ -37,7 +37,9 @@ all_clim_diffs = []
 depth_model_diffs = {d: [] for d in depths}
 depth_clim_diffs = {d: [] for d in depths}
 
-regions = ['Bay of Bengal', 'Arabian Sea', 'Equatorial Indian Ocean', 'Andaman Sea']
+MIN_BASIN_SAMPLE_SIZE = int(os.environ.get("MIN_BASIN_SAMPLE_SIZE", "10"))
+
+regions = ['Bay of Bengal', 'Arabian Sea', 'Equatorial Indian Ocean']
 region_stats = {r: {'count': 0, 'model_sq_errs': [], 'clim_sq_errs': []} for r in regions}
 profile_summaries = []
 
@@ -112,12 +114,14 @@ basin_summary = {}
 for r in regions:
     r_data = region_stats[r]
     if r_data['count'] > 0:
+        is_sufficient = r_data['count'] >= MIN_BASIN_SAMPLE_SIZE
         r_rmse_m = float(np.sqrt(np.mean(r_data['model_sq_errs'])))
         r_rmse_c = float(np.sqrt(np.mean(r_data['clim_sq_errs'])))
         r_ss = float(1.0 - (r_rmse_m ** 2 / r_rmse_c ** 2))
-        basin_summary[r] = {
+        entry = {
             'count': r_data['count'],
             'totalPoints': r_data['count'] * len(depths),
+            'insufficientSample': not is_sufficient,
             'baselineType': 'monthly climatology',
             'baselineSampleSize': r_data['count'],
             'baselineLabel': f"vs monthly climatology baseline, n={r_data['count']} Argo {'profile' if r_data['count'] == 1 else 'profiles'}",
@@ -126,6 +130,9 @@ for r in regions:
             'skillScore': round(r_ss, 3),
             'skillScorePct': round(r_ss * 100.0, 1),
         }
+        if not is_sufficient:
+            entry['insufficientNote'] = f"Insufficient data (n={r_data['count']}, minimum {MIN_BASIN_SAMPLE_SIZE} required for basin-level reporting)"
+        basin_summary[r] = entry
 
 # Depth Explanations
 DEPTH_EXPLANATIONS = {

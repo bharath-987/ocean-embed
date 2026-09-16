@@ -9,6 +9,7 @@ import json
 import math
 import os
 import sys
+import threading
 import time
 
 # Ensure backend directory is in sys.path so modules can always be imported
@@ -73,12 +74,7 @@ async def lifespan(app: FastAPI):
         print("  All requests will execute live full-model inference.", flush=True)
         print("=" * 65, flush=True)
 
-    # 3. Initialize ARGO per-depth validation confidence statistics
-    _get_argo_depth_confidence_stats()
-    print("  ARGO per-depth validation confidence statistics initialized.", flush=True)
-    print("=" * 65, flush=True)
-
-    # 4. Initialize Marine Heatwave (MHW) climatology
+    # 3. Initialize Marine Heatwave (MHW) climatology
     _load_climatology()
     print("  Marine Heatwave (MHW) climatology initialized.", flush=True)
     print("=" * 65, flush=True)
@@ -261,7 +257,6 @@ def extract_surface_inputs(latitude: float, longitude: float, date_str: str) -> 
 
 
 _argo_dataset = None
-_depth_confidence_stats = None
 
 
 def _load_argo_dataset():
@@ -308,329 +303,6 @@ def _get_monsoon_regime(dt: datetime.date) -> str:
         return "Monsoon"
     else:
         return "Post-Monsoon"
-
-
-def _find_nearest_argo_profile(latitude: float, longitude: float, date_str: str) -> dict:
-    """
-    Finds the nearest empirical ARGO validation profile to (latitude, longitude, date_str)
-    using a monsoon season-aware spatio-temporal distance metric.
-
-    Monsoon Season-Aware Weighting:
-    - 4 regimes: Winter (Dec-Feb), Pre-Monsoon (Mar-May), Monsoon (Jun-Sep), Post-Monsoon (Oct-Nov).
-    - SAME monsoon regime: temporal_weight = 1.5 km/day (similar seasonal subsurface dynamics).
-    - DIFFERENT monsoon regime: temporal_weight = 6.0 km/day (cross-monsoon comparison reflects
-      strong seasonal shifts in MLD, thermocline depth, and subsurface heat content).
-    - max_reasonable_score = 2500.0 km-equivalent.
-    - proximity_factor clamped between 0.50 and 1.00.
-    """
-    SAME_REGIME_WEIGHT = 1.5
-    CROSS_REGIME_WEIGHT = 6.0
-    MAX_REASONABLE_SCORE = 2500.0
-    FLOOR_FACTOR = 0.5
-    CEIL_FACTOR = 1.0
-
-    argo_data = _load_argo_dataset()
-    profiles = argo_data.get("profiles", [])
-
-    if not profiles:
-        return {
-            "float_id": "N/A",
-            "cycle_number": None,
-            "distance_km": 0.0,
-            "days_diff": 0,
-            "date": date_str,
-            "combined_score": 0.0,
-            "proximity_factor": 1.0,
-            "is_same_regime": True,
-            "query_regime": "Unknown",
-            "argo_regime": "Unknown",
-            "temporal_weight": SAME_REGIME_WEIGHT,
-        }
-
-    try:
-        q_date = datetime.date.fromisoformat(date_str)
-    except Exception:
-        q_date = datetime.date(2022, 7, 2)
-
-    q_regime = _get_monsoon_regime(q_date)
-
-    best_p = None
-    best_dist = float("inf")
-    best_days = 0
-    best_score = float("inf")
-    best_is_same = True
-    best_p_regime = ""
-    best_weight = SAME_REGIME_WEIGHT
-
-    for p in profiles:
-        p_lat = float(p.get("latitude", 0.0))
-        p_lon = float(p.get("longitude", 0.0))
-        dist_km = _haversine_distance(latitude, longitude, p_lat, p_lon)
-
-        try:
-            p_date = datetime.date.fromisoformat(str(p.get("date", date_str)))
-            days_diff = abs((q_date - p_date).days)
-            p_regime = _get_monsoon_regime(p_date)
-        except Exception:
-            days_diff = 0
-            p_regime = q_regime
-
-        is_same = (p_regime == q_regime)
-        tw = SAME_REGIME_WEIGHT if is_same else CROSS_REGIME_WEIGHT
-        score = dist_km + (days_diff * tw)
-
-        if score < best_score:
-            best_score = score
-            best_dist = dist_km
-            best_days = days_diff
-            best_p = p
-            best_is_same = is_same
-            best_p_regime = p_regime
-            best_weight = tw
-
-    raw_factor = 1.0 - (best_score / MAX_REASONABLE_SCORE)
-    clamped_factor = max(FLOOR_FACTOR, min(CEIL_FACTOR, raw_factor))
-    proximity_factor = round(clamped_factor, 2)
-
-    return {
-        "float_id": best_p.get("wmoFloatId", best_p.get("id", "Unknown")),
-        "cycle_number": best_p.get("cycleNumber"),
-        "distance_km": round(best_dist, 1),
-        "days_diff": best_days,
-        "date": str(best_p.get("date", "")),
-        "combined_score": round(best_score, 1),
-        "proximity_factor": proximity_factor,
-        "is_same_regime": best_is_same,
-        "query_regime": q_regime,
-        "argo_regime": best_p_regime,
-        "temporal_weight": best_weight,
-    }
-
-
-_argo_spatial_distances = None  # (101, 241, 41) float32 matrix
-
-
-def _get_argo_spatial_distances():
-    """
-    Precomputes and caches the pairwise Haversine distance matrix (km) from every cell
-    in the 101x241 basin grid (24,341 points) to each of the 41 ARGO float profiles in backend/data/argo_profiles.json.
-    Shape: (101, 241, 41) float32 (~3.99 MB in RAM).
-    Since float coordinates are static, this is computed once and reused for all date queries.
-    """
-    global _argo_spatial_distances
-    if _argo_spatial_distances is None:
-        argo_data = _load_argo_dataset()
-        profiles = argo_data.get("profiles", [])
-        if not profiles:
-            return None
-        p_lats = inf.np.array([float(p["latitude"]) for p in profiles], dtype=inf.np.float64)
-        p_lons = inf.np.array([float(p["longitude"]) for p in profiles], dtype=inf.np.float64)
-
-        lat_rad = inf.np.radians(inf._target_lats[:, None, None])
-        lon_rad = inf.np.radians(inf._target_lons[None, :, None])
-        p_lat_rad = inf.np.radians(p_lats[None, None, :])
-        p_lon_rad = inf.np.radians(p_lons[None, None, :])
-
-        dlat = p_lat_rad - lat_rad
-        dlon = p_lon_rad - lon_rad
-        a = inf.np.sin(dlat / 2.0)**2 + inf.np.cos(lat_rad) * inf.np.cos(p_lat_rad) * inf.np.sin(dlon / 2.0)**2
-        c = 2.0 * inf.np.arcsin(inf.np.sqrt(inf.np.clip(a, 0.0, 1.0)))
-        _argo_spatial_distances = (6371.0 * c).astype(inf.np.float32)
-    return _argo_spatial_distances
-
-
-def _compute_confidence_pct(rmse_celsius: float) -> tuple[int, str]:
-    """
-    Computes data-driven confidence score using absolute RMSE thresholds reflecting
-    standard subsurface ocean temperature tolerances:
-    - rmse <= 0.5: 90 + (0.5 - rmse) * 16 (range 90-98)
-    - rmse <= 1.0: 70 + (1.0 - rmse) * 40 (range 70-90)
-    - rmse <= 1.5: 50 + (1.5 - rmse) * 40 (range 50-70)
-    - rmse > 1.5:  max(30, 50 - (rmse - 1.5) * 20) (floor 30)
-
-    Bucket labels (for internal logic/dot/bar color cues only):
-    - >= 85: 'High'
-    - 60-84: 'Moderate'
-    - < 60:  'Low'
-    """
-    if rmse_celsius <= 0.5:
-        pct = 90.0 + (0.5 - rmse_celsius) * 16.0
-    elif rmse_celsius <= 1.0:
-        pct = 70.0 + (1.0 - rmse_celsius) * 40.0
-    elif rmse_celsius <= 1.5:
-        pct = 50.0 + (1.5 - rmse_celsius) * 40.0
-    else:
-        pct = max(30.0, 50.0 - (rmse_celsius - 1.5) * 20.0)
-    pct_int = int(round(pct))
-    label = "High" if pct_int >= 85 else ("Moderate" if pct_int >= 60 else "Low")
-    return pct_int, label
-
-
-def _get_argo_depth_confidence_stats() -> dict:
-    """
-    Computes per-depth RMSE across all 41 cached ARGO profiles in backend/data/argo_profiles.json.
-    Converts per-depth RMSE into confidence percentage using absolute RMSE thresholds.
-    Caches results in memory and on disk (backend/data/confidence_stats.json) for instant retrieval.
-    """
-    global _depth_confidence_stats
-    if _depth_confidence_stats is not None:
-        return _depth_confidence_stats
-
-    cache_file = os.path.join(os.path.dirname(__file__), "data", "confidence_stats.json")
-    if os.path.exists(cache_file):
-        try:
-            with open(cache_file, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                if data.get("formula") == "absolute_v2":
-                    _depth_confidence_stats = data
-                    return _depth_confidence_stats
-        except Exception:
-            pass
-
-    data = _load_argo_dataset()
-    profiles = data.get("profiles", [])
-    depths = inf.STANDARD_DEPTHS
-    depth_diffs = {d: [] for d in depths}
-
-    for p in profiles:
-        lat = float(p["latitude"])
-        lon = float(p["longitude"])
-        date_str = str(p["date"])
-        try:
-            pred = predict_temperature_profile(lat, lon, date_str)
-            if "error" in pred:
-                continue
-            p_depths = p.get("depths", depths)
-            p_temps = p.get("temperatures", [])
-            for d in depths:
-                if d in p_depths:
-                    idx = p_depths.index(d)
-                    if idx < len(p_temps) and p_temps[idx] is not None:
-                        ai_t = float(pred[d])
-                        argo_t = float(p_temps[idx])
-                        depth_diffs[d].append(ai_t - argo_t)
-        except Exception:
-            continue
-
-    depth_rmse = {}
-    for d in depths:
-        diffs = inf.np.array(depth_diffs[d], dtype=float)
-        rmse = float(inf.np.sqrt(inf.np.mean(inf.np.square(diffs)))) if len(diffs) > 0 else 0.0
-        depth_rmse[d] = round(rmse, 2)
-
-    max_rmse = max(depth_rmse.values()) if depth_rmse else 1.0
-
-    stats = []
-    by_depth = {}
-    for d in depths:
-        r = depth_rmse.get(d, 0.0)
-        pct, label = _compute_confidence_pct(r)
-        item = {
-            "depth": d,
-            "rmse": r,
-            "confidence_pct": pct,
-            "confidence_label": label,
-        }
-        stats.append(item)
-        by_depth[str(d)] = item
-
-    _depth_confidence_stats = {
-        "formula": "absolute_v2",
-        "max_rmse": max_rmse,
-        "depths": depths,
-        "stats": stats,
-        "by_depth": by_depth,
-        "baselineType": "monthly climatology",
-        "baselineSampleSize": 41,
-        "baselineLabel": "vs monthly climatology baseline, n=41 Argo profiles",
-    }
-
-    try:
-        with open(cache_file, "w", encoding="utf-8") as f:
-            json.dump(_depth_confidence_stats, f, indent=2)
-    except Exception:
-        pass
-
-    return _depth_confidence_stats
-
-
-def _compute_metrics_confidence(depths: list[int], temps: list[float], by_depth: dict, proximity_factor: float = 1.0, s0: float = 35.0) -> dict:
-    """
-    Computes confidence metrics for the four top metric cards:
-    - MLD confidence: average confidence of depths 0-50m
-    - OHC-300m confidence: average confidence of depths 0-300m
-    - Sound Velocity / Acoustic Shadow Depth: confidence at depth nearest computed SVAD
-    - D20 Isotherm Depth: confidence at depth nearest computed D20 value
-
-    Each card's confidence_pct is scaled by the query's spatio-temporal proximity_factor
-    and clamped to [30, 98], with confidence_label re-evaluated.
-    """
-    def _scale_conf(base_rmse):
-        base_pct, _ = _compute_confidence_pct(base_rmse)
-        scaled_pct = max(30, min(98, int(round(base_pct * proximity_factor))))
-        scaled_label = "High" if scaled_pct >= 85 else ("Moderate" if scaled_pct >= 60 else "Low")
-        return scaled_pct, scaled_label
-
-    # 1. MLD confidence: average of depths 0-50m
-    mld_depths = [d for d in depths if d <= 50]
-    mld_rmse = round(float(inf.np.mean([by_depth.get(str(d), {}).get("rmse", 1.0) for d in mld_depths])), 2)
-    mld_pct, mld_label = _scale_conf(mld_rmse)
-
-    # 2. OHC-300 confidence: average of depths 0-300m
-    ohc_depths = [d for d in depths if d <= 300]
-    ohc_rmse = round(float(inf.np.mean([by_depth.get(str(d), {}).get("rmse", 1.0) for d in ohc_depths])), 2)
-    ohc_pct, ohc_label = _scale_conf(ohc_rmse)
-
-    # 3. Sound Velocity / Acoustic Shadow Depth (SVAD)
-    # Mackenzie (1981) 6-term formula:
-    # c(T,S,z) = 1448.96 + 4.591*T - 5.304e-2*T^2 + 2.374e-4*T^3 + 1.340*(S-35) + 1.630e-2*z
-    # Depth-varying salinity follows regional climatological halocline approximation (Levitus/WOA; Rao & Sivakumar 2003):
-    # S(z) = S_inf + (S_0 - S_inf) * exp(-z / z_h), with S_inf = 35.0 PSU and z_h = 150.0 m
-    svad_depth = 0
-    if len(temps) > 0:
-        sound_speeds = []
-        for i, z in enumerate(depths):
-            T = temps[i]
-            s_z = 35.0 + (s0 - 35.0) * float(inf.np.exp(-z / 150.0))
-            c_val = 1448.96 + 4.591 * T - 5.304e-2 * (T ** 2) + 2.374e-4 * (T ** 3) + 1.340 * (s_z - 35.0) + 1.630e-2 * z
-            sound_speeds.append(c_val)
-        max_c = sound_speeds[0]
-        max_idx = 0
-        for i in range(1, len(sound_speeds)):
-            if depths[i] <= 300 and sound_speeds[i] > max_c:
-                max_c = sound_speeds[i]
-                max_idx = i
-        svad_depth = depths[max_idx]
-
-    svad_nearest = min(depths, key=lambda d: abs(d - svad_depth))
-    svad_item = by_depth.get(str(svad_nearest), {})
-    svad_rmse = svad_item.get("rmse", 1.0)
-    svad_pct, svad_label = _scale_conf(svad_rmse)
-
-    # 4. D20 Isotherm Depth
-    d20_depth = None
-    if len(temps) > 1 and temps[0] > 20.0:
-        for i in range(1, len(depths)):
-            if temps[i] <= 20.0:
-                t0, t1 = temps[i - 1], temps[i]
-                d0, d1 = depths[i - 1], depths[i]
-                frac = (t0 - 20.0) / (t0 - t1 or 1.0)
-                d20_depth = d0 + frac * (d1 - d0)
-                break
-    if d20_depth is None:
-        d20_depth = 100.0
-
-    d20_nearest = min(depths, key=lambda d: abs(d - d20_depth))
-    d20_item = by_depth.get(str(d20_nearest), {})
-    d20_rmse = d20_item.get("rmse", 1.0)
-    d20_pct, d20_label = _scale_conf(d20_rmse)
-
-    return {
-        "mld": {"rmse": mld_rmse, "confidence_pct": mld_pct, "confidence_label": mld_label},
-        "ohc300": {"rmse": ohc_rmse, "confidence_pct": ohc_pct, "confidence_label": ohc_label},
-        "svad": {"rmse": svad_rmse, "confidence_pct": svad_pct, "confidence_label": svad_label, "depth": svad_depth},
-        "d20": {"rmse": d20_rmse, "confidence_pct": d20_pct, "confidence_label": d20_label, "depth": round(d20_depth, 1)},
-    }
 
 
 def model_result_to_frontend(result: dict, latitude: float, longitude: float, date_str: str) -> dict:
@@ -702,47 +374,18 @@ def model_result_to_frontend(result: dict, latitude: float, longitude: float, da
     pfz_val = round(max(0.1, min(0.98, 0.35 * tc_factor + 0.40 * upwelling_val + 0.25 * min(1.0, surface_chla / 3.0))), 2)
 
 
-    # 6. Data-driven Confidence Indicators derived from ARGO validation
-    conf_data = _get_argo_depth_confidence_stats()
-    by_depth = conf_data.get("by_depth", {})
-
-    nearest_argo = _find_nearest_argo_profile(latitude, longitude, date_str)
-    prox_factor = nearest_argo["proximity_factor"]
-
-    profile = []
-    for d, t in zip(depths, temps):
-        c = by_depth.get(str(d), {"rmse": 1.0, "confidence_pct": 50, "confidence_label": "Moderate"})
-        base_pct = c["confidence_pct"]
-        adj_pct = max(30, min(98, int(round(base_pct * prox_factor))))
-        adj_label = "High" if adj_pct >= 85 else ("Moderate" if adj_pct >= 60 else "Low")
-        profile.append({
-            "depth": d,
-            "temperature": round(float(t), 2),
-            "rmse": c["rmse"],
-            "confidence_pct": adj_pct,
-            "confidence_label": adj_label,
-            "nearest_argo_distance_km": nearest_argo["distance_km"],
-            "nearest_argo_date": nearest_argo["date"],
-            "nearest_argo_id": nearest_argo["float_id"],
-            "proximity_factor": prox_factor,
-            "is_same_regime": nearest_argo["is_same_regime"],
-            "temporal_weight": nearest_argo["temporal_weight"],
-        })
-
-    s0_val = surf_inputs.get("sss", {}).get("val", 35.0)
-    metrics_confidence = _compute_metrics_confidence(depths, temps, by_depth, prox_factor, s0=s0_val)
+    profile = [{"depth": d, "temperature": round(float(t), 2)} for d, t in zip(depths, temps)]
 
     return {
         "depths": depths,
         "temps": temps,
         "profile": profile,
-        "metrics_confidence": metrics_confidence,
-        "nearest_argo": nearest_argo,
         "surfaceInputs": surf_inputs,
         "indices": {
             "thermocline_depth": round(tc_depth, 1),
             "upwelling_index": round(upwelling_val, 2),
             "chlorophyll_a": round(chla_val, 2),
+            "pfz": pfz_val,
             "pfz_confidence_score": pfz_val,
             "nutrients": nutrients,
         },
@@ -803,6 +446,7 @@ def predict_get(
 
 
 _spatial_prediction_cache = {}
+_spatial_prediction_cache_lock = threading.Lock()
 _MAX_CACHE_SIZE = 4
 
 
@@ -816,8 +460,10 @@ def get_spatial_predictions(date_str: str, raw: bool = False):
     """
     use_cache = inf.is_inference_cache_enabled()
     cache_key = (date_str, raw)
-    if use_cache and (cache_key in _spatial_prediction_cache):
-        return _spatial_prediction_cache[cache_key]
+    if use_cache:
+        with _spatial_prediction_cache_lock:
+            if cache_key in _spatial_prediction_cache:
+                return _spatial_prediction_cache[cache_key].copy()
 
     day_idx, mapped_day_idx = _validate_date_available(date_str, need_history=True)
     start, end = mapped_day_idx - inf.LOOKBACK_DAYS, mapped_day_idx + 1  # window INCLUDES the target day
@@ -828,9 +474,14 @@ def get_spatial_predictions(date_str: str, raw: bool = False):
             detail="This date is not available in the deployed demo dataset.",
         )
 
-    if use_cache and (date_str in inf._prediction_cache):
-        prediction_real = inf._prediction_cache[date_str].copy().astype("float32")
-    else:
+    prediction_real = None
+    if use_cache:
+        with inf._prediction_cache_lock:
+            if date_str in inf._prediction_cache:
+                prediction_real = inf._prediction_cache[date_str].copy().astype("float32")
+                inf._prediction_cache.move_to_end(date_str)
+
+    if prediction_real is None:
         surface_channels = inf.np.stack([
             inf._sst_anom[start:end],
             inf._sss_anom[start:end],
@@ -870,39 +521,46 @@ def get_spatial_predictions(date_str: str, raw: bool = False):
         del prediction_anom
         del clim_at_day
         if use_cache:
-            inf._prediction_cache[date_str] = prediction_real
+            with inf._prediction_cache_lock:
+                inf._prediction_cache[date_str] = prediction_real.copy()
+                if len(inf._prediction_cache) > inf._MAX_PREDICTION_CACHE_SIZE:
+                    inf._prediction_cache.popitem(last=False)
 
     raw_sst = inf.np.array(inf._sst_arr[mapped_day_idx])
     land_mask = inf.np.isnan(raw_sst) | (raw_sst <= 0.0)
 
-    raw_m0 = prediction_real[0].copy()
+    # Work on an isolated copy for spatial post-processing to avoid mutating inf._prediction_cache
+    out_spatial = prediction_real.copy()
+
+    raw_m0 = out_spatial[0].copy()
     diff = inf.np.abs(raw_sst - raw_m0)
     alpha = inf.np.clip(0.60 - 0.15 * diff, 0.30, 0.60)
     blended_sst = alpha * raw_sst + (1.0 - alpha) * raw_m0
-    prediction_real[0] = blended_sst
+    out_spatial[0] = blended_sst
 
     delta_s = blended_sst - raw_m0
-    prediction_real[1] += 0.50 * delta_s
+    out_spatial[1] += 0.50 * delta_s
 
     # Monotonicity safety-net pass across ocean cells (depths <= 100m only)
     if not raw:
         ocean_cells = ~land_mask
         if ocean_cells.any():
             upper_depth_count = sum(1 for d in inf.STANDARD_DEPTHS if d <= 100)  # 8 depths: 0-100m
-            upper_subset = prediction_real[:upper_depth_count, ocean_cells]
+            upper_subset = out_spatial[:upper_depth_count, ocean_cells]
             for c in range(upper_subset.shape[1]):
                 upper_subset[:, c] = inf._isotonic_decreasing(upper_subset[:, c])
-            prediction_real[:upper_depth_count, ocean_cells] = upper_subset
+            out_spatial[:upper_depth_count, ocean_cells] = upper_subset
 
     for d in range(len(inf.STANDARD_DEPTHS)):
-        prediction_real[d][land_mask] = 0.0
+        out_spatial[d][land_mask] = 0.0
 
     if use_cache:
-        if len(_spatial_prediction_cache) >= _MAX_CACHE_SIZE:
-            _spatial_prediction_cache.pop(next(iter(_spatial_prediction_cache)))
-        _spatial_prediction_cache[cache_key] = prediction_real
+        with _spatial_prediction_cache_lock:
+            if len(_spatial_prediction_cache) >= _MAX_CACHE_SIZE:
+                _spatial_prediction_cache.pop(next(iter(_spatial_prediction_cache)))
+            _spatial_prediction_cache[cache_key] = out_spatial.copy()
 
-    return prediction_real
+    return out_spatial
 
 
 @app.get("/temperature-grid")
@@ -1016,106 +674,8 @@ def parameter_grid(param: str, date: str):
     return resp
 
 
-_confidence_grid_cache = {}
-_MAX_CONFIDENCE_CACHE_SIZE = 16
-
-
-def compute_confidence_grid(date_str: str, depth: int = 0) -> dict:
-    """
-    Computes a basin-wide 101x241 raster of prediction confidence percentages (0-100)
-    for the specified date, reusing the exact per-point spatio-temporal confidence formula:
-    Haversine distance to the nearest of 41 validated ARGO floats + monsoon-regime temporal weighting.
-    Land cells are masked to 0.0 matching /parameter-grid conventions.
-    """
-    use_cache = inf.is_inference_cache_enabled()
-    cache_key = f"{date_str}_{depth}"
-    if use_cache and (cache_key in _confidence_grid_cache):
-        return _confidence_grid_cache[cache_key]
-
-    day_idx, arr_idx = _validate_date_available(date_str, need_history=False)
-
-    argo_data = _load_argo_dataset()
-    profiles = argo_data.get("profiles", [])
-    if not profiles:
-        raise HTTPException(status_code=500, detail="ARGO profiles dataset not loaded")
-
-    dist_grid = _get_argo_spatial_distances()
-    if dist_grid is None:
-        raise HTTPException(status_code=500, detail="Failed to initialize spatial distance grid")
-
-    try:
-        q_date = datetime.date.fromisoformat(date_str)
-    except Exception:
-        q_date = datetime.date(2022, 7, 2)
-
-    q_regime = _get_monsoon_regime(q_date)
-
-    n_profiles = len(profiles)
-    penalties = inf.np.zeros(n_profiles, dtype=inf.np.float32)
-    for j, p in enumerate(profiles):
-        try:
-            p_date = datetime.date.fromisoformat(str(p.get("date", date_str)))
-            days_diff = abs((q_date - p_date).days)
-            p_regime = _get_monsoon_regime(p_date)
-        except Exception:
-            days_diff = 0
-            p_regime = q_regime
-        tw = 1.5 if (p_regime == q_regime) else 6.0
-        penalties[j] = days_diff * tw
-
-    scores = dist_grid + penalties[None, None, :]
-    min_scores = inf.np.min(scores, axis=2)
-    raw_factors = 1.0 - (min_scores / 2500.0)
-    clamped_factors = inf.np.clip(raw_factors, 0.5, 1.0)
-    prox_grid = inf.np.round(clamped_factors, 2)
-
-    conf_data = _get_argo_depth_confidence_stats()
-    by_depth = conf_data.get("by_depth", {})
-    base_info = by_depth.get(str(depth), by_depth.get("0", {"confidence_pct": 75}))
-    base_pct = base_info.get("confidence_pct", 75)
-
-    conf_grid = inf.np.clip(inf.np.round(base_pct * prox_grid), 30, 98).astype(int)
-
-    # Land mask: set land cells to 0
-    ocean_mask = (inf._sst_arr[arr_idx] >= 0.5)
-    conf_grid[~ocean_mask] = 0
-
-    resp = {
-        "param": "confidence",
-        "date": date_str,
-        "depth": depth,
-        "base_confidence": base_pct,
-        "bounds": {
-            "south": float(inf.MIN_LAT),
-            "north": float(inf.MAX_LAT),
-            "west": float(inf.MIN_LON),
-            "east": float(inf.MAX_LON),
-        },
-        "lats": inf._target_lats.tolist(),
-        "lons": inf._target_lons.tolist(),
-        "grid": conf_grid.tolist(),
-        "provenance": "ESTIMATED HEURISTIC",
-    }
-
-    if use_cache:
-        if len(_confidence_grid_cache) >= _MAX_CONFIDENCE_CACHE_SIZE:
-            _confidence_grid_cache.pop(next(iter(_confidence_grid_cache)))
-        _confidence_grid_cache[cache_key] = resp
-    return resp
-
-
-@app.get("/confidence-grid")
-def confidence_grid(date: str, depth: int = 0):
-    """
-    Return 2D basin-wide spatial prediction confidence grid (101x241) for the target date.
-    Values represent data-driven confidence percentages (30-98%) derived from empirical
-    ARGO validation RMSE scaled by spatio-temporal proximity to the nearest ARGO float.
-    Land cells are masked to 0.
-    """
-    return compute_confidence_grid(date, depth)
-
-
 _pfz_grid_cache = {}
+_pfz_grid_cache_lock = threading.Lock()
 _MAX_PFZ_CACHE_SIZE = 8
 _pfz_land_mask = None
 
@@ -1140,8 +700,10 @@ def compute_pfz_grid(date_str: str) -> dict:
     Land cells (Natural Earth coastline mask & raw SST < 0.5) return None (JSON null).
     """
     use_cache = inf.is_inference_cache_enabled()
-    if use_cache and (date_str in _pfz_grid_cache):
-        return _pfz_grid_cache[date_str]
+    if use_cache:
+        with _pfz_grid_cache_lock:
+            if date_str in _pfz_grid_cache:
+                return _pfz_grid_cache[date_str]
 
     day_idx, mapped_day_idx = _validate_date_available(date_str, need_history=True)
     spatial = get_spatial_predictions(date_str)
@@ -1218,9 +780,10 @@ def compute_pfz_grid(date_str: str) -> dict:
     }
 
     if use_cache:
-        if len(_pfz_grid_cache) >= _MAX_PFZ_CACHE_SIZE:
-            _pfz_grid_cache.pop(next(iter(_pfz_grid_cache)))
-        _pfz_grid_cache[date_str] = result
+        with _pfz_grid_cache_lock:
+            if len(_pfz_grid_cache) >= _MAX_PFZ_CACHE_SIZE:
+                _pfz_grid_cache.pop(next(iter(_pfz_grid_cache)))
+            _pfz_grid_cache[date_str] = result
     return result
 
 
@@ -1237,8 +800,10 @@ def pfz_grid(date: str):
 
 
 # ---------------------------------------------------------------------------
-# ARGO Float Validation, Confidence & Comparison Endpoints
+# ARGO Float Validation & Comparison Endpoints
 # ---------------------------------------------------------------------------
+
+MIN_BASIN_SAMPLE_SIZE = int(os.environ.get("MIN_BASIN_SAMPLE_SIZE", "10"))
 
 _argo_summary_cache = {
     # All metrics computed by backend/compute_skill_score.py against full 41-profile Argo set
@@ -1256,10 +821,9 @@ _argo_summary_cache = {
     "trimmedWindowFloats": 27,
     "trimmedWindowLabel": "0.715 °C (trimmed demo-window subset, n=27 profiles, V6 vs V4=0.820 °C)",
     "subRegions": {
-        "Arabian Sea": {"count": 15, "rmse": 0.74, "climatologyRmse": 0.84, "skillScore": 0.228, "skillScorePct": 22.8},
-        "Bay of Bengal": {"count": 15, "rmse": 0.65, "climatologyRmse": 0.73, "skillScore": 0.219, "skillScorePct": 21.9},
-        "Andaman Sea": {"count": 1, "rmse": 0.85, "climatologyRmse": 0.74, "skillScore": -0.300, "skillScorePct": -30.0},
-        "Equatorial Indian Ocean": {"count": 10, "rmse": 0.90, "climatologyRmse": 0.99, "skillScore": 0.181, "skillScorePct": 18.1},
+        "Arabian Sea": {"count": 15, "rmse": 0.74, "climatologyRmse": 0.84, "skillScore": 0.228, "skillScorePct": 22.8, "insufficientSample": False},
+        "Bay of Bengal": {"count": 16, "rmse": 0.66, "climatologyRmse": 0.73, "skillScore": 0.186, "skillScorePct": 18.6, "insufficientSample": False},
+        "Equatorial Indian Ocean": {"count": 10, "rmse": 0.90, "climatologyRmse": 0.99, "skillScore": 0.181, "skillScorePct": 18.1, "insufficientSample": False},
     },
     "datasetMetadata": {
         "source": "Argovis / ARGO Global Data Assembly Centre (GDAC)",
@@ -1303,14 +867,6 @@ def get_argo_skill_score():
         raise HTTPException(status_code=404, detail="ARGO skill score benchmark data not found.")
     return data
 
-
-@app.get("/confidence-stats")
-def get_confidence_stats():
-    """
-    Returns the real data-driven per-depth validation error and confidence benchmark
-    computed across all 41 ARGO profiles in backend/data/argo_profiles.json (vs monthly climatology baseline, n=41 Argo profiles).
-    """
-    return _get_argo_depth_confidence_stats()
 
 
 @app.get("/argo/profiles")
@@ -1493,10 +1049,21 @@ def get_argo_summary():
 
     sub_summary = {}
     for sub, sdata in subregion_stats.items():
-        sub_summary[sub] = {
+        is_sufficient = sdata["count"] >= MIN_BASIN_SAMPLE_SIZE
+        sub_entry = {
             "count": sdata["count"],
+            "insufficientSample": not is_sufficient,
             "rmse": round(float(inf.np.sqrt(inf.np.mean(sdata["sq_errs"]))), 2) if sdata["sq_errs"] else 0.0,
         }
+        if not is_sufficient:
+            sub_entry["insufficientNote"] = f"Insufficient data (n={sdata['count']}, minimum {MIN_BASIN_SAMPLE_SIZE} required for basin-level reporting)"
+        sub_summary[sub] = sub_entry
+
+    skill_data = _load_argo_skill_score()
+    overall_skill = skill_data.get("overall", {})
+    clim_rmse = overall_skill.get("rmseClimatology", 0.84)
+    skill_score = overall_skill.get("skillScore", 0.200)
+    skill_score_pct = overall_skill.get("skillScorePct", 20.0)
 
     _argo_summary_cache = {
         "totalFloats": len(profiles),
@@ -1504,12 +1071,12 @@ def get_argo_summary():
         "aggregateRmse": agg_rmse,
         "aggregateBias": agg_bias,
         "aggregateCorr": agg_corr,
-        "climatologyRmse": 1.83,
-        "skillScore": 0.459,
-        "skillScorePct": 45.9,
-        "baselineType": "monthly climatology",
-        "baselineSampleSize": 41,
-        "baselineLabel": "vs monthly climatology baseline, n=41 Argo profiles",
+        "climatologyRmse": clim_rmse,
+        "skillScore": skill_score,
+        "skillScorePct": skill_score_pct,
+        "baselineType": overall_skill.get("baselineType", "monthly climatology"),
+        "baselineSampleSize": overall_skill.get("baselineSampleSize", len(profiles)),
+        "baselineLabel": overall_skill.get("baselineLabel", f"vs monthly climatology baseline, n={len(profiles)} Argo profiles"),
         "subRegions": sub_summary,
         "datasetMetadata": data.get("metadata", {}),
     }
@@ -1537,8 +1104,8 @@ def post_marine_heatwave(req: MarineHeatwaveRequest):
 
 @app.get("/marine-heatwave")
 def get_marine_heatwave(
-    latitude: float,
-    longitude: float,
+    latitude: float = Query(..., ge=inf.MIN_LAT, le=inf.MAX_LAT),
+    longitude: float = Query(..., ge=inf.MIN_LON, le=inf.MAX_LON),
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     reference_date: Optional[str] = None,

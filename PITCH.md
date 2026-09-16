@@ -53,13 +53,12 @@ Kyogre acts as a **virtual CTD sensor drop** anywhere in the North Indian Ocean.
 * **PAVA Isotonic Regression Safety-Net**: Enforces thermodynamic non-increasing stability ($T(z_i) \ge T(z_{i+1})$) across the upper mixed layer ($\le 100\text{m}$) using the Pool Adjacent Violators Algorithm, while strictly leaving depths $> 100\text{m}$ unconstrained to preserve real physical subsurface thermal inversions (e.g., warm Red Sea Outflow Water). An opt-in raw output toggle (`?raw=true`) allows technical users to bypass this smoothing pass and inspect unsmoothed neural network output.
 
 ### 4.3 Rigorous In-Situ ARGO Float Validation & Skill Score
-Validated against **41 independent in-situ ARGO profiling floats** (615 depth observation points) distributed across the Arabian Sea, Bay of Bengal, Equatorial Indian Ocean, and Andaman Sea:
-* **Overall Benchmark Skill Score**: **$+45.9\%$ improvement over climatology** ($SS = 1 - \frac{\text{RMSE}_{\text{model}}^2}{\text{RMSE}_{\text{climatology}}^2}$) (vs monthly climatology baseline, n=41 Argo profiles).
-* **Basin-Wide Performance** (vs monthly climatology baseline, n=41 Argo profiles):
-  * **Bay of Bengal**: **$+57.0\%$ Skill** ($\text{RMSE}_{\text{model}} = 1.07^\circ\text{C}$ vs. $\text{RMSE}_{\text{clim}} = 1.64^\circ\text{C}$, vs monthly climatology baseline, n=41 Argo profiles).
-  * **Arabian Sea**: **$+52.0\%$ Skill** ($\text{RMSE}_{\text{model}} = 1.11^\circ\text{C}$ vs. $\text{RMSE}_{\text{clim}} = 1.60^\circ\text{C}$, vs monthly climatology baseline, n=41 Argo profiles).
-  * **Equatorial Indian Ocean**: **$+34.8\%$ Skill** ($\text{RMSE}_{\text{model}} = 1.93^\circ\text{C}$ vs. $\text{RMSE}_{\text{clim}} = 2.39^\circ\text{C}$, vs monthly climatology baseline, n=41 Argo profiles).
-  * **Andaman Sea**: **$+19.9\%$ Skill** ($\text{RMSE}_{\text{model}} = 1.23^\circ\text{C}$ vs. $\text{RMSE}_{\text{clim}} = 1.37^\circ\text{C}$, vs monthly climatology baseline, n=41 Argo profiles).
+Validated against **41 independent in-situ ARGO profiling floats** (615 depth observation points) distributed across the Arabian Sea, Bay of Bengal, and Equatorial Indian Ocean:
+* **Overall Benchmark Skill Score**: **$+20.0\%$ improvement over monthly climatology** ($SS = 1 - \frac{\text{RMSE}_{\text{model}}^2}{\text{RMSE}_{\text{climatology}}^2}$, $\text{RMSE}_{\text{model}} = 0.75^\circ\text{C}$ vs. $\text{RMSE}_{\text{clim}} = 0.84^\circ\text{C}$, vs monthly climatology baseline, n=41 Argo profiles).
+* **Basin-Wide Performance** (vs monthly climatology baseline, sample size guard $n \ge 10$):
+  * **Arabian Sea**: **$+22.8\%$ Skill** ($\text{RMSE}_{\text{model}} = 0.74^\circ\text{C}$ vs. $\text{RMSE}_{\text{clim}} = 0.84^\circ\text{C}$, $n=15$ Argo profiles).
+  * **Bay of Bengal**: **$+18.6\%$ Skill** ($\text{RMSE}_{\text{model}} = 0.66^\circ\text{C}$ vs. $\text{RMSE}_{\text{clim}} = 0.73^\circ\text{C}$, $n=16$ Argo profiles).
+  * **Equatorial Indian Ocean**: **$+18.1\%$ Skill** ($\text{RMSE}_{\text{model}} = 0.90^\circ\text{C}$ vs. $\text{RMSE}_{\text{clim}} = 0.99^\circ\text{C}$, $n=10$ Argo profiles).
 * **Depth-Wise Accuracy** (vs monthly climatology baseline, n=41 Argo profiles):
   * Surface (0–10m): $\text{RMSE} \approx 1.12^\circ\text{C}\text{–}1.16^\circ\text{C}$ (**$>71\%$ Skill**, vs monthly climatology baseline, n=41 Argo profiles).
   * Intermediate & Deep Ocean (500–1000m): $\text{RMSE} \approx 0.61^\circ\text{C}\text{–}0.81^\circ\text{C}$ (vs monthly climatology baseline, n=41 Argo profiles).

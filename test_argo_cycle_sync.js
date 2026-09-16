@@ -238,7 +238,7 @@ const spotCheckFloats = [
   { wmo: 2901898, subRegion: 'Bay of Bengal / Equatorial' },
   { wmo: 2902852, subRegion: 'Equatorial Indian Ocean' },
   { wmo: 2902205, subRegion: 'Arabian Sea' },
-  { wmo: 2902282, subRegion: 'Andaman Sea' },
+  { wmo: 2902282, subRegion: 'Bay of Bengal' },
   { wmo: 6903060, subRegion: 'Arabian Sea' }
 ];
 

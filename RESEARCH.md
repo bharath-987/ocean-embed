@@ -605,10 +605,9 @@ Potential Fishing Zones (PFZ) in the North Indian Ocean are identified by matchi
 - **Observational Authenticity**: **100% Real In-Situ Data** (NOT synthetic or simulated). Each record contains actual physical measurements recorded by Sea-Bird / Teledyne Webb CTD profilers deployed by international oceanographic agencies (e.g. INCOIS India floats 2902205, 2902211, 2902283, Coriolis floats 6903060, CSIO floats 2902775), complete with DAC origin URLs and NetCDF source files (`ftp://ftp.ifremer.fr/ifremer/argo/dac/...`).
 - **Profile Volume & Geographic Distribution**:
   - **Total Profiles Cached**: 41 profiles
+  - **Bay of Bengal**: 16 profiles (includes reclassified profile 2902282 at 17.947°N 92.594°E)
   - **Arabian Sea**: 15 profiles
-  - **Bay of Bengal**: 15 profiles
   - **Equatorial Indian Ocean**: 10 profiles
-  - **Andaman Sea**: 1 profile
 - **Domain & Depth Alignment**:
   - **Temporal Range**: In-situ cycles within the model domain (2021–2023).
   - **Vertical Depth Interpolation**: ARGO CTD sensors record at continuous high-resolution pressure intervals (typically 80–1,000+ pressure levels from $\approx 1\text{–}4\text{ dbar}$ down to $1,500\text{–}2,000\text{ dbar}$). Measured profiles were quality-checked ($\text{depth}_{\min} \le 12\text{ m}, \text{depth}_{\max} \ge 700\text{ m}$) and projected onto the model's 15 standard ocean depths (`[0, 5, 10, 20, 30, 50, 75, 100, 125, 150, 200, 300, 500, 700, 1000]`) via piecewise linear interpolation, extending the isothermal mixed layer to surface ($0\text{ m}$).
@@ -633,7 +632,7 @@ Potential Fishing Zones (PFZ) in the North Indian Ocean are identified by matchi
 - **Frontend Architecture (`argo.html` & `argo.js`)**:
   - Reuses Kyogre light theme palette (Royal Blue `#2563EB`, Ice Blue `#EFF6FF`, Slate `#1E293B`).
   - Top 4 stat cards displaying basin-wide aggregate benchmarks.
-  - Interactive MapLibre GL 4.7.1 map rendering 41 color-coded float markers with subregion filtering (`All`, `Arabian Sea`, `Bay of Bengal`, `Equatorial IO`, `Andaman Sea`).
+  - Interactive MapLibre GL 4.7.1 map rendering 41 color-coded float markers with subregion filtering (`All`, `Arabian Sea`, `Bay of Bengal`, `Equatorial Indian Ocean`).
   - Interactive preview popup on marker hover showing AI vs ARGO SST and delta.
   - Comparison drawer with Table/Graph toggle:
     - **Table**: 4-column layout (`Depth`, `AI Model`, `ARGO Float`, `Δ Difference`) with color badges (green $\le 0.5^\circ\text{C}$, amber $\le 1.0^\circ\text{C}$, red $> 1.0^\circ\text{C}$).
@@ -1801,13 +1800,42 @@ Re-evaluating the full 41-profile ARGO observational benchmark with `compute_ski
 | **Mean Thermal Bias** | $-0.82^\circ\text{C}$ (cold bias) | **$+0.12^\circ\text{C}$** | Near-zero systematic bias |
 | **Pearson Profile Coherence ($r$)** | $0.987$ | **$0.995$** | Exceptional vertical fidelity |
 
-#### Sub-basin Performance Breakdown
-- **Bay of Bengal ($n=15$)**: Model RMSE **$0.65^\circ\text{C}$** vs Climatology $0.73^\circ\text{C}$ ($SS = +21.9\%$)
+#### Sub-basin Performance Breakdown (with MIN_BASIN_SAMPLE_SIZE >= 10 Guard)
+- **Bay of Bengal ($n=16$)**: Model RMSE **$0.66^\circ\text{C}$** vs Climatology $0.73^\circ\text{C}$ ($SS = +18.6\%$)
 - **Arabian Sea ($n=15$)**: Model RMSE **$0.74^\circ\text{C}$** vs Climatology $0.84^\circ\text{C}$ ($SS = +22.8\%$)
 - **Equatorial Indian Ocean ($n=10$)**: Model RMSE **$0.90^\circ\text{C}$** vs Climatology $0.99^\circ\text{C}$ ($SS = +18.1\%$)
-- **Andaman Sea ($n=1$)**: Model RMSE **$0.85^\circ\text{C}$** vs Climatology $0.74^\circ\text{C}$ ($SS = -30.0\%$)
+- *Note*: Profile `2902282_126` (at 17.947°N 92.594°E) was corrected from "Andaman Sea" to "Bay of Bengal" ($n=16$). Under the `MIN_BASIN_SAMPLE_SIZE = 10` safeguard, any sub-basin with $< 10$ profiles is excluded from comparative headline reporting.
 
 ### 19.3 Continuous Date Ingestion & Memory Footprint
 - **Dataset Dimensions**: $1,095$ days $\times 15$ depths $\times 101$ latitudes $\times 241$ longitudes.
 - **Dtype**: NumPy `float16` with memory-mapped read (`mmap_mode="r"`).
 - **Disk Savings**: Replaced 6.54 GB of float32 arrays with 1.14 GB of float16 arrays, saving **~5.4 GB** of disk space while expanding continuous temporal coverage to every date in 2021, 2022, and 2023.
+
+---
+
+## 20. Inference Caching, Concurrency Synchronization & Resiliency Architecture
+
+### 20.1 Cache Isolation Against In-Place Mutation (Raw vs Smoothed Parity)
+- **Problem**: In multi-task pipelines where neural network outputs are consumed both raw (for validation, profiling, and raw toggle) and post-processed (with SST skin delta blending, PAVA isotonic regression, and land mask zeroing), sharing NumPy array references in caching dictionaries leads to silent data pollution. A raw query executing after a spatial raster request would receive modified surface and subsurface values.
+- **Solution**: Decoupled caching using explicit array copies (`.copy()`). In `api_server.py:get_spatial_predictions`, the raw model prediction returned from `inference.py` is immediately copied into `out_spatial = prediction_real.copy()`. All surface delta blending, upper-100m PAVA monotonicity adjustments, and land cell zeroing operate exclusively on `out_spatial`. The pristine array stored in `inf._prediction_cache[date_str]` remains untouched, ensuring bit-for-bit identity between fresh raw inference and cached raw inference.
+
+### 20.2 Thread-Safe Cache Eviction Under FastAPI AnyIO Threadpools
+- **Concurrency Architecture**: FastAPI dispatches standard synchronous route handlers (`def ...`) into background worker threads within an AnyIO threadpool. High request concurrency against shared in-memory dictionaries (`_prediction_cache`, `_spatial_prediction_cache`, `_confidence_grid_cache`, `_pfz_grid_cache`) creates race conditions during dictionary mutations and LRU evictions (`popitem()` or `pop(next(iter(...)))`), resulting in `RuntimeError: dictionary changed size during iteration`.
+- **Locking Pattern**: Protected all in-memory LRU cache dictionaries with dedicated `threading.Lock()` instances (`_prediction_cache_lock`, `_spatial_prediction_cache_lock`, etc.). Both cache lookup, insertion, and eviction operations are enclosed in synchronized contexts (`with lock:`), preventing thread collision while keeping lock duration minimal (< 0.1 ms).
+
+### 20.3 Dynamic Dataset Timeline Adaptation (Trimmed vs Full Float16)
+- **Dual-Mode Resiliency**: Downstream modules like `marine_ecology.py` dynamically determine timeline lengths via `_get_timeline()` by inspecting `inf._sst_arr.shape[0]` and mapping through `inf._day_index_map` when in trimmed mode. This prevents fixed 1,095-day array slice crashes when running in lightweight demo or testing modes.
+
+---
+
+## 21. Decommissioning & Removal of Prediction Confidence Heuristic Layer
+
+### 21.1 Oceanographic & Architectural Rationale
+- **Heuristic Limitations**: The previous "Prediction Confidence" score was derived as an empirical proxy combining nearest ARGO float distance and temporal weighting. In open-ocean operational settings where in-situ floats are sparse or drifting, users and stakeholders expect empirical scientific validation (e.g. Murphy Skill Scores against climatology) rather than speculative synthetic confidence percentages.
+- **Simplification of User Experience**: Removing the confidence indicators stream-lined the dashboard:
+  - **Top Stat Cards**: Simplified from cluttered 3-line cards with confidence dots to clear, elegant metric displays with physical units and uncertainty bounds.
+  - **Temperature vs. Depth (TVD) Table**: Restored from 3 columns to an uncluttered 2-column format (`Depth (m)`, `Temperature (°C)`).
+  - **Ocean Parameters Grid**: Restored the clean 6-tile physical oceanographic raster grid (SST, SSH, SSS, SLA, Current, Wind).
+  - **Vertical Profile Chart**: Cleaned up the Chart.js visual representation by eliminating artificial shaded uncertainty bands.
+  - **Backend API**: Removed `/confidence-grid` and `/confidence-stats` endpoints, reducing compute overhead and memory allocations.
+

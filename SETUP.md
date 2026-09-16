@@ -51,6 +51,7 @@ No environment variables or API keys are required for default operation. All pat
 
 Optional environment variables:
 - `ENABLE_INFERENCE_CACHE`: (Default: `true`) Controls startup pre-warming and runtime in-memory LRU prediction caching. Set to `false` to disable caching and force live PyTorch CNN-LSTM inference on every request (ideal for profiling, benchmarking, and rigorous accuracy verification).
+- `MIN_BASIN_SAMPLE_SIZE`: (Default: `10`) Minimum sample size required per sub-basin for statistical reporting in ARGO skill evaluations.
 - `USE_FULL_FLOAT16_DATA`: (Default: `true` if `backend/data/float16/` exists) Toggle full 3-year (2021–2023) continuous float16 dataset mode vs trimmed mode.
 - `HF_DATASET_REPO_ID`: Target Hugging Face repository for automated remote array streaming fallback.
 - `HF_TOKEN`: Optional Hugging Face access token for private dataset repositories.

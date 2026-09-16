@@ -224,7 +224,6 @@ async function runTests() {
     { key: 'Arabian Sea', label: 'Arabian Sea', aliases: ['arabian', 'arabian sea', 'as'] },
     { key: 'Bay of Bengal', label: 'Bay of Bengal', aliases: ['bay of bengal', 'bay', 'bengal', 'bob'] },
     { key: 'Equatorial Indian Ocean', label: 'Equatorial Indian Ocean', aliases: ['equatorial', 'equator', 'equatorial indian ocean', 'eio'] },
-    { key: 'Andaman Sea', label: 'Andaman Sea', aliases: ['andaman', 'andaman sea'] },
     { key: 'all', label: 'All', aliases: ['all'] },
   ];
 
@@ -252,10 +251,12 @@ async function runTests() {
   // 5.1 Region queries
   const rArabian = testMatchRegion('Arabian Sea');
   assert(rArabian && rArabian.key === 'Arabian Sea', 'Search identifies "Arabian Sea" region');
-  const rAndaman = testMatchRegion('andaman');
-  assert(rAndaman && rAndaman.key === 'Andaman Sea', 'Search identifies "andaman" region');
+  const rBob = testMatchRegion('Bay of Bengal');
+  assert(rBob && rBob.key === 'Bay of Bengal', 'Search identifies "Bay of Bengal" region');
+  const bobFloats = argoProfilesData.filter(p => p.subRegion === 'Bay of Bengal');
+  assert(bobFloats.length === 16, 'Bay of Bengal region has 16 floats (15 original + 1 reclassified #2902282)');
   const andamanFloats = argoProfilesData.filter(p => p.subRegion === 'Andaman Sea');
-  assert(andamanFloats.length === 1, 'Andaman Sea region has exactly 1 float (#2902265)');
+  assert(andamanFloats.length === 0, 'Andaman Sea region has 0 floats (misclassified float moved to Bay of Bengal)');
 
   // 5.2 Float ID queries
   const fSingle = testMatchFloats('2902282');

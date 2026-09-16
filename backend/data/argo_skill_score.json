@@ -25,19 +25,21 @@
   },
   "basins": {
     "Bay of Bengal": {
-      "count": 15,
-      "totalPoints": 225,
+      "count": 16,
+      "totalPoints": 240,
+      "insufficientSample": false,
       "baselineType": "monthly climatology",
-      "baselineSampleSize": 15,
-      "baselineLabel": "vs monthly climatology baseline, n=15 Argo profiles",
-      "rmseModel": 0.65,
+      "baselineSampleSize": 16,
+      "baselineLabel": "vs monthly climatology baseline, n=16 Argo profiles",
+      "rmseModel": 0.66,
       "rmseClimatology": 0.73,
-      "skillScore": 0.219,
-      "skillScorePct": 21.9
+      "skillScore": 0.186,
+      "skillScorePct": 18.6
     },
     "Arabian Sea": {
       "count": 15,
       "totalPoints": 225,
+      "insufficientSample": false,
       "baselineType": "monthly climatology",
       "baselineSampleSize": 15,
       "baselineLabel": "vs monthly climatology baseline, n=15 Argo profiles",
@@ -49,6 +51,7 @@
     "Equatorial Indian Ocean": {
       "count": 10,
       "totalPoints": 150,
+      "insufficientSample": false,
       "baselineType": "monthly climatology",
       "baselineSampleSize": 10,
       "baselineLabel": "vs monthly climatology baseline, n=10 Argo profiles",
@@ -56,17 +59,6 @@
       "rmseClimatology": 0.99,
       "skillScore": 0.181,
       "skillScorePct": 18.1
-    },
-    "Andaman Sea": {
-      "count": 1,
-      "totalPoints": 15,
-      "baselineType": "monthly climatology",
-      "baselineSampleSize": 1,
-      "baselineLabel": "vs monthly climatology baseline, n=1 Argo profile",
-      "rmseModel": 0.85,
-      "rmseClimatology": 0.74,
-      "skillScore": -0.3,
-      "skillScorePct": -30.0
     }
   },
   "depths": [
@@ -363,7 +355,7 @@
       "latitude": 17.947,
       "longitude": 92.594,
       "date": "2021-02-14",
-      "subRegion": "Andaman Sea",
+      "subRegion": "Bay of Bengal",
       "rmseModel": 0.85,
       "rmseClimatology": 0.74,
       "skillScore": -0.3,

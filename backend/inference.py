@@ -256,8 +256,10 @@ _v_cur_anom = np.load(f"{DATA_DIR}/v_cur_anom.npy", mmap_mode="r")
 _u_wind_anom = np.load(f"{DATA_DIR}/u_wind_anom.npy", mmap_mode="r")
 _v_wind_anom = np.load(f"{DATA_DIR}/v_wind_anom.npy", mmap_mode="r")
 _temp_target_clim = np.load(f"{DATA_DIR}/temp_target_clim.npy", mmap_mode="r")
+import threading
 from collections import OrderedDict
 _prediction_cache: OrderedDict[str, np.ndarray] = OrderedDict()
+_prediction_cache_lock = threading.Lock()
 _MAX_PREDICTION_CACHE_SIZE = 4
 
 
@@ -394,10 +396,13 @@ def predict_temperature_profile(latitude: float, longitude: float, date_str: str
         return {"error": "no satellite data available for this location/date (likely land or data gap)"}
 
     use_cache = is_inference_cache_enabled()
-    if use_cache and (date_str in _prediction_cache):
-        prediction_real = _prediction_cache[date_str]
-        _prediction_cache.move_to_end(date_str)
-    else:
+    prediction_real = None
+    if use_cache:
+        with _prediction_cache_lock:
+            if date_str in _prediction_cache:
+                prediction_real = _prediction_cache[date_str].copy()
+                _prediction_cache.move_to_end(date_str)
+    if prediction_real is None:
         surface_channels = np.stack([
             _sst_anom[start:end], _sss_anom[start:end], _ssh_anom[start:end],
             _u_cur_anom[start:end], _v_cur_anom[start:end],
@@ -433,9 +438,10 @@ def predict_temperature_profile(latitude: float, longitude: float, date_str: str
         del clim_at_day
 
         if use_cache:
-            _prediction_cache[date_str] = prediction_real
-            if len(_prediction_cache) > _MAX_PREDICTION_CACHE_SIZE:
-                _prediction_cache.popitem(last=False)
+            with _prediction_cache_lock:
+                _prediction_cache[date_str] = prediction_real.copy()
+                if len(_prediction_cache) > _MAX_PREDICTION_CACHE_SIZE:
+                    _prediction_cache.popitem(last=False)
 
     profile = prediction_real[:, lat_idx, lon_idx].copy()
     raw_m0 = float(profile[0])

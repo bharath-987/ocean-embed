@@ -974,40 +974,6 @@ body.kyogre-page {
   white-space: normal;
 }
 
-/* Metric Card Confidence Indicator */
-.ky-stat-card__confidence {
-  font-size: 11px;
-  color: #64748B;
-  margin-top: 3px;
-  font-weight: 500;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.ky-stat-card__confidence-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  display: inline-block;
-}
-
-.ky-stat-card__confidence-dot--high {
-  background: #16A34A;
-}
-
-.ky-stat-card__confidence-dot--moderate {
-  background: #D97706;
-}
-
-.ky-stat-card__confidence-dot--low {
-  background: #DC2626;
-}
-
 .cast-error-msg {
   display: flex;
   flex-direction: column;
@@ -1898,53 +1864,6 @@ body.kyogre-page {
   background: #EFF6FF !important;
   color: #1D4ED8 !important;
   font-weight: 700 !important;
-}
-
-/* TVD Table Confidence Column */
-.ky-tvd-conf-cell {
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
-  vertical-align: middle;
-  line-height: 1;
-  width: 100%;
-}
-
-.ky-tvd-conf-bar-bg {
-  flex: 1;
-  height: 5px;
-  min-width: 36px;
-  max-width: 52px;
-  background: #E2E8F0;
-  border-radius: 9999px;
-  overflow: hidden;
-}
-
-.ky-tvd-conf-bar-fill {
-  height: 100%;
-  border-radius: 9999px;
-  transition: width 0.25s ease;
-}
-
-.ky-tvd-conf-bar-fill--high {
-  background: #16A34A;
-}
-
-.ky-tvd-conf-bar-fill--moderate {
-  background: #D97706;
-}
-
-.ky-tvd-conf-bar-fill--low {
-  background: #DC2626;
-}
-
-.ky-tvd-conf-pct {
-  font-size: 11px;
-  font-weight: 600;
-  color: #475569;
-  min-width: 26px;
-  text-align: right;
 }
 
 /* Empty placeholder state for TVD panel */
@@ -4025,7 +3944,7 @@ body.ky-argo-body-theme {
 
 .ky-argo-basin-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 10px;
 }
 
@@ -4044,6 +3963,12 @@ body.ky-argo-body-theme {
   border-color: #CBD5E1;
 }
 
+.ky-argo-basin-card--insufficient {
+  background: #F8FAFC;
+  border-color: #E2E8F0;
+  opacity: 0.75;
+}
+
 .ky-argo-basin-name {
   font-size: 12px;
   font-weight: 600;
@@ -4055,6 +3980,11 @@ body.ky-argo-body-theme {
   font-weight: 700;
   color: #059669;
   line-height: 1.1;
+}
+
+.ky-argo-basin-skill--insufficient {
+  color: #94A3B8;
+  font-size: 16px;
 }
 
 .ky-argo-basin-meta {

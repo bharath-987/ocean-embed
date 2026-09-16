@@ -656,7 +656,7 @@
       "longitude": 92.594,
       "date": "2021-02-14",
       "timestamp": "2021-02-14T14:05:59.999Z",
-      "subRegion": "Andaman Sea",
+      "subRegion": "Bay of Bengal",
       "dac": "INCOIS (India)",
       "sourceNetCdf": "ftp://ftp.ifremer.fr/ifremer/argo/dac/incois/2902282/profiles/D2902282_126.nc",
       "rawMeasurementsCount": 99,

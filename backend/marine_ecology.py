@@ -33,10 +33,21 @@ def _load_climatology():
         _pct90_clim = _clim_data['pct90_sst']  # (12, 101, 241)
     return _mean_clim, _pct90_clim
 
-# Full 3-year baseline date range
-_DATES_3YR = pd.date_range('2021-01-01', periods=1095, freq='D')
-_DATES_STR = [_d.strftime('%Y-%m-%d') for _d in _DATES_3YR]
-_DATE_TO_IDX = {d_str: i for i, d_str in enumerate(_DATES_STR)}
+def _get_timeline():
+    """
+    Returns (dates_arr, dates_str, date_to_idx) dynamically adapting to
+    either full 1095-day float16 dataset or trimmed 343-day dataset.
+    """
+    total_days = int(inf._sst_arr.shape[0])
+    if inf.USE_TRIMMED_DATA and inf._day_index_map is not None:
+        ordered_orig_indices = [orig for orig, trim in sorted(inf._day_index_map.items(), key=lambda x: x[1])]
+        dates = [pd.Timestamp(inf.DATASET_START_DATE) + pd.Timedelta(days=int(i)) for i in ordered_orig_indices[:total_days]]
+    else:
+        dates = list(pd.date_range(inf.DATASET_START_DATE, periods=total_days, freq='D'))
+    dates_str = [d.strftime('%Y-%m-%d') for d in dates]
+    date_to_idx = {d_str: i for i, d_str in enumerate(dates_str)}
+    return dates, dates_str, date_to_idx
+
 
 CATEGORY_LABELS = {
     1: "Category I (Moderate)",
@@ -62,35 +73,56 @@ def detect_marine_heatwaves(
        Category = min(4, max(1, floor(M)))
     """
     mean_clim, pct90_clim = _load_climatology()
-    
+
     # 1. Coordinate lookup and validation
+    if not (inf.MIN_LAT <= latitude <= inf.MAX_LAT and inf.MIN_LON <= longitude <= inf.MAX_LON):
+        return {
+            "error": f"Coordinates out of bounds ({latitude}, {longitude}). Latitude must be between {inf.MIN_LAT} and {inf.MAX_LAT}, longitude between {inf.MIN_LON} and {inf.MAX_LON}.",
+            "location": {"lat": round(latitude, 4), "lon": round(longitude, 4)},
+            "events": [],
+            "current_status": {
+                "in_heatwave": False,
+                "category": None,
+                "category_label": None,
+                "days_elapsed": None,
+                "event": None
+            },
+            "climatology_method": "Monthly 90th percentile SST baseline computed from CNN-LSTM reconstructed SST fields.",
+            "sst_timeseries": []
+        }
+
     lat_idx = int(np.argmin(np.abs(inf._target_lats - latitude)))
     lon_idx = int(np.argmin(np.abs(inf._target_lons - longitude)))
     grid_lat = float(inf._target_lats[lat_idx])
     grid_lon = float(inf._target_lons[lon_idx])
-    
+
+    dates_arr, dates_str, date_to_idx = _get_timeline()
+    num_days = len(dates_str)
+    min_date = dates_str[0]
+    max_date = dates_str[-1]
+
     # 2. Date normalization and clamping
-    if not start_date or start_date < '2021-01-01':
-        start_date = '2021-01-01'
-    if not end_date or end_date > '2023-12-31':
-        end_date = '2023-12-31'
+    if not start_date or start_date < min_date:
+        start_date = min_date
+    if not end_date or end_date > max_date:
+        end_date = max_date
     if start_date > end_date:
         start_date, end_date = end_date, start_date
-        
+
     if not reference_date:
         reference_date = end_date
-    elif reference_date < '2021-01-01':
-        reference_date = '2021-01-01'
-    elif reference_date > '2023-12-31':
-        reference_date = '2023-12-31'
-        
+    elif reference_date < min_date:
+        reference_date = min_date
+    elif reference_date > max_date:
+        reference_date = max_date
+
     # Slicing index bounds
-    start_idx = _DATE_TO_IDX.get(start_date, 0)
-    end_idx = _DATE_TO_IDX.get(end_date, len(_DATES_STR) - 1)
-    
-    # 3. Extract SST time series across full 3-year baseline (1,095 days)
-    sst_full = inf._sst_arr[0:len(_DATES_STR), lat_idx, lon_idx]
-    
+    start_idx = date_to_idx.get(start_date, 0)
+    end_idx = date_to_idx.get(end_date, num_days - 1)
+
+    # 3. Extract SST time series across available baseline (num_days)
+    sst_full = inf._sst_arr[0:num_days, lat_idx, lon_idx]
+
     # Land check: if raw SST is masked / invalid (< 0.5°C) across the entire record
     if np.all(sst_full < 0.5):
         return {
@@ -104,18 +136,18 @@ def detect_marine_heatwaves(
                 "days_elapsed": None,
                 "event": None
             },
-            "climatology_method": "Monthly 90th percentile SST baseline computed from 2021-2023 CNN-LSTM reconstructed SST fields (1,095 days).",
+            "climatology_method": "Monthly 90th percentile SST baseline computed from CNN-LSTM reconstructed SST fields.",
             "sst_timeseries": []
         }
-        
+
     full_timeseries = []
     exceed_flags = []
-    
-    for global_idx in range(len(_DATES_STR)):
-        dt = _DATES_3YR[global_idx]
+
+    for global_idx in range(num_days):
+        dt = dates_arr[global_idx]
         month_idx = dt.month - 1
-        d_str = _DATES_STR[global_idx]
-        
+        d_str = dates_str[global_idx]
+
         sst_val = float(sst_full[global_idx])
         m_val = float(mean_clim[month_idx, lat_idx, lon_idx])
         p_val = float(pct90_clim[month_idx, lat_idx, lon_idx])

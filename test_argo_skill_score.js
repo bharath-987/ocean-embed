@@ -63,17 +63,19 @@ async function runTests() {
     const calcSkill = 1.0 - (Math.pow(ov.rmseModel, 2) / Math.pow(ov.rmseClimatology, 2));
     assert(Math.abs(calcSkill - ov.skillScore) < 0.02, 'Overall skill score satisfies SS = 1 - (RMSE_model^2 / RMSE_clim^2)');
 
-    // 4 Ocean Basins — V6 computed values from compute_skill_score.py
-    assert(data.basins && Object.keys(data.basins).length === 4, 'Basins breakdown covers exactly 4 sub-basins');
+    // 3 Valid Ocean Basins — V6 computed values from compute_skill_score.py (Andaman Sea dropped due to n=0 / sample guard)
+    assert(data.basins && Object.keys(data.basins).length === 3, 'Basins breakdown covers exactly 3 valid sub-basins (n >= 10)');
     const bob = data.basins['Bay of Bengal'];
     const as = data.basins['Arabian Sea'];
     const eio = data.basins['Equatorial Indian Ocean'];
-    const andaman = data.basins['Andaman Sea'];
 
-    assert(bob && bob.count === 15 && bob.skillScorePct === 21.9, 'Bay of Bengal: 15 floats, +21.9% skill (V6 computed)');
+    assert(bob && bob.count === 16 && bob.skillScorePct === 18.6, 'Bay of Bengal: 16 floats, +18.6% skill (V6 computed)');
+    assert(bob.insufficientSample === false, 'Bay of Bengal satisfies MIN_BASIN_SAMPLE_SIZE guard');
     assert(as && as.count === 15 && as.skillScorePct === 22.8, 'Arabian Sea: 15 floats, +22.8% skill (V6 computed)');
+    assert(as.insufficientSample === false, 'Arabian Sea satisfies MIN_BASIN_SAMPLE_SIZE guard');
     assert(eio && eio.count === 10 && eio.skillScorePct === 18.1, 'Equatorial Indian Ocean: 10 floats, +18.1% skill (V6 computed)');
-    assert(andaman && andaman.count === 1 && andaman.skillScorePct === -30.0, 'Andaman Sea: 1 float, -30.0% skill (V6 computed)');
+    assert(eio.insufficientSample === false, 'Equatorial Indian Ocean satisfies MIN_BASIN_SAMPLE_SIZE guard');
+    assert(!data.basins['Andaman Sea'], 'Andaman Sea is excluded from active basin cards');
 
     // 15 Standard Depths
     assert(Array.isArray(data.depths) && data.depths.length === 15, 'Depths breakdown covers all 15 standard depths');
@@ -121,7 +123,7 @@ async function runTests() {
   assert(html.includes('id="basin-skill-bob"'), 'Bay of Bengal skill element #basin-skill-bob present');
   assert(html.includes('id="basin-skill-as"'), 'Arabian Sea skill element #basin-skill-as present');
   assert(html.includes('id="basin-skill-eio"'), 'Equatorial Indian Ocean skill element #basin-skill-eio present');
-  assert(html.includes('id="basin-skill-andaman"'), 'Andaman Sea skill element #basin-skill-andaman present');
+  assert(!html.includes('id="basin-skill-andaman"'), 'CRITICAL: Standalone Andaman Sea skill element #basin-skill-andaman removed');
   assert(html.includes('id="argo-skill-chart"'), 'Chart.js canvas element #argo-skill-chart present');
   assert(html.includes('ky-skill-note-tag--pos'), 'Positive skill note tag present');
   assert(html.includes('ky-skill-note-tag--warn'), 'Thermocline warning note tag present');

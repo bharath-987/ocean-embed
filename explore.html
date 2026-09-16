@@ -155,7 +155,6 @@
                 </div>
               </div>
               <div class="ky-stat-card__val" id="stat-mld-val">—</div>
-              <div class="ky-stat-card__confidence" id="stat-mld-confidence" title="Reflects historical model accuracy (RMSE) at depths 0–50 m, validated against 41 ARGO float profiles (vs monthly climatology baseline, n=41 Argo profiles) — scaled by proximity to the nearest ARGO float. Not a per-prediction uncertainty estimate."></div>
             </div>
           </div>
 
@@ -174,7 +173,6 @@
                 </div>
               </div>
               <div class="ky-stat-card__val" id="stat-ohc-val">—</div>
-              <div class="ky-stat-card__confidence" id="stat-ohc-confidence" title="Reflects historical model accuracy (RMSE) at depths 0–300 m, validated against 41 ARGO float profiles (vs monthly climatology baseline, n=41 Argo profiles) — scaled by proximity to the nearest ARGO float. Not a per-prediction uncertainty estimate."></div>
             </div>
           </div>
 
@@ -194,7 +192,6 @@
                 </div>
               </div>
               <div class="ky-stat-card__val" id="stat-svad-val">—</div>
-              <div class="ky-stat-card__confidence" id="stat-svad-confidence" title="Reflects historical model accuracy (RMSE) at the depth nearest to the computed sonic layer — validated against 41 ARGO float profiles (vs monthly climatology baseline, n=41 Argo profiles), scaled by ARGO proximity. Not a per-prediction uncertainty estimate."></div>
               <div class="ky-stat-card__sub" id="stat-svad-sub" style="display: none;"></div>
             </div>
           </div>
@@ -214,7 +211,6 @@
                 </div>
               </div>
               <div class="ky-stat-card__val" id="stat-d20-val">—</div>
-              <div class="ky-stat-card__confidence" id="stat-d20-confidence" title="Reflects historical model accuracy (RMSE) at the depth nearest to the 20°C isotherm — validated against 41 ARGO float profiles (vs monthly climatology baseline, n=41 Argo profiles), scaled by ARGO proximity. Not a per-prediction uncertainty estimate."></div>
             </div>
           </div>
         </div>
@@ -445,27 +441,6 @@
                   </svg>
                 </button>
 
-                <!-- 7: Prediction Confidence -->
-                <button class="ky-param-tile ky-param-tile--wide" data-param="confidence" id="param-confidence">
-                  <div class="ky-param-tile__icon ky-param-tile__icon--shield">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                      <path d="m9 12 2 2 4-4"/>
-                    </svg>
-                  </div>
-                  <div class="ky-param-tile__body">
-                    <div class="ky-param-tile__name-row">
-                      <span class="ky-param-tile__name">Prediction Confidence</span>
-                      <span class="ky-provenance-pill ky-provenance-pill--heuristic" title="Confidence reflects distance and recency to the nearest of 41 validated ARGO float profiles (vs monthly climatology baseline, n=41 Argo profiles) — not a direct measure of prediction accuracy at this location.">Estimated Heuristic</span>
-                    </div>
-                    <div class="ky-param-tile__sub">ARGO Proximity &amp; Temporal Weighting</div>
-                    <div class="ky-param-tile__val" id="param-confidence-val">—</div>
-                  </div>
-                  <svg class="ky-param-tile__arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="9 18 15 12 9 6"/>
-                  </svg>
-                </button>
-
               </div>
             </div>
             <!-- end ocean params card -->
@@ -550,19 +525,17 @@
                   <canvas id="profile-chart" aria-label="Depth profile chart"></canvas>
                 </div>
 
-                <!-- TABLE view (3 columns: Depth, Temperature, Confidence — Hidden until location + date selected) -->
+                <!-- TABLE view (2 columns: Depth, Temperature — Hidden until location + date selected) -->
                 <div id="tvd-table-view" class="ky-tvd-table-wrap" style="display:none;">
                   <table class="ky-tvd-table">
                     <colgroup>
-                      <col style="width: 30%;">
-                      <col style="width: 35%;">
-                      <col style="width: 35%;">
+                      <col style="width: 50%;">
+                      <col style="width: 50%;">
                     </colgroup>
                     <thead>
                       <tr>
                         <th>Depth (m)</th>
                         <th>Temperature (°C)</th>
-                        <th title="Reflects historical model accuracy (RMSE) at this depth, validated against 41 ARGO float profiles (vs monthly climatology baseline, n=41 Argo profiles) — scaled by proximity to the nearest ARGO float in space and time. Not a per-prediction uncertainty estimate." style="cursor:help;">Confidence ⓘ</th>
                       </tr>
                     </thead>
                     <tbody id="tvd-table-body">

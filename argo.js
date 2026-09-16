@@ -29,7 +29,6 @@ const KNOWN_REGIONS = [
   { key: 'Arabian Sea', label: 'Arabian Sea', aliases: ['arabian', 'arabian sea', 'as'] },
   { key: 'Bay of Bengal', label: 'Bay of Bengal', aliases: ['bay of bengal', 'bay', 'bengal', 'bob'] },
   { key: 'Equatorial Indian Ocean', label: 'Equatorial Indian Ocean', aliases: ['equatorial', 'equator', 'equatorial indian ocean', 'eio'] },
-  { key: 'Andaman Sea', label: 'Andaman Sea', aliases: ['andaman', 'andaman sea'] },
   { key: 'all', label: 'All', aliases: ['all'] },
 ];
 
@@ -234,10 +233,9 @@ const DEFAULT_SKILL_DATA = {
     trimmedWindowLabel: "0.715 °C (trimmed demo-window subset, n=27 profiles, V6 vs V4=0.820 °C)",
   },
   basins: {
-    "Bay of Bengal": { count: 15, baselineType: "monthly climatology", baselineSampleSize: 15, baselineLabel: "vs monthly climatology baseline, n=15 Argo profiles", rmseModel: 0.65, rmseClimatology: 0.73, skillScore: 0.219, skillScorePct: 21.9 },
-    "Arabian Sea": { count: 15, baselineType: "monthly climatology", baselineSampleSize: 15, baselineLabel: "vs monthly climatology baseline, n=15 Argo profiles", rmseModel: 0.74, rmseClimatology: 0.84, skillScore: 0.228, skillScorePct: 22.8 },
-    "Equatorial Indian Ocean": { count: 10, baselineType: "monthly climatology", baselineSampleSize: 10, baselineLabel: "vs monthly climatology baseline, n=10 Argo profiles", rmseModel: 0.90, rmseClimatology: 0.99, skillScore: 0.181, skillScorePct: 18.1 },
-    "Andaman Sea": { count: 1, baselineType: "monthly climatology", baselineSampleSize: 1, baselineLabel: "vs monthly climatology baseline, n=1 Argo profile", rmseModel: 0.85, rmseClimatology: 0.74, skillScore: -0.300, skillScorePct: -30.0 }
+    "Bay of Bengal": { count: 16, baselineType: "monthly climatology", baselineSampleSize: 16, baselineLabel: "vs monthly climatology baseline, n=16 Argo profiles", rmseModel: 0.66, rmseClimatology: 0.73, skillScore: 0.186, skillScorePct: 18.6, insufficientSample: false },
+    "Arabian Sea": { count: 15, baselineType: "monthly climatology", baselineSampleSize: 15, baselineLabel: "vs monthly climatology baseline, n=15 Argo profiles", rmseModel: 0.74, rmseClimatology: 0.84, skillScore: 0.228, skillScorePct: 22.8, insufficientSample: false },
+    "Equatorial Indian Ocean": { count: 10, baselineType: "monthly climatology", baselineSampleSize: 10, baselineLabel: "vs monthly climatology baseline, n=10 Argo profiles", rmseModel: 0.90, rmseClimatology: 0.99, skillScore: 0.181, skillScorePct: 18.1, insufficientSample: false }
   },
   depths: [
     { depth: 0, baselineType: "monthly climatology", baselineSampleSize: 41, baselineLabel: "vs monthly climatology baseline, n=41 Argo profiles", rmseModel: 0.42, rmseClimatology: 0.60, skillScore: 0.491, skillScorePct: 49.1, isPositive: true, explanation: "Direct satellite SST anchor and upper ocean radiation forcing provide exceptional accuracy over climatology." },
@@ -293,35 +291,42 @@ async function loadSkillScoreStats() {
     const bob = data.basins['Bay of Bengal'];
     const as = data.basins['Arabian Sea'];
     const eio = data.basins['Equatorial Indian Ocean'];
-    const andaman = data.basins['Andaman Sea'];
 
     const bobEl = document.getElementById('basin-skill-bob');
     const asEl = document.getElementById('basin-skill-as');
     const eioEl = document.getElementById('basin-skill-eio');
-    const andamanEl = document.getElementById('basin-skill-andaman');
-
-    if (bob && bobEl) bobEl.textContent = `${bob.skillScorePct >= 0 ? '+' : ''}${bob.skillScorePct.toFixed(1)}%`;
-    if (as && asEl) asEl.textContent = `${as.skillScorePct >= 0 ? '+' : ''}${as.skillScorePct.toFixed(1)}%`;
-    if (eio && eioEl) eioEl.textContent = `${eio.skillScorePct >= 0 ? '+' : ''}${eio.skillScorePct.toFixed(1)}%`;
-    if (andaman && andamanEl) andamanEl.textContent = `${andaman.skillScorePct >= 0 ? '+' : ''}${andaman.skillScorePct.toFixed(1)}%`;
 
     const bobMetaEl = document.getElementById('basin-meta-bob');
     const asMetaEl = document.getElementById('basin-meta-as');
     const eioMetaEl = document.getElementById('basin-meta-eio');
-    const andamanMetaEl = document.getElementById('basin-meta-andaman');
 
-    if (bob && bobMetaEl && bob.rmseModel !== undefined && bob.rmseClimatology !== undefined) {
-      bobMetaEl.textContent = `Model ${bob.rmseModel.toFixed(2)}°C vs Clim ${bob.rmseClimatology.toFixed(2)}°C (vs monthly climatology baseline, n=${bob.count} Argo profiles)`;
-    }
-    if (as && asMetaEl && as.rmseModel !== undefined && as.rmseClimatology !== undefined) {
-      asMetaEl.textContent = `Model ${as.rmseModel.toFixed(2)}°C vs Clim ${as.rmseClimatology.toFixed(2)}°C (vs monthly climatology baseline, n=${as.count} Argo profiles)`;
-    }
-    if (eio && eioMetaEl && eio.rmseModel !== undefined && eio.rmseClimatology !== undefined) {
-      eioMetaEl.textContent = `Model ${eio.rmseModel.toFixed(2)}°C vs Clim ${eio.rmseClimatology.toFixed(2)}°C (vs monthly climatology baseline, n=${eio.count} Argo profiles)`;
-    }
-    if (andaman && andamanMetaEl && andaman.rmseModel !== undefined && andaman.rmseClimatology !== undefined) {
-      andamanMetaEl.textContent = `Model ${andaman.rmseModel.toFixed(2)}°C vs Clim ${andaman.rmseClimatology.toFixed(2)}°C (vs monthly climatology baseline, n=${andaman.count} Argo profile)`;
-    }
+    const updateBasinCard = (basinData, skillEl, metaEl) => {
+      if (!basinData || !skillEl) return;
+      const cardEl = skillEl.closest('.ky-argo-basin-card');
+      if (basinData.insufficientSample) {
+        skillEl.textContent = '—';
+        skillEl.classList.add('ky-argo-basin-skill--insufficient');
+        if (metaEl) {
+          metaEl.textContent = basinData.insufficientNote || `Insufficient data (n=${basinData.count}, minimum 10 required for basin-level reporting)`;
+        }
+        if (cardEl) {
+          cardEl.classList.add('ky-argo-basin-card--insufficient');
+        }
+      } else {
+        skillEl.textContent = `${basinData.skillScorePct >= 0 ? '+' : ''}${basinData.skillScorePct.toFixed(1)}%`;
+        skillEl.classList.remove('ky-argo-basin-skill--insufficient');
+        if (metaEl && basinData.rmseModel !== undefined && basinData.rmseClimatology !== undefined) {
+          metaEl.textContent = `Model ${basinData.rmseModel.toFixed(2)}°C vs Clim ${basinData.rmseClimatology.toFixed(2)}°C (vs monthly climatology baseline, n=${basinData.count} Argo profiles)`;
+        }
+        if (cardEl) {
+          cardEl.classList.remove('ky-argo-basin-card--insufficient');
+        }
+      }
+    };
+
+    updateBasinCard(bob, bobEl, bobMetaEl);
+    updateBasinCard(as, asEl, asMetaEl);
+    updateBasinCard(eio, eioEl, eioMetaEl);
   }
 
   // 3. Render Per-Depth Horizontal Bar Chart
@@ -1157,7 +1162,7 @@ function handleSearch() {
   const isNumericOnly = /^\d+$/.test(cleanQ) || rawQuery.trim().startsWith('#');
 
   if (!isNumericOnly && matchedRegion) {
-    // ── Mode A: Region Match (Arabian Sea, Bay of Bengal, Equatorial, Andaman) ──
+    // ── Mode A: Region Match (Arabian Sea, Bay of Bengal, Equatorial Indian Ocean) ──
     activeSearchIdQuery = '';
     const regionKey = matchedRegion.key;
 

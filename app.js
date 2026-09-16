@@ -75,76 +75,6 @@ if (typeof window !== 'undefined') {
   window.isDevModeEnabled = isDevModeEnabled;
 }
 
-/* ── ARGO Validation Confidence Benchmark (15 standard depths) ── */
-const ARGO_CONFIDENCE_BENCHMARK = [
-  { depth: 0, rmse: 0.87, confidence_pct: 75, confidence_label: 'Moderate' },
-  { depth: 5, rmse: 1.20, confidence_pct: 62, confidence_label: 'Moderate' },
-  { depth: 10, rmse: 1.24, confidence_pct: 60, confidence_label: 'Moderate' },
-  { depth: 20, rmse: 1.34, confidence_pct: 56, confidence_label: 'Low' },
-  { depth: 30, rmse: 1.37, confidence_pct: 55, confidence_label: 'Low' },
-  { depth: 50, rmse: 1.38, confidence_pct: 55, confidence_label: 'Low' },
-  { depth: 75, rmse: 1.49, confidence_pct: 50, confidence_label: 'Low' },
-  { depth: 100, rmse: 2.15, confidence_pct: 37, confidence_label: 'Low' },
-  { depth: 125, rmse: 1.89, confidence_pct: 42, confidence_label: 'Low' },
-  { depth: 150, rmse: 1.69, confidence_pct: 46, confidence_label: 'Low' },
-  { depth: 200, rmse: 1.42, confidence_pct: 53, confidence_label: 'Low' },
-  { depth: 300, rmse: 1.03, confidence_pct: 69, confidence_label: 'Moderate' },
-  { depth: 500, rmse: 0.61, confidence_pct: 86, confidence_label: 'High' },
-  { depth: 700, rmse: 0.64, confidence_pct: 84, confidence_label: 'Moderate' },
-  { depth: 1000, rmse: 0.81, confidence_pct: 78, confidence_label: 'Moderate' },
-];
-
-let globalConfidenceStats = ARGO_CONFIDENCE_BENCHMARK;
-let hasLoggedConfidenceStats = false;
-
-function logConfidenceStatsDev(stats) {
-  if (hasLoggedConfidenceStats) return;
-  if (isDevModeEnabled()) {
-    console.log('[Kyogre Dev] Per-Depth ARGO Validation RMSE & Confidence Benchmark:');
-    if (console.table) {
-      console.table(stats.map(s => ({
-        'Depth (m)': s.depth,
-        'RMSE (°C)': typeof s.rmse === 'number' ? s.rmse.toFixed(2) : s.rmse,
-        'Confidence (%)': `${s.confidence_pct}%`,
-        'Rating': s.confidence_label,
-      })));
-    } else {
-      console.log(stats);
-    }
-    hasLoggedConfidenceStats = true;
-  }
-}
-
-async function initConfidenceStats() {
-  if (typeof fetch !== 'undefined') {
-    try {
-      const res = await fetch(`${API_BASE}/confidence-stats`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.stats && Array.isArray(data.stats)) {
-          globalConfidenceStats = data.stats;
-        }
-      }
-    } catch (e) {
-      // offline / fallback
-    }
-  }
-  logConfidenceStatsDev(globalConfidenceStats);
-}
-
-// Log initial benchmark immediately if dev mode is enabled
-if (isDevModeEnabled()) {
-  logConfidenceStatsDev(globalConfidenceStats);
-}
-
-// Run async fetch on initialization
-if (typeof window !== 'undefined') {
-  window.initConfidenceStats = initConfidenceStats;
-  window.ARGO_CONFIDENCE_BENCHMARK = ARGO_CONFIDENCE_BENCHMARK;
-  initConfidenceStats();
-}
-
-
 /* ── Land/Sea Mask (High-Resolution Natural Earth 50m Coastline) ─────────────── */
 
 // In Node.js testing environments, load COASTLINE_RINGS if not globally defined
@@ -234,7 +164,7 @@ let clickMarker          = null;
 let profileChart         = null;
 let hasSelectedDate      = false;
 let selectedDepth        = null; // 0, 5, 10, ... 1000 or null
-let selectedParam        = null; // 'sst', 'ssh', 'sss', 'sla', 'current', 'wind', 'confidence' or null
+let selectedParam        = null; // 'sst', 'ssh', 'sss', 'sla', 'current', 'wind' or null
 let currentGridData      = null; // Last loaded 101x241 grid payload (includes .grid, .u, .v)
 let currentActiveCanvas  = null; // Active rendered 2D canvas element
 let lastValidationReport = null; // Latest marker-layer pixel & numeric validation result
@@ -1118,20 +1048,6 @@ function paramToColor(param, val) {
       { t: 1.00, r: 234, g: 88,  b: 12  }, // #EA580C
     ];
     return interpolateColorStops(stops, norm);
-  } else if (p === 'confidence') {
-    // Prediction Confidence: 30% to 95%+
-    // Red-Orange #DC2626 -> Flame #EA580C -> Warm Amber #F59E0B -> Emerald #10B981 -> Cyan #06B6D4 -> Royal Blue #1D4ED8
-    const minV = 30.0, maxV = 95.0;
-    const norm = Math.max(0, Math.min(1, (val - minV) / (maxV - minV)));
-    const stops = [
-      { t: 0.00, r: 220, g: 38,  b: 38  }, // #DC2626
-      { t: 0.20, r: 234, g: 88,  b: 12  }, // #EA580C
-      { t: 0.40, r: 245, g: 158, b: 11  }, // #F59E0B
-      { t: 0.65, r: 16,  g: 185, b: 129 }, // #10B981
-      { t: 0.82, r: 6,   g: 182, b: 212 }, // #06B6D4
-      { t: 1.00, r: 29,  g: 78,  b: 216 }, // #1D4ED8
-    ];
-    return interpolateColorStops(stops, norm);
   }
   return tempToColor(val, 0);
 }
@@ -1157,8 +1073,8 @@ function generateParamGridCanvas(gridData, param) {
       const val = row[sx];
       const idx = sy * srcW + sx;
       const isCoastLand = isLand(lat, lons[sx]);
-      // For SST and Confidence, check valid ocean values. For anomalies, check isLand.
-      if (!isCoastLand && (param === 'confidence' ? val >= 10 : (param !== 'sst' || val >= 0.5))) {
+      // For SST, check valid ocean values (val >= 0.5). For anomalies, check isLand.
+      if (!isCoastLand && (param !== 'sst' || val >= 0.5)) {
         isOceanSrc[idx] = 1;
         paramSrc[idx]   = val;
       } else {
@@ -1700,10 +1616,6 @@ function generateFallbackParamCanvas(param) {
         row.push(parseFloat(spd.toFixed(1)));
         uRow.push(parseFloat(u.toFixed(1)));
         vRow.push(parseFloat(v.toFixed(1)));
-      } else if (param === 'confidence') {
-        // Fallback confidence: ranges from 45% (remote) to 75% (central basin)
-        const val = 45.0 + Math.sin(latNorm * Math.PI) * Math.sin(lonNorm * Math.PI) * 30.0;
-        row.push(parseFloat(val.toFixed(1)));
       }
     }
     grid.push(row);
@@ -1811,7 +1723,7 @@ function checkAndRefreshHeatmap() {
   currentHeatmapTimeoutId = heatmapTimeoutId;
 
   if (selectedParam) {
-    // Render 2D Surface Ocean Parameter or Confidence Grid
+    // Render 2D Surface Ocean Parameter Grid
     const cfg = PARAM_CONFIG[selectedParam] || PARAM_CONFIG.sst;
     const legendTitle   = document.getElementById('map-legend-title');
     const legendBar     = document.getElementById('map-legend-bar');
@@ -1834,13 +1746,10 @@ function checkAndRefreshHeatmap() {
       }
     }
 
-    const isConfidence = (selectedParam === 'confidence');
-    const endpoint = isConfidence
-      ? `${API_BASE}/confidence-grid?date=${dateStr}&depth=0`
-      : `${API_BASE}/parameter-grid?param=${selectedParam}&date=${dateStr}`;
+    const endpoint = `${API_BASE}/parameter-grid?param=${selectedParam}&date=${dateStr}`;
 
     const startParamTime = Date.now();
-    console.log(`[OceanEmbed API] GET ${isConfidence ? '/confidence-grid' : '/parameter-grid'} started for param=${selectedParam}&date=${dateStr}`);
+    console.log(`[OceanEmbed API] GET /parameter-grid started for param=${selectedParam}&date=${dateStr}`);
 
     fetch(endpoint, {
       signal: heatmapController ? heatmapController.signal : undefined
@@ -1854,7 +1763,7 @@ function checkAndRefreshHeatmap() {
         if (heatmapTimeoutId) clearTimeout(heatmapTimeoutId);
         if (reqId !== currentHeatmapRequestId) return;
         const elapsed = Date.now() - startParamTime;
-        console.log(`[OceanEmbed API] GET ${isConfidence ? '/confidence-grid' : '/parameter-grid'} succeeded in ${elapsed}ms (${(elapsed / 1000).toFixed(2)}s)`);
+        console.log(`[OceanEmbed API] GET /parameter-grid succeeded in ${elapsed}ms (${(elapsed / 1000).toFixed(2)}s)`);
         currentGridData = data;
         const url = generateParamGridCanvas(data, selectedParam);
         updateHeatmapOverlay(url);
@@ -1863,14 +1772,14 @@ function checkAndRefreshHeatmap() {
         } else {
           ParticleFlowEngine.stop();
         }
-        updateArgoFloatLayerVisibility(selectedParam === 'confidence');
+        updateArgoFloatLayerVisibility(false);
         validateLayerMarkerSync();
       })
       .catch(err => {
         if (heatmapTimeoutId) clearTimeout(heatmapTimeoutId);
         if (reqId !== currentHeatmapRequestId) return;
         const elapsed = Date.now() - startParamTime;
-        console.error(`[OceanEmbed API] GET ${isConfidence ? '/confidence-grid' : '/parameter-grid'} failed after ${elapsed}ms (${(elapsed / 1000).toFixed(2)}s):`, err.message || err);
+        console.error(`[OceanEmbed API] GET /parameter-grid failed after ${elapsed}ms (${(elapsed / 1000).toFixed(2)}s):`, err.message || err);
         if (isDevModeEnabled()) {
           console.warn('Real parameter grid backend unavailable, falling back:', err);
         }
@@ -1881,7 +1790,7 @@ function checkAndRefreshHeatmap() {
         } else {
           ParticleFlowEngine.stop();
         }
-        updateArgoFloatLayerVisibility(selectedParam === 'confidence');
+        updateArgoFloatLayerVisibility(false);
         validateLayerMarkerSync();
       });
   } else {
@@ -1933,7 +1842,7 @@ function checkAndRefreshHeatmap() {
   }
 }
 
-/* ── ARGO Float Marker Map Layer (for Confidence view) ───── */
+/* ── ARGO Float Marker Map Layer ─────────────────────────── */
 
 function initArgoFloatsLayer() {
   if (!map || map.getSource('argo-floats-source')) return;
@@ -2454,10 +2363,6 @@ function renderSurfaceInputs(inputs) {
       }
     }
   }
-  if (inputs.confidence !== undefined) {
-    const confVal = typeof inputs.confidence === 'object' ? inputs.confidence.val : inputs.confidence;
-    setVal('param-confidence-val', confVal, '%');
-  }
 }
 
 /* ── Stat Cards In-Flight Loading State ──────────────────── */
@@ -2478,18 +2383,11 @@ function setStatsLoading(isLoading) {
   if (isLoading) {
     const svadSubEl = document.getElementById('stat-svad-sub');
     if (svadSubEl) svadSubEl.style.display = 'none';
-    ['mld', 'ohc', 'svad', 'd20'].forEach(key => {
-      const conf = document.getElementById(`stat-${key}-confidence`);
-      if (conf) {
-        conf.textContent = '';
-        conf.style.display = 'none';
-      }
-    });
   }
 }
 
 function clearSurfaceInputs() {
-  ['param-sst-val', 'param-ssh-val', 'param-sss-val', 'param-sla-val', 'param-current-val', 'param-wind-val', 'param-confidence-val'].forEach(id => {
+  ['param-sst-val', 'param-ssh-val', 'param-sss-val', 'param-sla-val', 'param-current-val', 'param-wind-val'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.textContent = '—';
   });
@@ -2546,7 +2444,7 @@ if (typeof window !== 'undefined') {
 /* ── Update Stat Cards from cast result ──────────────────── */
 
 function updateStatCards(prediction) {
-  const { temps, depths: pDepths, surfaceInputs, validation, metrics_confidence, nearest_argo } = prediction;
+  const { temps, depths: pDepths, surfaceInputs, validation } = prediction;
   const depths = pDepths || DEPTHS;
 
   // 1: Mixed Layer Depth (MLD)
@@ -2662,80 +2560,9 @@ function updateStatCards(prediction) {
       d20El.title = '';
     }
   }
-
-  // ── Render Data-Driven Confidence Indicator on 4 Metric Cards ──
-  function renderCardConfidence(cardKey, metricConf) {
-    const confEl = document.getElementById(`stat-${cardKey}-confidence`);
-    if (!confEl) return;
-
-    if (metricConf && metricConf.confidence_pct !== undefined) {
-      const r = typeof metricConf.rmse === 'number' ? metricConf.rmse.toFixed(2) : metricConf.rmse;
-      const labelClass = (metricConf.confidence_label || 'Moderate').toLowerCase();
-      confEl.innerHTML = `<span class="ky-stat-card__confidence-dot ky-stat-card__confidence-dot--${labelClass}"></span><span>${metricConf.confidence_pct}% confidence</span>`;
-      if (nearest_argo && nearest_argo.distance_km !== undefined) {
-        confEl.title = `Nearest ARGO validation: ${nearest_argo.distance_km}km, ${nearest_argo.date} (Float #${nearest_argo.float_id}) · Proximity factor: ${nearest_argo.proximity_factor} (vs monthly climatology baseline, n=41 Argo profiles)`;
-      } else {
-        confEl.title = `Validation RMSE: ±${r}°C (vs monthly climatology baseline, n=41 Argo profiles) (${metricConf.confidence_label || 'Moderate'} confidence)`;
-      }
-      confEl.style.display = 'inline-flex';
-    } else {
-      confEl.textContent = '';
-      confEl.title = '';
-      confEl.style.display = 'none';
-    }
-  }
-
-  function calcFallbackConfidence(rmse) {
-    let pct = 50;
-    if (rmse <= 0.5) pct = 90.0 + (0.5 - rmse) * 16.0;
-    else if (rmse <= 1.0) pct = 70.0 + (1.0 - rmse) * 40.0;
-    else if (rmse <= 1.5) pct = 50.0 + (1.5 - rmse) * 40.0;
-    else pct = Math.max(30.0, 50.0 - (rmse - 1.5) * 20.0);
-    const pInt = Math.round(pct);
-    const lbl = pInt >= 85 ? 'High' : (pInt >= 60 ? 'Moderate' : 'Low');
-    return { rmse: parseFloat(rmse.toFixed(2)), confidence_pct: pInt, confidence_label: lbl };
-  }
-
-  // 1: MLD Confidence (depths 0-50m average)
-  let mldConf = metrics_confidence && metrics_confidence.mld;
-  if (!mldConf) {
-    const rel = globalConfidenceStats.filter(s => s.depth <= 50);
-    const avgR = rel.reduce((a, b) => a + b.rmse, 0) / (rel.length || 1);
-    mldConf = calcFallbackConfidence(avgR);
-  }
-  renderCardConfidence('mld', mldConf);
-
-  // 2: OHC300 Confidence (depths 0-300m average)
-  let ohcConf = metrics_confidence && (metrics_confidence.ohc || metrics_confidence.ohc300);
-  if (!ohcConf) {
-    const rel = globalConfidenceStats.filter(s => s.depth <= 300);
-    const avgR = rel.reduce((a, b) => a + b.rmse, 0) / (rel.length || 1);
-    ohcConf = calcFallbackConfidence(avgR);
-  }
-  renderCardConfidence('ohc', ohcConf);
-
-  // 3: Sound Velocity / Acoustic Shadow Depth Confidence (nearest to SLD)
-  let svadConf = metrics_confidence && metrics_confidence.svad;
-  if (!svadConf) {
-    const targetZ = svad !== null ? svad : 0;
-    const nearestZ = depths.reduce((p, c) => Math.abs(c - targetZ) < Math.abs(p - targetZ) ? c : p, depths[0]);
-    const item = globalConfidenceStats.find(s => s.depth === nearestZ) || globalConfidenceStats[0];
-    svadConf = item;
-  }
-  renderCardConfidence('svad', svadConf);
-
-  // 4: D20 Isotherm Depth Confidence (nearest to D20)
-  let d20Conf = metrics_confidence && metrics_confidence.d20;
-  if (!d20Conf) {
-    const targetZ = d20Isotherm !== null ? d20Isotherm : 100;
-    const nearestZ = depths.reduce((p, c) => Math.abs(c - targetZ) < Math.abs(p - targetZ) ? c : p, 100);
-    const item = globalConfidenceStats.find(s => s.depth === nearestZ) || globalConfidenceStats[7];
-    d20Conf = item;
-  }
-  renderCardConfidence('d20', d20Conf);
 }
 
-/* ── Depth-Temperature table renderer (3 columns: Depth, Temp, Confidence) ── */
+/* ── Depth-Temperature table renderer ── */
 
 function updateDepthTable(depths, temps, profile = null, nearestArgo = null) {
   const tbody = document.getElementById('tvd-table-body');
@@ -2748,32 +2575,7 @@ function updateDepthTable(depths, temps, profile = null, nearestArgo = null) {
       tr.className = 'ky-tvd-table-row--highlight';
     }
 
-    let conf = null;
-    if (profile && profile[i] && profile[i].confidence_pct !== undefined) {
-      conf = profile[i];
-    } else {
-      conf = globalConfidenceStats.find(s => s.depth === depth) || {
-        rmse: 1.0,
-        confidence_pct: 50,
-        confidence_label: 'Moderate',
-      };
-    }
-
-    const pct = conf.confidence_pct;
-    const label = conf.confidence_label || 'Moderate';
-    const labelClass = label.toLowerCase();
-    const rmseStr = typeof conf.rmse === 'number' ? conf.rmse.toFixed(2) : String(conf.rmse);
-
-    let cellTitle = `${label} Confidence (${pct}%) · RMSE ±${rmseStr}°C (vs monthly climatology baseline, n=41 Argo profiles)`;
-    const dist = conf.nearest_argo_distance_km !== undefined ? conf.nearest_argo_distance_km : (nearestArgo ? nearestArgo.distance_km : null);
-    const aDate = conf.nearest_argo_date || (nearestArgo ? nearestArgo.date : null);
-    const pFactor = conf.proximity_factor !== undefined ? conf.proximity_factor : (nearestArgo ? nearestArgo.proximity_factor : null);
-
-    if (dist !== null && aDate && pFactor !== null) {
-      cellTitle = `Validation RMSE: ±${rmseStr}°C (vs monthly climatology baseline, n=41 Argo profiles) · Nearest ARGO: ${dist}km (${aDate}) · Proximity: ${pFactor}`;
-    }
-
-    tr.innerHTML = `<td>${depth}</td><td>${temps[i].toFixed(1)}</td><td><div class="ky-tvd-conf-cell" title="${cellTitle}"><div class="ky-tvd-conf-bar-bg"><div class="ky-tvd-conf-bar-fill ky-tvd-conf-bar-fill--${labelClass}" style="width: ${pct}%;"></div></div><span class="ky-tvd-conf-pct">${pct}%</span></div></td>`;
+    tr.innerHTML = `<td>${depth}</td><td class="ky-tvd-val">${temps[i].toFixed(1)}</td>`;
     tr.style.cursor = 'pointer';
     tr.title = `Click to inspect depth ${depth} m`;
     tr.addEventListener('click', () => {
@@ -2885,13 +2687,6 @@ const PARAM_CONFIG = {
   sla:        { title: 'Sea Level Anomaly (m)',        ticks: ['-0.20', '-0.10', '0.00', '+0.10', '+0.20'], bar: 'linear-gradient(to right, #1E1B4B 0%, #4338CA 30%, #E0F2FE 50%, #EC4899 75%, #9D174D 100%)' },
   current:    { title: 'Surface Ocean Current (m/s)',  ticks: ['0.0', '0.5', '1.0', '1.5', '2.0+'], bar: 'linear-gradient(to right, #0F172A 0%, #0284C7 30%, #06B6D4 55%, #EAB308 80%, #E11D48 100%)' },
   wind:       { title: 'Surface Winds (m/s)',          ticks: ['0', '3', '6', '9', '12', '15+'], bar: 'linear-gradient(to right, #334155 0%, #475569 25%, #38BDF8 55%, #F59E0B 80%, #EA580C 100%)' },
-  confidence: {
-    title: 'Prediction Confidence (%)',
-    ticks: ['30%', '45%', '60%', '75%', '90%+'],
-    bar: 'linear-gradient(to right, #DC2626 0%, #EA580C 20%, #F59E0B 40%, #10B981 65%, #06B6D4 82%, #1D4ED8 100%)',
-    caption: 'Confidence reflects distance and recency to the nearest of 41 validated ARGO float profiles (vs monthly climatology baseline, n=41 Argo profiles) — not a direct measure of prediction accuracy at this location.',
-    provenance: 'ESTIMATED HEURISTIC'
-  },
 };
 
 document.querySelectorAll('.ky-param-tile').forEach(tile => {
@@ -3054,47 +2849,7 @@ function buildChart(prediction) {
     order: 1,
   };
 
-  // Extract per-depth RMSE from prediction.profile or fallback to globalConfidenceStats
-  let rmseList = null;
-  if (prediction.profile && Array.isArray(prediction.profile)) {
-    rmseList = prediction.profile.map(p => typeof p.rmse === 'number' ? p.rmse : 1.0);
-  } else if (globalConfidenceStats && Array.isArray(globalConfidenceStats)) {
-    rmseList = depths.map(d => {
-      const match = globalConfidenceStats.find(s => s.depth === d);
-      return match ? match.rmse : 1.0;
-    });
-  }
-
-  const datasets = [];
-
-  // Shaded confidence band (temperature ± per-depth RMSE) rendered behind the main line
-  if (rmseList && rmseList.length === n) {
-    datasets.push({
-      label: 'Confidence Upper',
-      data: temps.map((t, i) => ({ x: t + rmseList[i], y: depths[i] })),
-      parsing: false,
-      borderColor: 'transparent',
-      pointRadius: 0,
-      pointHoverRadius: 0,
-      fill: false,
-      tension: 0.35,
-      order: 3,
-    });
-    datasets.push({
-      label: 'Confidence Band (±RMSE)',
-      data: temps.map((t, i) => ({ x: Math.max(0, t - rmseList[i]), y: depths[i] })),
-      parsing: false,
-      borderColor: 'transparent',
-      backgroundColor: 'rgba(29, 100, 242, 0.12)',
-      pointRadius: 0,
-      pointHoverRadius: 0,
-      fill: '-1',
-      tension: 0.35,
-      order: 3,
-    });
-  }
-
-  datasets.push(mainDataset);
+  const datasets = [mainDataset];
 
   // Independent Argo in-situ float reference line
   if (argo) {
@@ -3153,9 +2908,6 @@ function buildChart(prediction) {
             boxWidth: 10,
             padding: 8,
             usePointStyle: true,
-            filter: function(item) {
-              return item.text !== 'Confidence Upper';
-            },
           },
         },
         tooltip: {
@@ -3172,12 +2924,6 @@ function buildChart(prediction) {
               return `Depth: ${depth} m`;
             },
             label: function(item) {
-              if (item.dataset.label === 'Confidence Upper') return null;
-              if (item.dataset.label === 'Confidence Band (±RMSE)') {
-                const idx = item.dataIndex;
-                const r = rmseList && rmseList[idx] !== undefined ? rmseList[idx] : null;
-                return r !== null ? `Confidence Band: ±${r.toFixed(2)} °C` : null;
-              }
               return `${item.dataset.label}: ${item.raw.x.toFixed(2)} °C`;
             },
           },
@@ -3517,27 +3263,12 @@ function renderPrediction(prediction, lat, lon, dateObj) {
 
   // Update Ocean Parameters tiles
   renderSurfaceInputs(prediction.surfaceInputs);
-  if (prediction.profile && prediction.profile[0] && prediction.profile[0].confidence_pct !== undefined) {
-    const confEl = document.getElementById('param-confidence-val');
-    if (confEl) confEl.textContent = `${prediction.profile[0].confidence_pct}%`;
-  }
 
   // Update Stat Cards (MLD, OHC, SVAD, D20 Isotherm)
   updateStatCards(prediction);
 
   // Update Depth-Temperature table
-  updateDepthTable(prediction.depths, prediction.temps, prediction.profile, prediction.nearest_argo);
-
-  // Dev mode console log for dynamic spatio-temporal confidence (including monsoon regime match)
-  if (typeof isDevModeEnabled === 'function' && isDevModeEnabled() && prediction.nearest_argo) {
-    const na = prediction.nearest_argo;
-    const dateStr = (dateObj instanceof Date && !isNaN(dateObj.getTime())) ? dateToISO(dateObj) : String(dateObj);
-    const regimeStatus = na.is_same_regime ? 'same-regime' : 'cross-regime';
-    const regimeDetail = `${regimeStatus} (${na.query_regime || 'query'} vs ${na.argo_regime || 'argo'}, weight: ${na.temporal_weight || 1.5}km/d)`;
-    console.log(
-      `[Confidence] Lat: ${lat.toFixed(3)}, Lon: ${lon.toFixed(3)}, Date: ${dateStr} -> Nearest ARGO Float #${na.float_id} (${na.distance_km}km, ${na.days_diff}d diff, score: ${na.combined_score}, ${regimeDetail}) -> Proximity factor: ${na.proximity_factor}`
-    );
-  }
+  updateDepthTable(prediction.depths, prediction.temps);
 
   // Render 15-Depth Profile Chart (Chart.js)
   buildChart(prediction);
@@ -3615,7 +3346,6 @@ function validateLayerMarkerSync() {
   else if (selectedParam === 'sla') cardElId = 'param-sla-val';
   else if (selectedParam === 'current') cardElId = 'param-current-val';
   else if (selectedParam === 'wind') cardElId = 'param-wind-val';
-  else if (selectedParam === 'confidence') cardElId = 'param-confidence-val';
   else if (selectedDepth !== null) {
     const row = document.querySelector(`.tvd-table tr[data-depth="${selectedDepth}"] .tvd-temp-cell`);
     if (row && row.textContent) {

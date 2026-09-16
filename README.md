@@ -47,6 +47,7 @@ The project includes four interactive web dashboard modules:
 The following environment variables are pre-configured in the `Dockerfile`:
 - `USE_FULL_FLOAT16_DATA=true`: Enables continuous daily float16 dataset access for 2021–2023.
 - `ENABLE_INFERENCE_CACHE=true`: (Optional, default `true`) Controls startup pre-warming and in-memory LRU prediction caching. Set to `false` to disable caching and force live full-model neural network inference on every request (useful during testing, profiling, and verification).
+- `MIN_BASIN_SAMPLE_SIZE=10`: (Optional, default `10`) Minimum sample size required per sub-basin before rendering headline comparative skill score metrics, safeguarding against small-sample distortion.
 - `HF_DATASET_REPO_ID="bharath-987/ocean-embed-data"`: Target Hugging Face dataset repository for automatic streaming fetch.
 - `PORT=7860`: Hugging Face Space HTTP port.
 
