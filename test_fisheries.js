@@ -30,6 +30,10 @@ const htmlPath = path.join(__dirname, 'fisheries.html');
 assert(fs.existsSync(htmlPath), 'fisheries.html must exist');
 const html = fs.readFileSync(htmlPath, 'utf-8');
 
+const cssPath = path.join(__dirname, 'style.css');
+assert(fs.existsSync(cssPath), 'style.css must exist');
+const css = fs.readFileSync(cssPath, 'utf-8');
+
 // 1. Branding & Strict "No OceanEmbed" check
 console.log('1. Verifying Branding...');
 assert(html.includes('Kyogre'), 'Brand must include Kyogre');
@@ -106,7 +110,9 @@ assert(html.includes('btn-zoom-out'), 'Zoom out button must exist');
 assert(!html.includes('ky-fisheries-map-disclaimer'), 'Duplicate map disclaimer line below map card must be removed');
 
 assert(html.includes('Chlorophyll-a Proxy (mg/m³)'), 'Legend title verified as Proxy');
-assert(html.includes('Illustrative seasonal pattern'), 'Legend subnote verified');
+assert(html.includes('Per-date surface proxy derived from upwelling'), 'Legend caption verified as per-date proxy');
+assert(!html.includes('Illustrative seasonal pattern'), 'Illustrative seasonal pattern subnote removed');
+assert(css.includes('.ky-fisheries-legend') && css.includes('width: 250px;'), 'Chlorophyll legend card must have width: 250px matching Dashboard SST legend');
 assert(html.includes('id="region-notice"'), 'Region notice must exist');
 assert(!html.includes('ky-compass-indicator'), 'North compass indicator must be removed from map');
 assert(!html.includes('ky-map-scale-bar'), 'Scale bar must be removed from map');
@@ -295,9 +301,6 @@ console.log('   ✓ Contradiction reconciliation verified: deep thermocline + hi
 
 // 12. Assertion: Stat Card Two-Row Header Layout
 console.log('12. Verifying Two-Row Stat Card Header Layout (fisheries.html & style.css)...');
-const cssPath = path.join(__dirname, 'style.css');
-assert(fs.existsSync(cssPath), 'style.css must exist');
-const css = fs.readFileSync(cssPath, 'utf-8');
 
 // Pill-row container in HTML (one per stat card = 4 total)
 const pillRowMatches = html.match(/class="ky-stat-card__pill-row"/g);
@@ -369,10 +372,12 @@ console.log('   ✓ Single source of truth verified: rendered profile values mat
 
 // 14. Assertion: Chlorophyll Reconciliation & Technical Disclaimers
 console.log('14. Verifying Chlorophyll Reconciliation & Technical Disclaimers...');
-assert(js.includes('This is a static illustrative visual layer independent of indices.nutrients/chla_val used in PFZ scoring - not the same data source.'),
-  'calculateChlaValue must contain the explicit comment distinguishing illustrative layer from PFZ scoring inputs');
-assert(html.includes('PFZ score chlorophyll input differs from the illustrative map layer shown'),
-  'fisheries.html disclaimer must clarify that PFZ score chlorophyll input differs from the illustrative map layer');
+assert(js.includes('renderChlaOverlayFromGrid'),
+  'fisheries.js must define renderChlaOverlayFromGrid for per-date chlorophyll overlay rendering');
+assert(!html.includes('PFZ score chlorophyll input differs from the illustrative map layer shown'),
+  'fisheries.html disclaimer must no longer claim that chlorophyll input differs from map layer');
+assert(html.includes("intended to support — not replace — field verification and INCOIS's operational PFZ advisories."),
+  'INCOIS operational advisory disclaimer must be preserved');
 
 const pyServerPath = path.join(__dirname, 'backend', 'api_server.py');
 assert(fs.existsSync(pyServerPath), 'backend/api_server.py must exist');
@@ -380,7 +385,7 @@ const pyServerCode = fs.readFileSync(pyServerPath, 'utf-8');
 assert(pyServerCode.includes("Scalar surface primary productivity proxy"), 'api_server.py must document surface chlorophyll-a proxy');
 assert(pyServerCode.includes("Deep Chlorophyll Maximum / DCM"), 'api_server.py must document DCM vertical nutrient profile relation to chla_val');
 assert(js.includes('Chlorophyll distinction (reconciled representations):'), 'fisheries.js must document distinction between surface scalar and DCM profile');
-console.log('   ✓ Chlorophyll quantities reconciled, documented (surface proxy vs DCM profile), and map layer independence noted.');
+console.log('   ✓ Chlorophyll quantities reconciled, documented (surface proxy vs DCM profile), and real per-date overlay verified.');
 
 // 15. Assertion: Jitter-Free Fish Marker Architecture & Pan/Zoom Sync
 console.log('15. Verifying Jitter-Free Fish Marker Architecture & Pan/Zoom Sync...');
@@ -482,8 +487,8 @@ console.log('16. Verifying Dynamic PFZ Grid Endpoint, Cluster Grouping & Fish Ce
   console.log('      ✓ Defragmentation verified: 1-cell noise eliminated, 4-cell cluster retained with bounded sizing.');
 
   // (C) Real Date Cluster Bounds & Cap Assertions
-  console.log('   (C) Verifying live clustering across target dates (2021-10-09, 2023-02-20, 2022-07-02)...');
-  const targetDates = ['2021-10-09', '2023-02-20', '2022-07-02'];
+  console.log('   (C) Verifying live clustering across target dates (2021-10-09, 2023-09-04, 2022-07-02)...');
+  const targetDates = ['2021-10-09', '2023-09-04', '2022-07-02'];
   for (const tDate of targetDates) {
     const tResp = await fetch(`http://localhost:8000/pfz-grid?date=${tDate}`);
     const tGrid = await tResp.json();
@@ -498,7 +503,13 @@ console.log('16. Verifying Dynamic PFZ Grid Endpoint, Cluster Grouping & Fish Ce
       assert(typeof z.probScore === 'number' && !isNaN(z.probScore), `Zone ${z.name} must have valid probScore`);
     }
   }
-  console.log('      ✓ Live date clustering verified: all dates produce 2–5 zones, min 3 cells, zero land overlap, and sane radius bounds.');
+
+  // Winter verification: In winter (e.g. 2023-02-20), deep mixed layers and weak upwelling produce zero false-positive candidate zones
+  const winterResp = await fetch('http://localhost:8000/pfz-grid?date=2023-02-20');
+  const winterGrid = await winterResp.json();
+  const winterZones = identifyPfzClusters(winterGrid);
+  assert.strictEqual(winterZones.length, 0, 'Winter 2023-02-20 must produce 0 false-positive candidate zones (all scores < 0.65)');
+  console.log('      ✓ Live date clustering verified: monsoon/transition dates produce 2–5 zones, winter produces 0 false-positives, min 3 cells, zero land overlap, and sane radius bounds.');
 
   // (D) Popup Card (buildPopupHtml) & Click-to-Select Verification
   console.log('   (D) Verifying Popup Card HTML Generation & Non-Crashing Score Resolution...');
@@ -672,10 +683,38 @@ console.log('16. Verifying Dynamic PFZ Grid Endpoint, Cluster Grouping & Fish Ce
     'tvd-table-view': { style: { display: 'block' } },
     'tvd-graph-view': { style: { display: 'none' } },
     'btn-view-graph': { classList: { contains: () => false } },
+    'map-legend': { style: { display: 'none' } },
   };
 
   global.document = {
     getElementById: (id) => mockDOM[id] || null,
+    createElement: (tag) => {
+      if (tag === 'canvas') {
+        return {
+          width: 0,
+          height: 0,
+          className: '',
+          style: {},
+          getContext: () => ({
+            createImageData: (w, h) => ({ data: new Uint8ClampedArray(w * h * 4) }),
+            putImageData: () => {},
+            drawImage: () => {},
+          }),
+          toDataURL: () => 'data:image/png;base64,mock',
+          setAttribute: () => {},
+          appendChild: () => {},
+          addEventListener: () => {},
+        };
+      }
+      return {
+        className: '',
+        innerHTML: '',
+        style: {},
+        setAttribute: () => {},
+        appendChild: () => {},
+        addEventListener: () => {},
+      };
+    },
   };
 
   // Test resetStatCards
@@ -693,7 +732,453 @@ console.log('16. Verifying Dynamic PFZ Grid Endpoint, Cluster Grouping & Fish Ce
   assert.strictEqual(mockDOM['tvd-empty-view'].style.display, 'none', 'revealTvdPanel must hide empty view');
   assert.strictEqual(mockDOM['tvd-table-view'].style.display, 'block', 'revealTvdPanel must show table view when table is active');
 
-  console.log('      ✓ Gating helper functions resetStatCards and revealTvdPanel verified.');
+  // 18. Assertion: PFZ Formula Transparency & Tiered Map Highlighting
+  console.log('18. Verifying PFZ Formula Transparency & 3-Tier Map Styling...');
+  // Check HTML
+  assert(html.includes('id="btn-pfz-formula-info"'), 'Formula info button must exist on Card 3');
+  assert(html.includes('id="pfz-formula-modal"'), 'Formula breakdown modal must exist in DOM');
+  assert(html.includes('85% Model-Derived Physical Drivers'), 'Modal must detail 85% model-derived components');
+  assert(html.includes('15% Estimated Heuristic'), 'Modal must detail 15% estimated heuristic component');
+  assert(html.includes('Horizontal Thermal Front Gradient'), 'Modal must include horizontal thermal front gradient');
+  assert(html.includes('Derived from model thermal gradients'), 'Legend subnote must describe physics-based thermal gradients');
+
+  // Check CSS
+  assert(css.includes('.ky-formula-info-btn'), 'CSS must style formula info button');
+  assert(css.includes('.ky-formula-modal'), 'CSS must style formula modal');
+  assert(css.includes('.pfz-fish-marker-wrap[data-tier="elevated"]'), 'CSS must style elevated fish marker tier');
+  assert(css.includes('.pfz-fish-marker-wrap[data-tier="moderate"]'), 'CSS must style moderate fish marker tier');
+  assert(css.includes('.pfz-fish-marker-wrap[data-tier="low"]'), 'CSS must style low fish marker tier');
+
+  // Check Backend indices transparency on live predict
+  const predResp = await fetch('http://localhost:8000/predict', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ latitude: 15.5, longitude: 65.0, date: '2022-07-02' })
+  });
+  const predData = await predResp.json();
+  assert(typeof predData.indices.thermal_front_gradient === 'number', 'indices.thermal_front_gradient must be numeric');
+  assert(typeof predData.indices.thermal_front_strength === 'number', 'indices.thermal_front_strength must be numeric');
+  assert(predData.indices.pfz_formula, 'indices.pfz_formula breakdown must be provided');
+  assert.strictEqual(predData.indices.pfz_formula.model_derived_pct, 85, 'Formula breakdown must declare 85% model-derived');
+  assert.strictEqual(predData.indices.pfz_formula.heuristic_pct, 15, 'Formula breakdown must declare 15% heuristic');
+  // 19. Assertion: Candidate Zone Visibility Filter (Elevated Tier Only)
+  console.log('19. Verifying Candidate Zone Visibility Filter (HIGHLIGHT_MIN_TIER)...');
+  const {
+    HIGHLIGHT_MIN_TIER,
+    checkTemperatureDataQuality,
+    scoreCandidateZone,
+    shouldHighlightZone,
+    getZoneTier,
+    loadAndRenderDynamicPfzZones
+  } = require('./fisheries.js');
+
+  assert.strictEqual(HIGHLIGHT_MIN_TIER, 'elevated', "HIGHLIGHT_MIN_TIER must be named constant set to 'elevated'");
+  assert(typeof checkTemperatureDataQuality === 'function', 'checkTemperatureDataQuality must be exported');
+  assert(typeof scoreCandidateZone === 'function', 'scoreCandidateZone must be exported');
+  assert(typeof shouldHighlightZone === 'function', 'shouldHighlightZone must be exported');
+  assert(typeof getZoneTier === 'function', 'getZoneTier must be exported');
+
+  // Test tier determination
+  assert.strictEqual(getZoneTier({ pfz_index: 0.82 }), 'elevated', '0.82 must be elevated tier');
+  assert.strictEqual(getZoneTier({ pfz_index: 0.55 }), 'moderate', '0.55 must be moderate tier');
+  assert.strictEqual(getZoneTier({ pfz_index: 0.25 }), 'low', '0.25 must be low tier');
+
+  // Test shouldHighlightZone filter
+  const elevatedCandidate = { id: 'zone-el', name: 'Elevated Candidate', avgScore: 0.78, pfz_index: 0.78, data_quality_flag: false };
+  const moderateCandidate = { id: 'zone-mod', name: 'Moderate Candidate', avgScore: 0.58, pfz_index: 0.58, data_quality_flag: false };
+  const lowCandidate = { id: 'zone-low', name: 'Low Candidate', avgScore: 0.32, pfz_index: 0.32, data_quality_flag: false };
+
+  assert.strictEqual(shouldHighlightZone(elevatedCandidate), true, 'Elevated candidate zone must qualify for map highlight');
+  assert.strictEqual(shouldHighlightZone(moderateCandidate), false, 'Moderate candidate zone must NOT qualify for map highlight');
+  assert.strictEqual(shouldHighlightZone(lowCandidate), false, 'Low candidate zone must NOT qualify for map highlight');
+
+  // Test loadAndRenderDynamicPfzZones rendering gating with mock MapLibre
+  let mockSourceData = null;
+  const mockMarkers = [];
+  global.map = {
+    getSource: (id) => {
+      if (id === 'pfz-zones') {
+        return {
+          setData: (data) => { mockSourceData = data; }
+        };
+      }
+      return null;
+    },
+    getContainer: () => ({ clientHeight: 600 }),
+  };
+  global.maplibregl = {
+    Marker: function(opts) {
+      this.opts = opts;
+      this.setLngLat = (coords) => { this.coords = coords; return this; };
+      this.addTo = (m) => { mockMarkers.push(this); return this; };
+      this.remove = () => {};
+    }
+  };
+
+  const syntheticMixedZones = [
+    {
+      id: 'z-elevated',
+      name: 'Central Arabian Sea Elevated',
+      avgScore: 0.84,
+      pfz_index: 0.84,
+      centroidLat: 15.0,
+      centroidLon: 65.0,
+      radiusLat: 1.2,
+      radiusLon: 1.5,
+      ring: [[64, 14], [66, 14], [66, 16], [64, 16], [64, 14]],
+      data_quality_flag: false,
+    },
+    {
+      id: 'z-moderate',
+      name: 'SW Arabian Basin Moderate',
+      avgScore: 0.55,
+      pfz_index: 0.55,
+      centroidLat: 10.0,
+      centroidLon: 58.0,
+      radiusLat: 1.0,
+      radiusLon: 1.2,
+      ring: [[57, 9], [59, 9], [59, 11], [57, 11], [57, 9]],
+      data_quality_flag: false,
+    },
+    {
+      id: 'z-low',
+      name: 'Stratified Low Zone',
+      avgScore: 0.30,
+      pfz_index: 0.30,
+      centroidLat: 7.0,
+      centroidLon: 75.0,
+      radiusLat: 0.9,
+      radiusLon: 1.0,
+      ring: [[74, 6], [76, 6], [76, 8], [74, 8], [74, 6]],
+      data_quality_flag: false,
+    }
+  ];
+
+  const renderedOverlay = await loadAndRenderDynamicPfzZones('2022-07-02', syntheticMixedZones);
+  assert.strictEqual(renderedOverlay.length, 1, 'Only 1 candidate zone (Elevated) must be highlighted on map');
+  assert.strictEqual(renderedOverlay[0].id, 'z-elevated', 'Rendered zone must be the Elevated tier zone');
+  assert.strictEqual(mockSourceData.features.length, 1, 'GeoJSON source must contain exactly 1 feature');
+  assert.strictEqual(mockSourceData.features[0].properties.tier, 'elevated', 'Feature must have tier: elevated');
+  assert.strictEqual(mockMarkers.length, 1, 'Exactly 1 fish marker must be placed on map');
+  assert.deepStrictEqual(mockMarkers[0].coords, [65.0, 15.0], 'Marker must be placed at Elevated zone centroid');
+
+  // Verify all zones remain stored in currentDynamicZones for manual lookup/click
+  assert.strictEqual(renderedOverlay.allZones.length, 3, 'All 3 candidate zones must be preserved in allZones');
+  console.log('   ✓ Candidate zone visibility filter verified: only Elevated tier produces map overlay; Moderate/Low excluded.');
+
+  // 20. Assertion: Data-Quality Guard for Temperature-Corruption Bug
+  console.log('20. Verifying Data-Quality Guard for Temperature-Corruption Bug...');
+
+  // (A) Profile inspections
+  const cleanProfile = [28.4, 28.6, 28.8, 28.5, 27.8, 26.5]; // 0, 5, 10, 20, 30, 50m
+  const dqClean = checkTemperatureDataQuality(cleanProfile);
+  assert.strictEqual(dqClean.data_quality_flag, false, 'Clean physical profile must pass data-quality guard');
+
+  // Cliff drop > 8°C (28.0 to 19.5 = 8.5°C drop)
+  const cliffProfile = [28.0, 28.0, 19.5, 18.0, 17.0, 16.0];
+  const dqCliff = checkTemperatureDataQuality(cliffProfile);
+  assert.strictEqual(dqCliff.data_quality_flag, true, 'Profile with drop >8°C in 0-50m must trigger data_quality_flag');
+  assert(dqCliff.reason.includes('>8°C'), 'Reason must mention drop >8°C');
+
+  // 3+ consecutive identical temperatures
+  const flatProfile = [28.0, 28.0, 28.0, 26.0, 24.0, 22.0];
+  const dqFlat = checkTemperatureDataQuality(flatProfile);
+  assert.strictEqual(dqFlat.data_quality_flag, true, 'Profile with 3+ consecutive identical values must trigger data_quality_flag');
+  assert(dqFlat.reason.includes('3+ consecutive identical'), 'Reason must mention 3+ consecutive identical values');
+
+  // Flat-then-cliff corrupted shelf pattern
+  const flatThenCliffProfile = [28.0, 28.0, 28.0, 18.0, 16.0, 15.0];
+  const dqCorrupted = checkTemperatureDataQuality(flatThenCliffProfile);
+  assert.strictEqual(dqCorrupted.data_quality_flag, true, 'Flat-then-cliff profile must trigger data_quality_flag');
+
+  // (B) Candidate zone scoring with data-quality guard
+  const corruptedCandidate = {
+    id: 'z-corrupt',
+    name: 'Shelf Corrupted Zone',
+    avgScore: 0.88,
+    probScore: 0.88,
+    pfz_index: 0.88,
+    centroidLat: 9.0,
+    centroidLon: 79.0,
+    radiusLat: 1.0,
+    radiusLon: 1.0,
+    ring: [[78, 8], [80, 8], [80, 10], [78, 10], [78, 8]],
+    temps: flatThenCliffProfile,
+  };
+
+  const scoredCorrupt = scoreCandidateZone(corruptedCandidate);
+  assert.strictEqual(scoredCorrupt.data_quality_flag, true, 'Corrupted zone must have data_quality_flag: true');
+  assert.strictEqual(scoredCorrupt.pfz_index, null, 'Corrupted zone must have pfz_index: null (suppressed)');
+  assert.strictEqual(scoredCorrupt.tier, 'flagged', 'Corrupted zone must be marked as flagged');
+
+  // (C) Exclusion of corrupted zone from map overlay even if raw score is Elevated (0.88)
+  mockMarkers.length = 0;
+  mockSourceData = null;
+  const overlayWithCorrupt = await loadAndRenderDynamicPfzZones('2022-07-02', [corruptedCandidate]);
+  assert.strictEqual(overlayWithCorrupt.length, 0, 'Corrupted candidate zone must be completely excluded from map overlay');
+  assert.strictEqual(mockSourceData.features.length, 0, 'GeoJSON features must be empty when zone is flagged');
+  assert.strictEqual(mockMarkers.length, 0, 'Zero markers must be placed for flagged zone');
+  console.log('   ✓ Data-quality guard verified: unphysical drops >8°C and 3+ identical values trigger flag and exclude zone from map overlay.');
+
+  // (D) Live Backend API indices.data_quality_flag verification
+  console.log('   (D) Verifying Backend /predict surfaces indices.data_quality_flag...');
+  const livePredResp = await fetch('http://127.0.0.1:8000/predict', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ latitude: 15.5, longitude: 65.0, date: '2022-07-02' })
+  });
+  const livePred = await livePredResp.json();
+  assert('data_quality_flag' in livePred.indices, 'Backend response indices must contain data_quality_flag');
+  assert.strictEqual(livePred.indices.data_quality_flag, false, 'Standard ocean point must have data_quality_flag: false');
+  assert(typeof livePred.indices.pfz === 'number', 'Standard ocean point must compute numeric pfz index');
+  console.log('      ✓ Backend API indices.data_quality_flag verified on live /predict endpoint.');
+
+  // (E) Legend & Advisory Modal UI Text Verification
+  console.log('   (E) Verifying Legend & Advisory Modal UI Text Updates...');
+  assert(html.includes('Only Elevated candidate zones (PFZ ≥ 0.70) auto-highlighted on map'),
+    'Legend subnote must state only Elevated candidate zones are auto-highlighted on map');
+  assert(html.includes('Auto-highlighted on the map overlay'),
+    'Advisory modal must state Elevated tier is auto-highlighted on map overlay');
+  assert(html.includes('Available in detail panel via direct coordinate search (not auto-highlighted on map)'),
+    'Advisory modal must clarify Moderate and Low tiers are available in detail panel via direct search');
+  console.log('      ✓ Legend and modal text accurately declare that only Elevated zones are auto-highlighted.');
+
+  // (F) Direct Coordinate Search on Moderate Candidate Zone
+  console.log('   (F) Verifying Direct Coordinate Selection Resolves Moderate Candidate Zone Details...');
+  // Ensure mixed candidate zones are loaded
+  await loadAndRenderDynamicPfzZones('2022-07-02', syntheticMixedZones);
+  const { selectLocation } = require('./fisheries.js');
+  // Mock fetch for predict when selectLocation is called
+  const origFetch = global.fetch;
+  global.fetch = async (url, opts) => {
+    if (url.includes('/predict')) {
+      return {
+        ok: true,
+        json: async () => ({
+          depths: [0, 5, 10, 20, 30, 50, 75, 100, 125, 150, 200, 300, 500, 700, 1000],
+          temps: [27.0, 26.8, 26.5, 26.0, 25.5, 24.0, 22.0, 20.0, 18.0, 16.0, 14.0, 11.0, 8.0, 6.0, 5.0],
+          indices: {
+            thermocline_depth: 85.0,
+            upwelling_index: 0.55,
+            thermal_front_gradient: 0.6,
+            thermal_front_strength: 0.4,
+            chlorophyll_a: 1.8,
+            pfz: 0.55,
+            pfz_confidence_score: 0.55,
+            data_quality_flag: false,
+            nutrients: [1.5, 1.6, 1.8, 2.0, 2.2, 2.0, 1.5, 1.0, 0.8, 0.6, 0.4, 0.3, 0.2, 0.2, 0.1]
+          }
+        })
+      };
+    }
+    return origFetch(url, opts);
+  };
+
+  // Select location inside SW Arabian Basin Moderate zone (10.0°N, 58.0°E)
+  await selectLocation(10.0, 58.0, false);
+  global.fetch = origFetch; // Restore fetch
+
+  assert.strictEqual(mockDOM['stat-pfz-val'].textContent, '0.55', 'Stat card must display Moderate score 0.55 on direct selection');
+  assert.strictEqual(mockDOM['stat-pfz-badge'].textContent, 'Moderate', 'Stat card badge must show Moderate');
+  assert.strictEqual(mockDOM['stat-pfz-badge'].className, 'ky-stat-card__badge ky-stat-card__badge--blue', 'Stat card badge must have blue class');
+  console.log('      ✓ Direct selection of Moderate zone successfully resolves zone details, preserving 3-tier color coding in detail panel.');
+
+  // (G) Direct Selection on Low Candidate Zone (Verify NO polygon or pulsing marker added)
+  console.log('   (G) Verifying Direct Selection on Low Candidate Zone Does NOT Draw Map Overlay...');
+  const featuresBefore = mockSourceData.features.length; // Was 1 (Elevated)
+  const markersBefore = mockMarkers.length; // Was 1 (Elevated)
+
+  global.fetch = async (url, opts) => {
+    if (url.includes('/predict')) {
+      return {
+        ok: true,
+        json: async () => ({
+          depths: [0, 5, 10, 20, 30, 50, 75, 100, 125, 150, 200, 300, 500, 700, 1000],
+          temps: [28.0, 27.9, 27.8, 27.5, 27.2, 26.8, 24.0, 21.0, 18.0, 15.0, 13.0, 10.0, 7.0, 5.5, 4.5],
+          indices: {
+            thermocline_depth: 130.0,
+            upwelling_index: 0.20,
+            thermal_front_gradient: 0.2,
+            thermal_front_strength: 0.15,
+            chlorophyll_a: 0.45,
+            pfz: 0.30,
+            pfz_confidence_score: 0.30,
+            data_quality_flag: false,
+            nutrients: [0.45, 0.45, 0.5, 0.6, 0.8, 0.6, 0.4, 0.3, 0.2, 0.2, 0.1, 0.1, 0.05, 0.05, 0.05]
+          }
+        })
+      };
+    }
+    return origFetch(url, opts);
+  };
+
+  // Select location inside Low candidate zone (7.0°N, 75.0°E)
+  await selectLocation(7.0, 75.0, false);
+  global.fetch = origFetch;
+
+  // Confirm NO polygon was added for Low zone
+  assert.strictEqual(mockSourceData.features.length, featuresBefore, 'Map GeoJSON features must remain unchanged when Low zone is selected (no polygon added)');
+  // Confirm NO pulsing fish marker was added for Low zone
+  assert.strictEqual(mockMarkers.length, markersBefore, 'Fish markers on map must remain unchanged when Low zone is selected (no pulsing marker added)');
+  // Confirm detail panel resolved correctly
+  assert.strictEqual(mockDOM['stat-pfz-val'].textContent, '0.30', 'Stat card must display Low score 0.30 on direct selection');
+  assert.strictEqual(mockDOM['stat-pfz-badge'].textContent, 'Low', 'Stat card badge must show Low');
+  assert.strictEqual(mockDOM['stat-pfz-badge'].className, 'ky-stat-card__badge ky-stat-card__badge--amber', 'Stat card badge must have amber class');
+  console.log('      ✓ Selection of Low zone does not add polygon/pulsing marker to map, while correctly resolving detail panel.');
+
+  // (H) Real Per-Date Chlorophyll Overlay & Predict Parity Check
+  console.log('   (H) Verifying Real Per-Date Chlorophyll Grid & /predict Parity...');
+  const pfzResp = await fetch('http://localhost:8000/pfz-grid?date=2022-07-02');
+  const pfzData = await pfzResp.json();
+  assert(Array.isArray(pfzData.chla_grid), 'Response from /pfz-grid must include chla_grid array');
+  assert.strictEqual(pfzData.chla_grid.length, pfzData.lats.length, 'chla_grid height must match lats count');
+  assert.strictEqual(pfzData.chla_grid[0].length, pfzData.lons.length, 'chla_grid width must match lons count');
+
+  // Verify non-land cells have valid numbers in [0.05, 9.8]
+  let oceanChlaCount = 0;
+  pfzData.chla_grid.forEach(row => {
+    row.forEach(val => {
+      if (val !== null) {
+        oceanChlaCount++;
+        assert(typeof val === 'number' && val >= 0.05 && val <= 9.8, `Chlorophyll grid cell must be in [0.05, 9.8], got ${val}`);
+      }
+    });
+  });
+  assert(oceanChlaCount > 100, 'Must have at least 100 valid ocean chlorophyll values');
+
+  // Query live /predict for central Arabian Sea coordinate (15.0°N, 65.0°E) on 2022-07-02
+  const targetLat = 15.0;
+  const targetLon = 65.0;
+  const predChlaResp = await fetch('http://localhost:8000/predict', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ latitude: targetLat, longitude: targetLon, date: '2022-07-02' })
+  });
+  const predChlaData = await predChlaResp.json();
+  const pointChla = predChlaData.indices.chlorophyll_a;
+  assert(typeof pointChla === 'number', '/predict indices.chlorophyll_a must be numeric');
+
+  // Find nearest cell in pfzData grid
+  let bestR = 0, bestC = 0, minD = Infinity;
+  for (let r = 0; r < pfzData.lats.length; r++) {
+    for (let c = 0; c < pfzData.lons.length; c++) {
+      const d = Math.hypot(pfzData.lats[r] - targetLat, pfzData.lons[c] - targetLon);
+      if (d < minD) {
+        minD = d;
+        bestR = r;
+        bestC = c;
+      }
+    }
+  }
+  const gridChlaAtPoint = pfzData.chla_grid[bestR][bestC];
+  assert(gridChlaAtPoint !== null, 'Grid chlorophyll at ocean test point must not be null');
+  // Tolerance ±0.6 mg/m³ between downsampled 1° grid and full-res 0.25° grid
+  assert(Math.abs(gridChlaAtPoint - pointChla) < 0.6,
+    `Grid chlorophyll (${gridChlaAtPoint}) must track /predict chlorophyll (${pointChla}) at (${targetLat}, ${targetLon})`);
+  console.log(`      ✓ Chlorophyll grid parity verified: grid=${gridChlaAtPoint} mg/m³ vs predict=${pointChla} mg/m³ at (${targetLat}°N, ${targetLon}°E)`);
+
+  // Verify renderChlaOverlayFromGrid function returns canvas and unhides legend
+  const { renderChlaOverlayFromGrid, sampleChlaColor } = require('./fisheries.js');
+  assert(typeof renderChlaOverlayFromGrid === 'function', 'renderChlaOverlayFromGrid must be exported');
+  assert(typeof sampleChlaColor === 'function', 'sampleChlaColor must be exported');
+
+  // Test sampleChlaColor mapping across ranges
+  const lowColor = sampleChlaColor(0.01);
+  const midColor = sampleChlaColor(1.0);
+  const highColor = sampleChlaColor(10.0);
+  assert.strictEqual(lowColor.length, 4, 'Color must be RGBA array of length 4');
+  assert.strictEqual(midColor.length, 4, 'Color must be RGBA array of length 4');
+  assert.strictEqual(highColor.length, 4, 'Color must be RGBA array of length 4');
+  assert.strictEqual(lowColor[3], 210, 'Alpha must be 210');
+
+  // Test rendering canvas from live grid data
+  const chlaCanvasResult = renderChlaOverlayFromGrid(pfzData);
+  assert(chlaCanvasResult, 'renderChlaOverlayFromGrid must return canvas');
+  assert.strictEqual(chlaCanvasResult.width, 600, 'Canvas width must be 600');
+  assert.strictEqual(chlaCanvasResult.height, 250, 'Canvas height must be 250');
+  assert.strictEqual(mockDOM['map-legend'].style.display, 'block', 'Legend must be displayed as block after grid render');
+  // 21. Verifying Candidate Zone Highlighting Consistency, Single Source of Truth & Layout Placement
+  console.log('\n21. Verifying Highlighting Consistency, Single Source of Truth & Operational Note Relocation...');
+
+  // (A) Operational Caveat Relocation below .ky-fisheries-content-row
+  console.log('   (A) Verifying Operational Note Banner is Relocated Below Map & Profile Content Row...');
+  const contentRowIdx = html.indexOf('ky-fisheries-content-row');
+  const caveatIdx = html.indexOf('ky-fisheries-operational-caveat');
+  assert(contentRowIdx !== -1, 'Content row must exist in HTML');
+  assert(caveatIdx !== -1, 'Operational caveat banner must exist in HTML');
+  assert(caveatIdx > contentRowIdx, 'Operational caveat banner must be positioned below .ky-fisheries-content-row');
+  console.log('      ✓ Operational Note banner DOM position verified below content row.');
+
+  // (B) Single Source of Truth for Zone Score Parity
+  console.log('   (B) Verifying Single Source of Truth for Candidate Zone Score (No 0.10 vs 0.89 discrepancy)...');
+  // Load candidate zones where z-elevated has pfz_index = 0.84
+  await loadAndRenderDynamicPfzZones('2022-07-02', syntheticMixedZones);
+  const currentFeaturesCount = mockSourceData.features.length;
+  const currentMarkersCount = mockMarkers.length;
+
+  // Mock /predict returning 0.10 (simulating point discrepancy at 15.0°N, 65.0°E)
+  global.fetch = async (url, opts) => {
+    if (url.includes('/predict')) {
+      return {
+        ok: true,
+        json: async () => ({
+          depths: [0, 5, 10, 20, 30, 50, 75, 100, 125, 150, 200, 300, 500, 700, 1000],
+          temps: [28.5, 28.5, 28.5, 28.5, 28.4, 28.3, 27.0, 24.0, 20.0, 16.0, 13.0, 10.0, 7.0, 5.5, 4.5],
+          indices: {
+            thermocline_depth: 110.0,
+            upwelling_index: 0.04,
+            thermal_front_gradient: 0.1,
+            thermal_front_strength: 0.05,
+            chlorophyll_a: 0.35,
+            pfz: 0.10,
+            pfz_confidence_score: 0.10,
+            data_quality_flag: false,
+            nutrients: [0.35, 0.35, 0.4, 0.5, 0.7, 0.5, 0.3, 0.2, 0.1, 0.1, 0.05, 0.05, 0.05, 0.05, 0.05]
+          }
+        })
+      };
+    }
+    return origFetch(url, opts);
+  };
+
+  // Select location inside Elevated candidate zone (15.0°N, 65.0°E)
+  await selectLocation(15.0, 65.0, false);
+  // Both stat card and popup must agree on the zone's authoritative score 0.84, NOT the point score 0.10
+  assert.strictEqual(mockDOM['stat-pfz-val'].textContent, '0.84', 'Stat card must display candidate zone score (0.84), eliminating discrepancy');
+  assert.strictEqual(mockDOM['stat-pfz-badge'].textContent, 'High', 'Stat card badge must show High');
+  assert(mockDOM['stat-pfz-badge'].className.includes('ky-stat-card__badge--green'), 'Stat card badge must have green class');
+
+  // Verify popup HTML generated for the matched zone reflects the authoritative score 0.84
+  const matchedPopupHtml = buildPopupHtml(15.0, 65.0, syntheticMixedZones[0], 0.84);
+  assert(matchedPopupHtml.includes('PFZ Index: Elevated'), 'Popup title must reflect Elevated tier');
+  assert(matchedPopupHtml.includes('Elevated index (0.84)'), 'Popup badge must reflect zone score (0.84)');
+  assert(matchedPopupHtml.includes('Central Arabian Sea Elevated'), 'Popup subtext must include zone name');
+  console.log('      ✓ Single source of truth verified: Candidate zone score (0.84) overrides point mismatch in stat cards and popup.');
+
+  // (C) Arbitrary Non-Candidate Ocean Coordinate Selection
+  console.log('   (C) Verifying Arbitrary Non-Candidate Click (No dashed outline, no pulsing marker, plain pin only)...');
+  // Click arbitrary ocean coordinate outside any candidate zone (e.g. 18.0°N, 67.0°E)
+  await selectLocation(18.0, 67.0, false);
+  global.fetch = origFetch;
+
+  // Features and pulsing markers on map must remain unchanged (no dashed circle or pulsing fish added)
+  assert.strictEqual(mockSourceData.features.length, currentFeaturesCount, 'Selecting arbitrary ocean point must not add polygon features');
+  assert.strictEqual(mockMarkers.length, currentMarkersCount, 'Selecting arbitrary ocean point must not add pulsing fish markers');
+  // Arbitrary point correctly consumes /predict score (0.10)
+  assert.strictEqual(mockDOM['stat-pfz-val'].textContent, '0.10', 'Stat card displays /predict score for non-candidate coordinate');
+  assert.strictEqual(mockDOM['stat-pfz-badge'].textContent, 'Low', 'Stat card badge shows Low for 0.10 score');
+  console.log('      ✓ Arbitrary ocean point click verified: Only neutral pin placed, zero new map polygons or pulsing markers added.');
+
+  // (D) Live Backend Shelf Cliff Elimination in /pfz-grid
+  console.log('   (D) Verifying Live Backend /pfz-grid Filters 4.0°C Shelf Cliff Cells...');
+  const pfzGridResp = await fetch('http://localhost:8000/pfz-grid?date=2021-02-14');
+  const pfzGridData = await pfzGridResp.json();
+  const r9 = pfzGridData.lats.indexOf(9.0);
+  const c795 = pfzGridData.lons.indexOf(79.5);
+  assert(r9 !== -1 && c795 !== -1, 'Coordinates (9.0°N, 79.5°E) must be present in grid');
+  assert.strictEqual(pfzGridData.pfz_scores[r9][c795], null, 'Shelf cliff cell (9.0°N, 79.5°E) must be masked to null');
+  assert.strictEqual(pfzGridData.chla_grid[r9][c795], null, 'Shelf cliff cell (9.0°N, 79.5°E) chla must be masked to null');
+  console.log('      ✓ Live backend data-quality guard verified: Shelf cliff cell (9.0°N, 79.5°E) successfully masked to null.');
 
   console.log('\n=== ALL FISHERIES MODE TESTS PASSED SUCCESSFULLY! ===\n');
 })().catch(err => {

@@ -1839,3 +1839,156 @@ Re-evaluating the full 41-profile ARGO observational benchmark with `compute_ski
   - **Vertical Profile Chart**: Cleaned up the Chart.js visual representation by eliminating artificial shaded uncertainty bands.
   - **Backend API**: Removed `/confidence-grid` and `/confidence-stats` endpoints, reducing compute overhead and memory allocations.
 
+---
+
+## 22. Fisheries Mode & Subsurface Oceanographic Architecture
+
+### 22.1 Coastal Shelf Bathymetric Infill & Deep Temperature Sanity (Task 1)
+- **Problem Statement**:
+  At shallow coastal shelf locations (e.g. Gulf of Mannar `~9.0°N, 78.9°E`, Gulf of Kutch, Palk Strait), the raw monthly climatology array `_temp_target_clim` contains $0.0^\circ\text{C}$ values below the local seabed bathymetry. Because OceanEmbed predicts anomaly residuals ($\Delta T$) relative to climatology ($T = T_{\text{clim}} + \Delta T$), adding negative anomaly residuals to $0.0$ resulted in negative temperatures ($-0.9^\circ\text{C}$ at 200m) and flat zeroes down to 1000m. This was physically incorrect for open waters and coastal shelf ecosystems.
+- **Nearest-Neighbor Climatology Infill Algorithm**:
+  - Precomputed nearest-neighbor spatial mappings across all ocean cells where $T_{\text{clim}} \le 1.0^\circ\text{C}$ for depth levels $\ge 125\text{m}$ (`backend/data/clim_shelf_infill_indices.npz`).
+  - Scoped strictly to depths $\ge 125\text{m}$ (indices 8 to 14: 125m, 150m, 200m, 300m, 500m, 700m, 1000m).
+  - Depths $0\text{--}100\text{m}$ (indices 0 to 7) remain completely untouched, ensuring zero interference with model-trained near-surface vertical gradients, $T_{50\text{m}}$ upwelling, or spatial clustering.
+  - Added physical temperature floor ($T \ge 4.0^\circ\text{C}$) and non-increasing monotonicity below the thermocline (depths $\ge 100\text{m}$).
+  - Profile at Gulf of Mannar (2023-12-21):
+    - 0m: $28.30^\circ\text{C}$
+    - 100m: $24.43^\circ\text{C}$
+    - 200m: $14.50^\circ\text{C}$ (was $-0.9^\circ\text{C}$)
+    - 500m: $9.26^\circ\text{C}$ (was $0.0^\circ\text{C}$)
+    - 1000m: $6.88^\circ\text{C}$ (was $0.0^\circ\text{C}$)
+  - Fully verified via regression test `test_temperature_shelf_depths.py`.
+
+### 22.2 Horizontal SST Thermal Front Gradient Formulation (Task 2)
+- **Literature Grounding**:
+  Horizontal thermal fronts ($\|\nabla_{\!H} \text{SST}\|$) are recognized as the primary physical driver of pelagic fish aggregation in satellite oceanography (Belkin & O'Reilly 2009; Cayula & Cornillon 1992). Frontal zones mark water mass convergence, nutrient accumulation, and plankton concentration.
+- **Mathematical Implementation**:
+  Derived directly from the model's 0.25° SST grid via central differences:
+  $$\Delta x = 27.78 \cdot \cos(\text{lat}) \cdot 2 \quad (\text{km}), \quad \Delta y = 27.78 \cdot 2 \quad (\text{km})$$
+  $$\nabla_x \text{SST} = \frac{\text{SST}(i, j+1) - \text{SST}(i, j-1)}{\Delta x} \cdot 100 \quad (^\circ\text{C}/100\,\text{km})$$
+  $$\nabla_y \text{SST} = \frac{\text{SST}(i+1, j) - \text{SST}(i-1, j)}{\Delta y} \cdot 100 \quad (^\circ\text{C}/100\,\text{km})$$
+  $$\|\nabla_{\!H} \text{SST}\| = \sqrt{(\nabla_x \text{SST})^2 + (\nabla_y \text{SST})^2}$$
+  $$\text{Front Strength} = \text{clip}\left(\frac{\|\nabla_{\!H} \text{SST}\|}{1.5}, 0.0, 1.0\right)$$
+- **Transparent Attribution**:
+  Replaced synthetic illustrative proxies with explicit attribution in UI legend and documentation: *"Derived from model thermal gradients (vertical dT/dz + horizontal SST front) & SLA eddy proxy."*
+
+### 22.3 Transparent PFZ Combination Formula & UI Tooltip (Task 3)
+The Potential Fishing Zone (PFZ) Index is explicitly broken down into:
+- **85% Model-Derived Physical Drivers**:
+  1. **Thermocline Shoaling ($35\%$)**: $f_{\text{tc}} = \text{clip}\left(\frac{120 - Z_{\text{tc}}}{80}, 0.0, 1.0\right)$. Shallower thermocline ($<80\,\text{m}$) concentrates pelagic habitat toward the euphotic zone.
+  2. **Vertical Thermal Gradient / Upwelling ($35\%$)**: $\text{UI} = \text{clip}\left(\frac{\max(0, T_0 - T_{50})}{5.0}, 0.0, 1.0\right)$. Steep $0\text{--}50\,\text{m}$ thermal gradient indicates active cold-water upwelling.
+  3. **Horizontal Thermal Front Gradient ($15\%$)**: Spatial SST gradient magnitude marking convergent boundaries.
+- **15% Estimated Heuristic Baseline**:
+  4. **Surface Primary Productivity Proxy ($15\%$)**: Evaluated from near-surface dynamics and cyclonic SLA eddy pumping as an ecological baseline.
+- **Advisory Tier Definitions**:
+  - **Elevated ($\ge 0.70$)**: Co-occurrence of strong vertical thermal gradient ($>1.5^\circ\text{C}/50\text{m}$), shallow thermocline ($<80\text{m}$), and active horizontal thermal front ($>0.5^\circ\text{C}/100\text{km}$). Historically associated with pelagic fish aggregation. *Not validated against commercial catch data.*
+  - **Moderate ($0.40\text{--}0.69$)**: Partially favorable oceanographic conditions; intermediate thermocline depth or moderate thermal gradient.
+  - **Low ($< 0.40$)**: Unfavorable physical indicators; deep thermocline or stratified warm layer without significant thermal fronts.
+
+### 22.4 3-Tier Map Highlighting & Marker Styling (Task 4)
+- MapLibre polygons are rendered with tier-specific visual weights:
+  - **Elevated ($\ge 0.70$)**: Emerald `#10B981` outline (2.4px dashed), fill opacity 0.22. Centroid fish marker has pulsing emerald ring.
+  - **Moderate ($0.40\text{--}0.69$)**: Amber `#F59E0B` outline (1.8px dashed), fill opacity 0.16. Centroid fish marker has pulsing amber ring.
+  - **Low ($< 0.40$)**: Muted Slate `#64748B` outline (1.2px dashed), fill opacity 0.08. Centroid fish marker has muted slate ring.
+
+### 22.5 Candidate Zone Visibility Filter (`HIGHLIGHT_MIN_TIER`)
+- **Map Clutter Reduction**:
+  To prioritize high-likelihood areas and avoid visual clutter on the map overlay, auto-rendered dashed polygon boundaries and pulsing fish centroid markers are strictly gated to candidate zones meeting or exceeding `HIGHLIGHT_MIN_TIER = 'elevated'` ($\ge 0.70$).
+- **Configurability**:
+  Governed by a single named constant `HIGHLIGHT_MIN_TIER = 'elevated'` in `fisheries.js`. Setting this to `'moderate'` seamlessly includes Moderate ($\ge 0.40$) zones, while `'low'` includes all candidate zones without requiring structural refactoring.
+- **Detail Panel Decoupling**:
+  All identified candidate clusters (regardless of tier) remain stored in memory in `currentDynamicZones`. When a user directly searches a coordinate or clicks the map within a Moderate or Low zone, the right-hand detail panel, TVD profile, and top stat cards immediately resolve the full zone metadata and retain their tier-specific color coding (e.g. Moderate blue badge).
+
+### 22.6 Subsurface Temperature Profile Data-Quality Guard
+- **Physical Rationale & Detection Criteria**:
+  In rare edge cases (such as near steep shelf boundaries or numerical model artifacts), upper-ocean profiles may exhibit unphysical corruption. Before computing PFZ scores or rendering candidate zones, the raw temperature profile across the upper euphotic layer ($0\text{--}50\text{m}$, standard depths $0, 5, 10, 20, 30, 50\text{m}$) is inspected for:
+  1. **Unphysical Thermal Cliff**: Temperature drop $> 8.0^\circ\text{C}$ between two adjacent standard depths in $0\text{--}50\text{m}$.
+  2. **Unnatural Flatline**: 3 or more consecutive identical temperature values in the raw upper-ocean profile ($0\text{--}50\text{m}$), indicating sensor failure, flatline fill, or degenerate model output.
+- **Guard Behavior**:
+  - Sets `data_quality_flag: true` and records `data_quality_reason`.
+  - Excludes the corrupted zone entirely from candidate zone map overlays (`shouldHighlightZone(zone)` returns `false`).
+  - Sets `indices.pfz = null` and `indices.pfz_confidence_score = null` in backend `/predict` API responses.
+  - Frontend stat cards display `"Data Flagged"` amber badge with value `"—"` and explanatory note *"Upper profile data flagged for unphysical gradients"*, preventing misleading advisory output while preserving transparent user feedback.
+
+### 22.7 Unified Real Per-Date Chlorophyll-a Map Layer
+- **Architectural Motivation**:
+  Previously, the chlorophyll map layer was generated via client-side static Gaussian plumes (`calculateChlaValue(lat, lon)`) with zero temporal variation across dates. Meanwhile, PFZ scoring and point predictions consumed a dynamic physical proxy (`0.25 + 2.5 * upwelling_val - 1.2 * sla_val + 0.35 * cur_val`) derived from live satellite inputs. This resulted in an acknowledged mismatch documented in disclaimers.
+- **Unified Pipeline**:
+  - The backend `/pfz-grid` endpoint was extended to serialize `chla_grid` across the North Indian Ocean basin (26x41 grid, ~1.0° lat x 1.5° lon) alongside `pfz_scores`.
+  - The raster overlay generator `renderChlaOverlayFromGrid(gridData)` in `fisheries.js` renders real per-date physical chlorophyll values into an offscreen canvas using the `CHLA_STOPS` color scale, applies smooth 5x bilinear upsampling, and cuts out land via the vectorized Natural Earth coastline mask.
+  - The map overlay and the PFZ score now evaluate the identical physical proxy formula, eliminating data discrepancies and enabling removal of the mismatch disclaimer from the user interface.
+- **UI Gating & Compact Legend Styling**:
+  - The `#map-legend` card is hidden by default on initial page load (`style="display:none;"`) and becomes visible when a date is selected and the chlorophyll overlay is rendered.
+  - Sizing is clamped to a fixed `width: 250px;` matching the Dashboard Sea Surface Temperature legend card (`.ky-map-legend`), preventing text expansion and maintaining consistent UI aesthetics across pages.
+
+### 22.8 Candidate Zone Highlighting Consistency, Single Source of Truth & Shelf-Cliff Grid Filtering
+- **Problem Diagnosis & Root Cause**:
+  - In shallow coastal bathymetry cells (<50m depth, e.g. Gulf of Mannar `[4, 23]` at 9.0°N, 79.5°E), training data absence below the seafloor produces a coastal 4.0°C cliff bug in the raw CNN-LSTM model predictions (temperatures plunge >8°C between adjacent depth levels).
+  - When `compute_pfz_grid` ran on the 2D basin grid, these shelf cliff drops inflated `upwelling_val = 1.0` and `tc_factor = 1.0`, creating artificial 0.98 scores on coastal shelf cells. The frontend clustering pass (`identifyPfzClusters`) aggregated these corrupted cells into "Bay of Bengal Candidate Zone 5" with Elevated average score (0.89), drawing a dashed polygon and pulsing marker on the map.
+  - However, when a user clicked the coordinate (9.0°N, 78.9°E), `/predict` sampled deep isothermal waters with a thick mixed layer (`upwelling = 0.0`), producing a score of 0.10. `selectLocation()` then populated the stat cards with 0.10, causing a direct visual conflict with the map's Elevated outline.
+- **Backend Resolution (Shelf-Cliff Filtering in Grid)**:
+  - `compute_pfz_grid` in `backend/api_server.py` now inspects raw upper-50m temperature predictions (`sub_temps_raw = spatial_raw[:, ::lat_step, ::lon_step]`).
+  - Corrupted cells exhibiting unphysical drops >8.0°C or 3+ consecutive identical flatlines are masked to `None` alongside land (`is_land = True`).
+  - This eliminates false coastal clusters entirely: winter Northeast monsoon dates (such as 2023-02-20) now produce 0 false-positive candidate zones across the basin, while genuine upwelling dates (2021-10-09, 2022-07-02, 2023-09-04) identify 2–3 authentic upwelling zones.
+- **Frontend Resolution (Single Source of Truth)**:
+  - In `fisheries.js:selectLocation(lat, lon)`, whenever a clicked or searched coordinate matches an active candidate zone (`matchedZone`), the score displayed in both the map popup (`buildPopupHtml`) and detail stat cards (`stat-pfz-val`, `stat-pfz-badge`) is sourced directly from `matchedZone.pfz_index ?? matchedZone.avgScore`.
+  - For arbitrary ocean coordinates outside candidate zones, `/predict`'s `indices.pfz_confidence_score` is displayed.
+  - Gating is strictly maintained: no zone with score < 0.70 ever produces a dashed polygon outline or pulsing marker.
+- **Layout & Interaction Simplification**:
+  - Relocated `.ky-fisheries-operational-caveat` in `fisheries.html` from above the map to directly below the two-column grid (`.ky-fisheries-content-row`) with `margin-top: 14px; margin-bottom: 14px;`, eliminating awkward spacing and improving visual flow.
+  - Interaction model: Date selection auto-highlights Elevated candidate zones (if any); clicking anywhere drops a plain neutral pin (`buildTeardropPin()`) and displays detail metrics without drawing dashed circles or pulsing markers.
+
+---
+
+## 23. ARGO Validation Endpoint Audit, Dynamic Evaluation & Live Trimmed-Window Scoring
+
+### 23.1 Root Cause of Stale Summary Discrepancy & Elimination of Static Cache
+- **Discovery**:
+  Investigation of `backend/api_server.py` revealed that `_argo_summary_cache` was initialized at module level as a hardcoded static dictionary containing numerical literals (`aggregateRmse: 0.75`, `aggregateBias: 0.12`, `aggregateCorr: 0.995`, `skillScore: 0.200`, etc.).
+  The `/argo/summary` endpoint handler checked `if _argo_summary_cache is not None: return _argo_summary_cache`, thereby immediately short-circuiting on the hardcoded dictionary and never executing the dynamic in-memory prediction loop (lines 1126–1213).
+- **Resolution**:
+  - Replaced the module-level static dictionary with `_argo_summary_cache = None`.
+  - Added thread-safe synchronization lock `_argo_summary_cache_lock = threading.Lock()`.
+  - Implemented `compute_argo_summary(force_refresh=False)`, which executes dynamically against the active PyTorch checkpoint via `compute_argo_skill_score(save_json=True)` in `compute_skill_score.py`, caching results in memory for sub-millisecond subsequent reads.
+  - Added on-demand refresh capability via `GET /argo/summary?refresh=true`.
+
+### 23.2 Mathematical Reconciliation: 0.75°C vs 1.48°C Gap
+- **Discrepancy Origin**:
+  The figure of **$1.48^\circ\text{C}$** RMSE (climatology $1.83^\circ\text{C}$, skill score $+34.9\%$, bias $-0.82^\circ\text{C}$, correlation $0.987$) was an obsolete artifact from an earlier session where the V6 model checkpoint was evaluated against the legacy float32 dataset (`backend/data/*.npy`), which had an incompatible climatology distribution (surface temperatures capped at $31.7^\circ\text{C}$ vs V6's training range of $35.0^\circ\text{C}$).
+- **Confirmed Current Mathematical Reality**:
+  On the active full 3-year continuous float16 dataset (`backend/data/float16/`), a fresh evaluation against the active `model_v6_satswap_anom_best.pt` checkpoint mathematically produces:
+  - Full-Set ($n=41$, 615 depth points) Model RMSE: $\mathbf{0.7535^\circ\text{C}} \rightarrow \mathbf{0.75^\circ\text{C}}$
+  - Climatology RMSE: $\mathbf{0.8423^\circ\text{C}} \rightarrow \mathbf{0.84^\circ\text{C}}$
+  - Overall Skill Score: $\mathbf{+20.0\%}$ ($SS = 0.200$)
+  - Mean Thermal Bias: $\mathbf{+0.1238^\circ\text{C}} \rightarrow \mathbf{+0.12^\circ\text{C}}$
+  - Pearson Profile Coherence: $\mathbf{0.9952} \rightarrow \mathbf{0.995}$
+  - Basin RMSEs: Bay of Bengal $\mathbf{0.66^\circ\text{C}}$ ($n=16$), Arabian Sea $\mathbf{0.74^\circ\text{C}}$ ($n=15$), Equatorial Indian Ocean $\mathbf{0.90^\circ\text{C}}$ ($n=10$).
+  The dashboard figures ($0.75^\circ\text{C}$, $0.66^\circ\text{C}$, $0.74^\circ\text{C}$, $0.90^\circ\text{C}$) represent the genuine mathematical ground truth of the active V6 checkpoint on the float16 dataset.
+
+### 23.3 Dynamic 27-Profile Trimmed Demo-Window Evaluation
+- Rather than freezing `0.715°C` as a static constant, the scoring loop in `compute_skill_score.py` dynamically filters `argo_profiles.json` against `backend/data/trimmed/day_index_map.json`:
+  ```python
+  if (
+      trimmed_day_map is not None
+      and day_idx in trimmed_day_map
+      and (day_idx - LOOKBACK_DAYS) in trimmed_day_map
+      and (trimmed_day_map[day_idx] - trimmed_day_map[day_idx - LOOKBACK_DAYS] == LOOKBACK_DAYS)
+  ):
+      trimmed_sq_errs.extend(sq_model)
+      trimmed_profiles_count += 1
+  ```
+- Exactly $27$ profiles fall inside the contiguous trimmed lookback window ($405$ depth points).
+- The raw live RMSE across these 27 profiles is **$0.715322^\circ\text{C}$**, which rounds cleanly to **$0.715^\circ\text{C}$**.
+- The historical V4 baseline ($0.820^\circ\text{C}$) is preserved as a fixed reference label in `trimmedWindowLabel`.
+
+### 23.4 Audit of Per-Float Vertical Profile Comparison (`/argo/compare`)
+- Audited [`GET /argo/compare?id={profileId}`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/backend/api_server.py) and verified that it has zero static caching or hardcoded outputs. Every call retrieves the float metadata, runs `predict_temperature_profile(lat, lon, date, raw=is_raw)` live, and computes depth-by-depth differences, RMSE, bias, correlation, and maximum absolute error dynamically.
+- Verified dynamic variance across multiple sample floats (`2902254_134` RMSE 0.55°C, `2902278_126` RMSE 0.72°C, `2902282_126` RMSE 0.76°C).
+
+### 23.5 Automated Regression Test Suite (`test_argo_summary_regression.py`)
+- Created comprehensive regression suite asserting 35 distinct conditions:
+  1. Parity between `/argo/summary` and fresh `compute_skill_score.py` within $\le 0.01^\circ\text{C}$ for full set ($n=41$).
+  2. Parity for dynamic trimmed-window subset ($n=27$) within $\le 0.005^\circ\text{C}$ of live computation ($0.715^\circ\text{C}$).
+  3. Per-basin sample counts and RMSE parity across all 3 active basins.
+  4. Dynamic non-frozen variance across multiple `/argo/compare` floats.
+  5. Live HTTP verification over port 8000.

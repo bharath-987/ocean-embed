@@ -22,6 +22,7 @@ USAGE:
 
 import json
 import os
+import threading
 import numpy as np
 import pandas as pd
 import torch
@@ -256,7 +257,69 @@ _v_cur_anom = np.load(f"{DATA_DIR}/v_cur_anom.npy", mmap_mode="r")
 _u_wind_anom = np.load(f"{DATA_DIR}/u_wind_anom.npy", mmap_mode="r")
 _v_wind_anom = np.load(f"{DATA_DIR}/v_wind_anom.npy", mmap_mode="r")
 _temp_target_clim = np.load(f"{DATA_DIR}/temp_target_clim.npy", mmap_mode="r")
-import threading
+
+# Precomputed nearest-neighbor infill indices for coastal shelf bathymetric zeros
+_INFILL_INDICES_PATH = os.path.join(BASE_DIR, "data", "clim_shelf_infill_indices.npz")
+_shelf_infill_indices = None
+_shelf_infill_lock = threading.Lock()
+
+
+def _get_shelf_infill_indices():
+    """
+    Loads precomputed nearest-neighbor coordinate mapping for coastal shelf cells
+    where raw bathymetry in _temp_target_clim has zeros below seabed.
+    """
+    global _shelf_infill_indices
+    if _shelf_infill_indices is not None:
+        return _shelf_infill_indices
+    with _shelf_infill_lock:
+        if _shelf_infill_indices is not None:
+            return _shelf_infill_indices
+        if os.path.exists(_INFILL_INDICES_PATH):
+            _shelf_infill_indices = np.load(_INFILL_INDICES_PATH)
+        else:
+            clim0 = np.array(_temp_target_clim[0])
+            data_to_save = {}
+            for d in range(15):
+                bad = (clim0[d] <= 1.0) & _ocean_mask_2d
+                if bad.any():
+                    good = (clim0[d] > 1.0) & _ocean_mask_2d
+                    good_pts = np.argwhere(good)
+                    bad_pts = np.argwhere(bad)
+                    nearest_indices = []
+                    for i in range(0, len(bad_pts), 500):
+                        chunk = bad_pts[i:i+500]
+                        dists = ((chunk[:, None, 0] - good_pts[None, :, 0]) ** 2 + 
+                                 (chunk[:, None, 1] - good_pts[None, :, 1]) ** 2)
+                        nearest_indices.append(good_pts[np.argmin(dists, axis=1)])
+                    nearest_coords = np.vstack(nearest_indices)
+                    data_to_save[f'bad_r_{d}'] = bad_pts[:, 0]
+                    data_to_save[f'bad_c_{d}'] = bad_pts[:, 1]
+                    data_to_save[f'good_r_{d}'] = nearest_coords[:, 0]
+                    data_to_save[f'good_c_{d}'] = nearest_coords[:, 1]
+            np.savez_compressed(_INFILL_INDICES_PATH, **data_to_save)
+            _shelf_infill_indices = np.load(_INFILL_INDICES_PATH)
+        return _shelf_infill_indices
+
+
+def get_infilled_clim_day(mapped_day_idx: int) -> np.ndarray:
+    """
+    Returns the (15, 101, 241) climatology grid for mapped_day_idx with bathymetric zeros
+    in ocean cells infilled from nearest valid ocean neighbors, ensuring physically realistic
+    climatology across all depths down to 1000m even at shallow coastal/shelf locations.
+    """
+    clim_day = np.array(_temp_target_clim[mapped_day_idx])
+    infill = _get_shelf_infill_indices()
+    for d in range(8, 15):
+        k_br = f"bad_r_{d}"
+        if k_br in infill:
+            br = infill[k_br]
+            bc = infill[f"bad_c_{d}"]
+            gr = infill[f"good_r_{d}"]
+            gc = infill[f"good_c_{d}"]
+            clim_day[d, br, bc] = clim_day[d, gr, gc]
+    return clim_day
+ 
 from collections import OrderedDict
 _prediction_cache: OrderedDict[str, np.ndarray] = OrderedDict()
 _prediction_cache_lock = threading.Lock()
@@ -432,7 +495,7 @@ def predict_temperature_profile(latitude: float, longitude: float, date_str: str
             prediction_anom = _model(window_tensor)
         del window_tensor
 
-        clim_at_day = np.array(_temp_target_clim[mapped_day_idx])
+        clim_at_day = get_infilled_clim_day(mapped_day_idx)
         prediction_real = (prediction_anom[0].cpu().numpy() + clim_at_day).astype("float32")  # anomaly -> real temperature (item 8)
         del prediction_anom
         del clim_at_day
@@ -466,6 +529,16 @@ def predict_temperature_profile(latitude: float, longitude: float, date_str: str
     if not raw:
         upper_mask = [i for i, d in enumerate(STANDARD_DEPTHS) if d <= 100]
         profile[upper_mask] = _isotonic_decreasing(profile[upper_mask])
+
+    # Enforce physical Indian Ocean temperature floor (>= 4.0°C) and prevent deep unphysical zeroing
+    for i in range(len(STANDARD_DEPTHS)):
+        if profile[i] < 4.0:
+            profile[i] = 4.0
+    if not raw:
+        # Guarantee non-increasing temperatures below thermocline (depths >= 100m: indices 7 to 14)
+        for i in range(7, len(STANDARD_DEPTHS)):
+            if profile[i] > profile[i - 1]:
+                profile[i] = profile[i - 1]
 
     return {int(d): round(float(t), 2) for d, t in zip(STANDARD_DEPTHS, profile)}
 

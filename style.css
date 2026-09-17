@@ -2772,7 +2772,7 @@ body.kyogre-page {
   border-radius: 12px;
   padding: 10px 14px;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
-  min-width: 240px;
+  width: 250px;
 }
 
 .ky-fisheries-legend__title {
@@ -2866,6 +2866,29 @@ body.kyogre-page {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
+/* Tier-coded Fish Markers */
+.pfz-fish-marker-wrap[data-tier="elevated"] .pfz-fish-pulse {
+  border-color: rgba(16, 185, 129, 0.9);
+}
+.pfz-fish-marker-wrap[data-tier="elevated"] .pfz-fish-badge {
+  background: rgba(16, 185, 129, 0.4);
+  border-color: #10B981;
+}
+.pfz-fish-marker-wrap[data-tier="moderate"] .pfz-fish-pulse {
+  border-color: rgba(245, 158, 11, 0.9);
+}
+.pfz-fish-marker-wrap[data-tier="moderate"] .pfz-fish-badge {
+  background: rgba(245, 158, 11, 0.4);
+  border-color: #F59E0B;
+}
+.pfz-fish-marker-wrap[data-tier="low"] .pfz-fish-pulse {
+  border-color: rgba(100, 116, 139, 0.7);
+}
+.pfz-fish-marker-wrap[data-tier="low"] .pfz-fish-badge {
+  background: rgba(100, 116, 139, 0.3);
+  border-color: #64748B;
+}
+
 /* Ensure all MapLibre markers have zero transition lag during pan/zoom */
 .maplibregl-marker {
   transition: none !important;
@@ -2926,6 +2949,213 @@ body.kyogre-page {
 .ky-tvd-table-row--highlight td {
   color: #1D4ED8 !important;
   font-weight: 700 !important;
+}
+
+/* Formula Breakdown Info Button & Modal */
+.ky-formula-info-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #EFF6FF;
+  border: 1px solid #BFDBFE;
+  color: #2563EB;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.15s ease;
+  margin-left: 4px;
+}
+
+.ky-formula-info-btn:hover {
+  background: #2563EB;
+  color: #FFFFFF;
+  border-color: #1D4ED8;
+  transform: scale(1.08);
+}
+
+.ky-formula-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.ky-formula-modal__backdrop {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(2px);
+}
+
+.ky-formula-modal__card {
+  position: relative;
+  z-index: 2;
+  background: #FFFFFF;
+  border-radius: 16px;
+  max-width: 560px;
+  width: 100%;
+  box-shadow: 0 10px 30px rgba(0, 30, 60, 0.18);
+  border: 1px solid #E2E8F0;
+  padding: 22px 24px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.ky-formula-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  border-bottom: 1px solid #F1F5F9;
+  padding-bottom: 12px;
+}
+
+.ky-formula-modal__title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ky-formula-modal__title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0F172A;
+  margin: 0;
+}
+
+.ky-formula-modal__close {
+  background: transparent;
+  border: none;
+  font-size: 16px;
+  color: #64748B;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.ky-formula-modal__close:hover {
+  background: #F1F5F9;
+  color: #0F172A;
+}
+
+.ky-formula-modal__lead {
+  font-size: 13px;
+  color: #334155;
+  line-height: 1.5;
+  margin: 0 0 14px 0;
+}
+
+.ky-formula-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.ky-formula-group {
+  border-radius: 10px;
+  padding: 12px 14px;
+  border: 1px solid #E2E8F0;
+  background: #F8FAFC;
+}
+
+.ky-formula-group--model {
+  border-color: #BFDBFE;
+  background: #EFF6FF;
+}
+
+.ky-formula-group__badge {
+  display: inline-block;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #1D4ED8;
+  margin-bottom: 8px;
+}
+
+.ky-formula-group__badge--heuristic {
+  color: #7C3AED;
+}
+
+.ky-formula-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12.5px;
+  color: #334155;
+  line-height: 1.5;
+}
+
+.ky-formula-list li {
+  margin-bottom: 6px;
+}
+
+.ky-formula-list li:last-child {
+  margin-bottom: 0;
+}
+
+.ky-formula-tiers {
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+.ky-formula-tiers__title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #0F172A;
+  margin-bottom: 8px;
+}
+
+.ky-formula-tier-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11.5px;
+  color: #475569;
+  line-height: 1.4;
+  margin-bottom: 8px;
+}
+
+.ky-formula-tier-item:last-child {
+  margin-bottom: 0;
+}
+
+.ky-tier-badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  display: inline-block;
+  width: fit-content;
+}
+
+.ky-tier-badge--elevated {
+  background: #DCFCE7;
+  color: #15803D;
+}
+
+.ky-tier-badge--moderate {
+  background: #FEF3C7;
+  color: #B45309;
+}
+
+.ky-tier-badge--low {
+  background: #F1F5F9;
+  color: #64748B;
 }
 
 /* ============================================================
@@ -4117,7 +4347,7 @@ body.ky-argo-body-theme {
   border-left: 3.5px solid #F59E0B;
   border-radius: 8px;
   padding: 8px 14px;
-  margin-top: -6px;
+  margin-top: 14px;
   margin-bottom: 14px;
   font-size: 12px;
   line-height: 1.45;

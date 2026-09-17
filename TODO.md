@@ -4,6 +4,186 @@
 > **MANDATORY PROTOCOL**: This file **MUST** be updated after **EVERY SINGLE TASK** without exception or user reminder.
 > Record status, files changed, and verification evidence for every item.
 
+- [x] **Task: Audit /argo/summary Endpoint, Eliminate Hardcoded Cache, Dynamic Trimmed Scoring & Add Regression Test** `[Completed 2026-09-17 19:35]`
+  - **Item 1: Root-Cause Analysis of `/argo/summary` Response & Reconciliation**:
+    - Discovered that line 938 in `backend/api_server.py` defined a static hardcoded dictionary `_argo_summary_cache = { ... }` at module root.
+    - Because `get_argo_summary()` checked `if _argo_summary_cache is not None: return _argo_summary_cache`, the dynamic evaluation loop was never executed.
+    - Traced the 1.48°C discrepancy to an earlier session where the V6 model was tested against legacy float32 arrays (`backend/data/*.npy`) with an incompatible V4 climatology pipeline. On the matching 3-year continuous float16 dataset (`backend/data/float16/`), a fresh run of `compute_skill_score.py` mathematically produces 0.75°C RMSE, +0.12°C bias, 0.995 Pearson correlation, and 0.84°C climatology RMSE, confirming the dashboard numbers are mathematically authentic.
+  - **Item 2: Dynamic Evaluation Pipeline & Cache Elimination**:
+    - Replaced module-level static dictionary with `_argo_summary_cache = None` and added thread-safe lock `_argo_summary_cache_lock = threading.Lock()`.
+    - Refactored `backend/compute_skill_score.py` into a modular `compute_argo_skill_score(save_json=True)` function.
+    - Implemented `compute_argo_summary(force_refresh=False)` in `backend/api_server.py`, wiring it to compute metrics dynamically against the active model checkpoint and thread-safe cache in-memory.
+    - Supported on-demand re-evaluation via `GET /argo/summary?refresh=true`.
+  - **Item 3: Dynamic 27-Profile Trimmed Demo-Window Scoring**:
+    - Replaced hardcoded `0.715°C` literal with live calculation: `compute_argo_skill_score()` filters `argo_profiles.json` against `backend/data/trimmed/day_index_map.json` using contiguous lookback window (`day_idx` and `day_idx - 9`).
+    - Verified exactly 27 profiles (405 depth points) fall inside the trimmed window, dynamically yielding exact raw RMSE `0.715322°C` (`0.715°C`).
+    - Maintained the V4 historical comparison (`0.820°C`) as a fixed historical reference point in `trimmedWindowLabel`.
+  - **Item 4: Audit of Per-Float Comparison (`/argo/compare`)**:
+    - Inspected [`GET /argo/compare?id={profileId}`](backend/api_server.py) and confirmed that it executes `predict_temperature_profile(lat, lon, date, raw=is_raw)` live per request, computing depth-by-depth differences, RMSE, bias, and correlation with zero frozen data or static caching.
+    - Spot-checked multiple floats (`2902254_134`, `2902278_126`, `2902282_126`), confirming dynamic variation across coordinates and observation dates.
+  - **Item 5: Automated Regression Test Suite (`test_argo_summary_regression.py`)**:
+    - Built comprehensive 35-assertion test suite validating:
+      1. Full-set ($n=41$) parity between `/argo/summary` and fresh `compute_skill_score.py` within $\le 0.01^\circ\text{C}$.
+      2. Dynamic trimmed-window ($n=27$) parity within $\le 0.005^\circ\text{C}$ of live computation ($0.715^\circ\text{C}$).
+      3. Per-basin sample counts and RMSE parity across all 3 active sub-basins ($n=16, 15, 10$).
+      4. Dynamic non-frozen variance across multiple `/argo/compare` floats.
+      5. Live HTTP verification over port 8000.
+  - **Files Modified**:
+    - `backend/compute_skill_score.py`: Modularized into `compute_argo_skill_score()`, added dynamic trimmed-window filter ($n=27$) and correlation.
+    - `backend/api_server.py`: Removed hardcoded `_argo_summary_cache`, added thread lock, implemented `compute_argo_summary(force_refresh)`.
+    - `test_argo_summary_regression.py`: Created automated regression test suite.
+    - `RESEARCH.md`: Added Section 23 documenting root cause, mathematical reconciliation, dynamic trimmed scoring, and audit evidence.
+    - `TODO.md`: Documented task completion, files modified, and test verification results.
+  - **Full Test Suite Verification (100% Pass)**:
+    - `python test_argo_summary_regression.py`: **35 / 35 PASS** (100%)
+    - `node test_argo_skill_score.js`: **63 / 63 PASS** (100%)
+    - `node test_argo_page.js`: **149 / 149 PASS** (100%)
+    - `node test_argo_metric_verify.js`: **51 / 51 PASS** (100%)
+    - `python test_system.py`: **29 / 29 PASS** (100%)
+    - `node test_fisheries.js`: **21 / 21 PASS** (100%)
+    - Syntax verification: **Zero errors** across all JS and Python files.
+
+
+
+- [x] **Task: Fisheries Mode — Highlighting/Score Consistency, Operational Note Layout & Interaction Simplification** `[Completed 2026-09-17 17:15]`
+  - **Item 1: Diagnosis & Root-Cause Elimination of Candidate Zone 5 Discrepancy**:
+    - Traced the (9.0°N, 78.9°E) "Bay of Bengal Candidate Zone 5" score mismatch (0.89 on map vs 0.10 in detail panel) to unmasked coastal 4.0°C shelf-cliff artifacts at shallow bathymetry cell [4, 23] (9.0°N, 79.5°E) where drops >8°C inflated `upwelling_val = 1.0` and `tc_factor = 1.0` to produce artificial 0.98 grid scores.
+    - Added data-quality guard in `compute_pfz_grid` (`backend/api_server.py`) evaluating `sub_temps_raw` across upper 50m (depths 0–50m): drops >8.0°C and 3+ identical flatlines are masked to `None` alongside land (`is_land = True`).
+    - Verified live `/pfz-grid?date=2021-02-14` cell (9.0°N, 79.5°E) returns `pfz_score: null` and `chla: null`, preventing false candidate zone creation.
+  - **Item 2: Single Source of Truth for Candidate Zone Score**:
+    - In `fisheries.js:selectLocation(lat, lon)`, unified score resolution: when a clicked/searched coordinate matches an active candidate zone (`matchedZone`), the score displayed in the detail panel (`stat-pfz-val`, `stat-pfz-badge`) and popup card (`buildPopupHtml`) is sourced directly from `matchedZone.pfz_index ?? matchedZone.avgScore`.
+    - Made popup dot badge color dynamic based on tier (`#16A34A` Elevated, `#2563EB` Moderate, `#D97706` Low).
+    - Preserved fallback handling for offline/fallback mode.
+    - Verified that no candidate zone with displayed score < 0.70 ever produces a dashed polygon outline or pulsing marker.
+  - **Item 3: Operational Note Relocation**:
+    - Relocated `.ky-fisheries-operational-caveat` in `fisheries.html` from above the map to the gap directly below the two-column grid (`.ky-fisheries-content-row`).
+    - Adjusted `style.css` margins from `margin-top: -6px;` to `margin-top: 14px; margin-bottom: 14px;` for clean visual hierarchy.
+  - **Item 4: Interaction Simplification**:
+    - Ensured date selection auto-renders Elevated candidate zones, while manual click/search drops a plain neutral pin (`buildTeardropPin()`) and populates the detail card without drawing dashed circles or pulsing markers.
+  - **Files Modified**:
+    - `backend/api_server.py`: Evaluated `spatial_raw` in `compute_pfz_grid` to mask shelf cliff and flatline cells as `None`.
+    - `fisheries.html`: Moved `.ky-fisheries-operational-caveat` below `.ky-fisheries-content-row`.
+    - `style.css`: Updated `.ky-fisheries-operational-caveat` margins to `14px 0`.
+    - `fisheries.js`: Sourced `pfzScore` from `matchedZone.pfz_index ?? matchedZone.avgScore`, made popup tier badge color dynamic.
+    - `test_fisheries.js`: Added Section 21 verifying operational caveat placement, single source of truth score parity, arbitrary non-candidate click behavior, and live shelf-cliff filtering; updated Section 16(C) date expectations.
+    - `RESEARCH.md`: Added Section 22.8 detailing root cause, single source of truth, and shelf-cliff grid filtering.
+  - **Full Test Suite Verification (100% Pass)**:
+    - `node test_fisheries.js`: **21 / 21 Suites PASS** (100%)
+    - `python test_temperature_shelf_depths.py`: **4 / 4 PASS** (100%)
+    - `python test_system.py`: **29 / 29 PASS** (100%)
+    - `node test_interactions.js`: **ALL PASS** (100%)
+    - `node test_marine_ecology.js`: **157 / 157 PASS** (100%)
+    - `node test_argo_page.js`: **149 / 149 PASS** (100%)
+    - `node test_argo_skill_score.js`: **63 / 63 PASS** (100%)
+    - `node test_argo_metric_verify.js`: **51 / 51 PASS** (100%)
+    - `node test_remove_confidence.js`: **11 / 11 PASS** (100%)
+    - Syntax verification: **Zero errors** across all JS and Python files (`py_compile`, `node --check`).
+
+- [x] **Task: Fisheries Mode — Click-Highlight Consistency, Legend Sizing & Real Chlorophyll Layer** `[Completed 2026-09-17 15:30]`
+  - **Item 1: Click-Highlight Consistency (Codified via Automated Test)**:
+    - Verified that `selectLocation()` never draws dashed polygon outlines or pulsing fish markers on direct click or coordinate search, using solely the neutral teardrop pin (`buildTeardropPin()`).
+    - Added automated test in `test_fisheries.js` Section 20(G): clicking/searching a synthetic Low-tier zone (`pfz_index = 0.30`) leaves `mockSourceData.features` (polygons) and `mockMarkers` (pulsing fish markers) strictly unchanged at 1 (only the Elevated zone), while detail panel and stat cards correctly resolve the Low-tier score `0.30` and amber badge.
+  - **Item 2: Chlorophyll-a Legend Sizing Fix**:
+    - Restyled `.ky-fisheries-legend` in `style.css` from `min-width: 240px;` to `width: 250px;`, matching the Dashboard Sea Surface Temperature legend's compact card sizing and preventing text-length expansion.
+    - Updated `fisheries.html` to hide the legend initially (`style="display:none;"`) until a date is selected and the chlorophyll overlay is rendered.
+    - Updated legend caption to *"Per-date surface proxy derived from upwelling, SLA & current dynamics"* and removed the obsolete `<!-- Illustrative seasonal pattern -->` HTML comment.
+  - **Item 3: Real Per-Date Chlorophyll Map Layer**:
+    - Replaced the static illustrative `calculateChlaValue(lat, lon)` Gaussian plume bells with real per-date physical data.
+    - Updated backend `compute_pfz_grid(date_str)` in `backend/api_server.py` to serialize `chla_grid` across the North Indian Ocean basin alongside `pfz_scores`, matching the exact `/predict` surface proxy formula (`0.25 + 2.5 * upwelling_val - 1.2 * sla_grid + 0.35 * cur_mag`).
+    - Implemented `renderChlaOverlayFromGrid(gridData)` in `fisheries.js`: converts `chla_grid` into an offscreen canvas using `sampleChlaColor()`, applies 5x bilinear bicubic upsampling, clips against the coastline land mask, updates the MapLibre image source `'chla-raster-source'`, and unhides `#map-legend`.
+    - Initialized map load with a 1x1 blank canvas (`createBlankCanvas()`) and wired `clearDynamicPfzZones()` to clear the overlay and hide the legend when date is cleared.
+    - Removed the disclaimer sentence *"PFZ score chlorophyll input differs from the illustrative map layer shown"* from `fisheries.html` since both data sources are now unified.
+    - Added automated parity test in `test_fisheries.js` Section 20(H) asserting that `/pfz-grid` `chla_grid` values track `/predict` `indices.chlorophyll_a` within ±0.6 mg/m³ at sample coordinates.
+    - Diagnosed chlorophyll grid coverage: 470 non-null cells (all valid ocean cells across 6°N–29°N have non-null values 0.05–3.05 mg/m³; mean 1.02 mg/m³; median 0.62 mg/m³). All 596 null cells correspond strictly to continental landmasses (466 cells) and perimeter boundary zeros (130 cells).
+    - Fixed North-South vertical raster inversion in `renderChlaOverlayFromGrid()` (mapping canvas `y=0` North to `gridData.lats` index `(H - 1) - y`) so that chlorophyll plumes and coastal features align accurately with the base map and the coastline mask.
+  - **Files Modified**:
+    - `backend/api_server.py`: Added `chla_grid` to `compute_pfz_grid()` response.
+    - `style.css`: Set `.ky-fisheries-legend` width to `250px`.
+    - `fisheries.html`: Hidden legend initially, updated caption and subnote, removed illustrative mismatch disclaimer.
+    - `fisheries.js`: Replaced static canvas with `renderChlaOverlayFromGrid`, `createBlankCanvas`, wired into `loadAndRenderDynamicPfzZones`, `clearDynamicPfzZones`, and map load.
+    - `test_fisheries.js`: Added Section 20(G) and 20(H), updated Section 5 and 14 assertions.
+    - `RESEARCH.md`: Added Section 22.7.
+  - **Full Test Suite Verification (100% Pass)**:
+    - `node test_fisheries.js`: **20 / 20 Suites PASS** (100%)
+    - `python test_temperature_shelf_depths.py`: **4 / 4 PASS** (100%)
+    - `python test_system.py`: **29 / 29 PASS** (100%)
+    - `node test_remove_confidence.js`: **11 / 11 PASS** (100%)
+    - `node test_marine_ecology.js`: **157 / 157 PASS** (100%)
+    - `node test_argo_page.js`: **149 / 149 PASS** (100%)
+    - `node test_argo_skill_score.js`: **63 / 63 PASS** (100%)
+    - `node test_argo_metric_verify.js`: **51 / 51 PASS** (100%)
+    - `node test_interactions.js`: **ALL PASS** (100%)
+    - Syntax verification: **Zero errors** across all JS and Python files.
+
+- [x] **Task: Fisheries Mode — Highlighting Fix & Data Quality Guard** `[Completed 2026-09-17 14:55]`
+  - **Item 1: Candidate Zone Visibility Filter (`HIGHLIGHT_MIN_TIER`)**:
+    - Defined single named constant `HIGHLIGHT_MIN_TIER = 'elevated'` in `fisheries.js` (with `TIER_THRESHOLDS` and `TIER_ORDER` mappings).
+    - Added `getZoneTier()` and `shouldHighlightZone()` to gate dashed polygon outlines and pulsing fish markers strictly to Elevated candidate zones (`pfz_index >= 0.70`).
+    - Excluded Moderate (`0.40–0.69`) and Low (`<0.40`) candidate zones from map overlays, eliminating visual clutter.
+    - Preserved all candidate zones in `currentDynamicZones` so that direct coordinate clicks or search bar queries inside Moderate/Low zones seamlessly resolve the full zone details and tier-specific color coding in the detail panel and stat cards.
+  - **Item 2: Data-Quality Guard for Upper Temperature Profiles (0–50m)**:
+    - Added `check_temperature_data_quality(temps_0_50)` in `backend/api_server.py` and `checkTemperatureDataQuality(profile)` in `fisheries.js`.
+    - Tested raw temperature profiles across standard depths `[0, 5, 10, 20, 30, 50m]` for:
+      a) Unphysical thermal cliff: temperature drop $> 8.0^\circ\text{C}$ between adjacent standard depths.
+      b) Unnatural flatline: $3+$ consecutive identical temperature values in raw upper-ocean profile.
+    - If corrupted, sets `data_quality_flag: true` with explanatory reason, suppresses candidate zone from map overlay (`shouldHighlightZone` returns `false`), sets `indices.pfz = None` and `indices.pfz_confidence_score = None`, and displays `"Data Flagged"` amber badge in UI with score `"—"`.
+    - Updated `/predict` endpoint to compute raw profile (`raw=True`) for data-quality inspection and expose `indices.data_quality_flag` and `indices.data_quality_reason`.
+  - **Item 3: Legend & UI Explanatory Text Updates**:
+    - Updated `#map-legend` subnote in `fisheries.html`: *"Derived from model thermal gradients (vertical dT/dz + horizontal SST front) & SLA eddy proxy. Only Elevated candidate zones (PFZ ≥ 0.70) auto-highlighted on map."*
+    - Updated `.ky-formula-tiers` modal in `fisheries.html` to clarify that Elevated tier is auto-highlighted on the map overlay, while Moderate and Low tiers remain accessible in the detail panel via direct coordinate search.
+  - **Files Modified**:
+    - `backend/api_server.py`: Added `check_temperature_data_quality`, updated `model_result_to_frontend` and `/predict`.
+    - `fisheries.js`: Added `HIGHLIGHT_MIN_TIER`, `checkTemperatureDataQuality`, `scoreCandidateZone`, `shouldHighlightZone`, `getZoneTier`, updated `loadAndRenderDynamicPfzZones`, `buildPopupHtml`, `updateStatCards`, safeguarded `checkIsLand` and `applyLandCutout` against undefined window.
+    - `fisheries.html`: Updated map legend subnote and formula modal tier descriptions.
+    - `test_fisheries.js`: Added Sections 19 and 20 covering visibility filters, data quality guard, backend predict flag, legend text, and direct search resolution.
+    - `RESEARCH.md`: Added Sections 22.5 and 22.6.
+  - **Full Test Suite Verification (100% Pass)**:
+    - `node test_fisheries.js`: **20 / 20 Suites PASS** (100%)
+    - `python test_temperature_shelf_depths.py`: **4 / 4 PASS** (100%)
+    - `python test_system.py`: **29 / 29 PASS** (100%)
+    - `node test_remove_confidence.js`: **11 / 11 PASS** (100%)
+    - `node test_marine_ecology.js`: **157 / 157 PASS** (100%)
+    - `node test_argo_page.js`: **149 / 149 PASS** (100%)
+    - `node test_argo_skill_score.js`: **63 / 63 PASS** (100%)
+    - `node test_argo_metric_verify.js`: **51 / 51 PASS** (100%)
+    - `node test_interactions.js`: **ALL PASS** (100%)
+    - Python compilation & JS syntax checks (`node --check`): **Zero errors**
+
+- [x] **Task: Scientifically Defensible Fisheries Mode & Upstream Temperature Bug Fix** `[Completed 2026-09-17 01:15]`
+  - **Task 1: Upstream Shelf Temperature Bug Fix**:
+    - Identified root cause in `_temp_target_clim`: bathymetric zeros below seabed at coastal shelf cells (such as Gulf of Mannar, Gulf of Kutch, Palk Strait) combined with anomaly predictions resulted in negative temperatures (-0.9°C) and flat zeros across deep depths (125–1000m).
+    - Precomputed nearest-neighbor ocean cell coordinate infill mapping `clim_shelf_infill_indices.npz` and implemented `get_infilled_clim_day()` in `backend/inference.py` scoped strictly to depths $\ge 125\text{m}$ (indices 8 to 14), preserving near-surface (0–100m) trained dynamics and upwelling gradients.
+    - Added physical temperature floor ($T \ge 4.0^\circ\text{C}$) and non-increasing monotonicity below the thermocline (depths $\ge 100\text{m}$).
+    - At Gulf of Mannar (9.0°N, 78.9°E) on 2023-12-21: temperatures restored to physically realistic tropical Indian Ocean structure (0m: 28.3°C, 100m: 24.43°C, 200m: 14.50°C, 1000m: 6.88°C).
+    - Created automated test `test_temperature_shelf_depths.py` (4/4 PASS).
+  - **Task 2: Grounded Horizontal SST Thermal Front Gradient**:
+    - Replaced synthetic chlorophyll assumptions with literature-grounded horizontal thermal front gradient magnitude ($\|\nabla_{\!H} \text{SST}\|$ in $^\circ\text{C}/100\text{km}$) derived from the model's 0.25° SST field via central differences.
+    - Derived front strength $\in [0, 1]$ and exposed in `indices.thermal_front_gradient` and `indices.thermal_front_strength`.
+    - Replaced "Illustrative seasonal pattern" legend subnote in `fisheries.html` with honest provenance: "Derived from model thermal gradients (vertical dT/dz + horizontal SST front) & SLA eddy proxy."
+  - **Task 3: Transparent Combination Formula & UI Tooltip**:
+    - Documented explicit 85% model-derived (Thermocline 35% + Upwelling 35% + Horizontal Front 15%) vs 15% estimated heuristic (Surface Chlorophyll Proxy 15%) breakdown in docstrings, API responses (`indices.pfz_formula`), and interactive UI modal (`#pfz-formula-modal`).
+    - Added "How is this calculated?" info button (`#btn-pfz-formula-info`) on Card 3.
+    - Defined physical meaning of advisory tiers (Elevated $\ge 0.70$, Moderate $0.40\text{--}0.69$, Low $< 0.40$).
+  - **Task 4: Color-Coded Map Highlights by Tier**:
+    - Updated `loadAndRenderDynamicPfzZones` in `fisheries.js` and `style.css`:
+      - High / Elevated ($\ge 0.70$): Emerald (`#10B981`), fill opacity 0.22, line width 2.4.
+      - Moderate ($0.40\text{--}0.69$): Amber (`#F59E0B`), fill opacity 0.16, line width 1.8.
+      - Low ($< 0.40$): Muted Slate (`#64748B`), fill opacity 0.08, line width 1.2.
+    - Color-coded fish marker centroid pulses and badges by tier (`data-tier="elevated|moderate|low"`).
+  - **Full Test Suite Results (100% Pass)**:
+    - `python test_temperature_shelf_depths.py`: **4 / 4 PASS** (100%)
+    - `python test_system.py`: **29 / 29 PASS** (100%)
+    - `node test_fisheries.js`: **18 / 18 Sections PASS** (100%)
+    - `node test_remove_confidence.js`: **11 / 11 PASS** (100%)
+    - `node test_marine_ecology.js`: **157 / 157 PASS** (100%)
+    - `node test_argo_page.js`: **149 / 149 PASS** (100%)
+    - `node test_argo_skill_score.js`: **63 / 63 PASS** (100%)
+    - `node test_argo_metric_verify.js`: **51 / 51 PASS** (100%)
+    - `node test_interactions.js`: **ALL PASS** (100%)
+    - `node test_argo_cycle_sync.js`: **ALL PASS** (100%)
+    - `node test_d20_card.js`: **ALL PASS** (100%)
+    - `node test_region_mask.js`: **15 / 15 PASS** (100%)
+
 - [x] **Task: Complete Removal of Confidence Level from Project** `[Completed 2026-09-16 21:10]`
   - Removed confidence dots, badges, and percentage indicators from all 4 top stat cards in `explore.html` (`#stat-mld-confidence`, `#stat-ohc-confidence`, `#stat-sound-confidence`, `#stat-d20-confidence`).
   - Reverted TVD table from 3 columns to clean 2 columns (`Depth (m)`, `Temperature (°C)`) with equal 50% column widths in `explore.html` and `app.js`.

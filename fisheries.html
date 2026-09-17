@@ -197,6 +197,9 @@
                 <span class="ky-stat-card__label">PFZ Index (0–1)</span>
                 <div class="ky-stat-card__pill-row">
                   <span class="ky-provenance-pill ky-provenance-pill--heuristic">Estimated Heuristic</span>
+                  <button type="button" class="ky-formula-info-btn" id="btn-pfz-formula-info" aria-label="Formula breakdown" title="How is this calculated?">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                  </button>
                 </div>
               </div>
               <div class="ky-stat-card__val-row">
@@ -230,16 +233,69 @@
           </div>
         </div>
 
-        <!-- Operational Caveat Banner: Thermocline-Depth Skill (100–200m) & PFZ Index Directional Usage -->
-        <div class="ky-fisheries-operational-caveat">
-          <svg class="ky-fisheries-caveat-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="12" y1="8" x2="12" y2="12"></line>
-            <line x1="12" y1="16" x2="12.01" y2="16"></line>
-          </svg>
-          <span class="ky-fisheries-caveat-text">
-            <strong>Operational Note:</strong> Thermocline-depth accuracy (100–200m) shows measured skill below the climatological baseline in ARGO validation (vs monthly climatology baseline, n=41 Argo profiles); treat PFZ Index as a directional indicator, not a precise forecast. Full validation breakdown available on the <a href="argo.html" class="ky-fisheries-caveat-link">ARGO Validation page</a>.
-          </span>
+        <!-- Formula Breakdown Popover / Modal -->
+        <div id="pfz-formula-modal" class="ky-formula-modal" style="display: none;" role="dialog" aria-labelledby="pfz-formula-title" aria-modal="true">
+          <div class="ky-formula-modal__backdrop" id="pfz-formula-backdrop"></div>
+          <div class="ky-formula-modal__card">
+            <div class="ky-formula-modal__header">
+              <div class="ky-formula-modal__title-row">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2.2">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="12" y1="16" x2="12" y2="12"></line>
+                  <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                </svg>
+                <h3 id="pfz-formula-title" class="ky-formula-modal__title">How is the PFZ Index Calculated?</h3>
+              </div>
+              <button type="button" class="ky-formula-modal__close" id="btn-pfz-formula-close" aria-label="Close formula modal">✕</button>
+            </div>
+            <div class="ky-formula-modal__body">
+              <p class="ky-formula-modal__lead">
+                The Potential Fishing Zone (PFZ) Index combines <strong>85% model-derived thermal dynamics</strong> with a <strong>15% surface primary productivity proxy</strong>:
+              </p>
+              
+              <div class="ky-formula-breakdown">
+                <div class="ky-formula-group ky-formula-group--model">
+                  <div class="ky-formula-group__badge">85% Model-Derived Physical Drivers</div>
+                  <ul class="ky-formula-list">
+                    <li>
+                      <strong>Thermocline Shoaling (35%):</strong> Shallower thermocline depth (&lt;80m) compresses pelagic habitat toward the euphotic zone, concentrating forage fish.
+                    </li>
+                    <li>
+                      <strong>Vertical Thermal Gradient / Upwelling (35%):</strong> Rate of temperature change (dT/dz) across 0–50m. Strong gradients indicate cold, nutrient-rich water ascending to the surface.
+                    </li>
+                    <li>
+                      <strong>Horizontal Thermal Front Gradient (15%):</strong> Spatial SST gradient magnitude (||∇<sub>H</sub> SST|| in °C / 100 km). Thermal fronts represent convergent boundaries where plankton and biomass concentrate.
+                    </li>
+                  </ul>
+                </div>
+
+                <div class="ky-formula-group ky-formula-group--heuristic">
+                  <div class="ky-formula-group__badge ky-formula-group__badge--heuristic">15% Estimated Heuristic</div>
+                  <ul class="ky-formula-list">
+                    <li>
+                      <strong>Surface Primary Productivity Proxy (15%):</strong> Evaluated from upwelling strength and cyclonic Sea Level Anomaly (SLA eddy pumping) as an ecological food-web baseline.
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
+              <div class="ky-formula-tiers">
+                <div class="ky-formula-tiers__title">Physical Interpretation of Advisory Tiers:</div>
+                <div class="ky-formula-tier-item ky-formula-tier-item--elevated">
+                  <span class="ky-tier-badge ky-tier-badge--elevated">Elevated (≥ 0.70)</span>
+                  <span>Co-occurrence of strong vertical thermal gradient (&gt;1.5°C/50m), shallow thermocline (&lt;80m), and active horizontal thermal front (&gt;0.5°C/100km). Historically associated with pelagic fish aggregation. <em>Auto-highlighted on the map overlay. Not validated against commercial catch data.</em></span>
+                </div>
+                <div class="ky-formula-tier-item ky-formula-tier-item--moderate">
+                  <span class="ky-tier-badge ky-tier-badge--moderate">Moderate (0.40–0.69)</span>
+                  <span>Partially favorable conditions; intermediate thermocline or moderate thermal gradient. Mixed subsurface aggregation signal. <em>Available in detail panel via direct coordinate search (not auto-highlighted on map).</em></span>
+                </div>
+                <div class="ky-formula-tier-item ky-formula-tier-item--low">
+                  <span class="ky-tier-badge ky-tier-badge--low">Low (&lt; 0.40)</span>
+                  <span>Unfavorable physical conditions; deep thermocline or warm stratified layer without significant fronts. <em>Available in detail panel via direct coordinate search (not auto-highlighted on map).</em></span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- ============================================================
@@ -276,16 +332,16 @@
                 </div>
 
                 <!-- Dynamic Chlorophyll-a Map Legend (Bottom-Left) -->
-                <div id="map-legend" class="ky-fisheries-legend" style="display:block;">
+                <div id="map-legend" class="ky-fisheries-legend" style="display:none;">
                   <span class="ky-fisheries-legend__title">Chlorophyll-a Proxy (mg/m³)</span>
-                  <span class="ky-map-legend__caption">Surface heuristic derived from upwelling dynamics</span>
+                  <span class="ky-map-legend__caption">Per-date surface proxy derived from upwelling, SLA &amp; current dynamics</span>
                   <div class="ky-fisheries-legend__bar"></div>
                   <div class="ky-fisheries-legend__ticks">
                     <span>Low (0.01)</span>
                     <span>Moderate (1.0)</span>
                     <span>High (10.0+)</span>
                   </div>
-                  <div class="ky-fisheries-legend__subnote">Illustrative seasonal pattern</div>
+                  <div class="ky-fisheries-legend__subnote">Derived from model thermal gradients (vertical dT/dz + horizontal SST front) &amp; SLA eddy proxy. Only Elevated candidate zones (PFZ ≥ 0.70) auto-highlighted on map.</div>
                 </div>
 
               </div>
@@ -344,7 +400,7 @@
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0; margin-top:2px;">
                   <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
                 </svg>
-                <span>These indices are derived heuristics based on model temperature output and are intended to support — not replace — field verification and INCOIS's operational PFZ advisories. PFZ score chlorophyll input differs from the illustrative map layer shown.</span>
+                <span>These indices are derived heuristics based on model temperature output and are intended to support — not replace — field verification and INCOIS's operational PFZ advisories.</span>
               </div>
 
             </div>
@@ -352,6 +408,18 @@
 
         </div>
         <!-- end two-column grid -->
+
+        <!-- Operational Caveat Banner: Thermocline-Depth Skill (100–200m) & PFZ Index Directional Usage -->
+        <div class="ky-fisheries-operational-caveat">
+          <svg class="ky-fisheries-caveat-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+          <span class="ky-fisheries-caveat-text">
+            <strong>Operational Note:</strong> Thermocline-depth accuracy (100–200m) shows measured skill below the climatological baseline in ARGO validation (vs monthly climatology baseline, n=41 Argo profiles); treat PFZ Index as a directional indicator, not a precise forecast. Full validation breakdown available on the <a href="argo.html" class="ky-fisheries-caveat-link">ARGO Validation page</a>.
+          </span>
+        </div>
 
       </main>
     </div>

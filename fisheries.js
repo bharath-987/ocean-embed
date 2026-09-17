@@ -46,6 +46,26 @@ const BOUNDS = {
 // Depths matching the reference mockup (0 to 1000m)
 const DEPTH_LEVELS = [0, 25, 50, 100, 200, 300, 500, 750, 1000];
 
+/**
+ * Candidate zone visibility filter threshold.
+ * Controls the minimum advisory tier that auto-renders dashed polygon outlines
+ * and pulsing fish markers on the map overlay.
+ * Single named constant: set to 'elevated' for >=0.70 only; 'moderate' includes >=0.40; 'low' includes all.
+ */
+const HIGHLIGHT_MIN_TIER = 'elevated';
+
+const TIER_THRESHOLDS = {
+  elevated: 0.70,
+  moderate: 0.40,
+  low: 0.0,
+};
+
+const TIER_ORDER = {
+  elevated: 3,
+  moderate: 2,
+  low: 1,
+};
+
 const PRESET_ZONES = [
   {
     id: 'zone-bob',
@@ -95,7 +115,6 @@ let currentDateStr = null;
 let currentMarker = null;
 let currentPopup = null;
 let profileChart = null;
-let chlaLayerVisible = true;
 let pfzLayerVisible = true;
 let currentDynamicZones = [];
 let activeFishMarkers = [];
@@ -110,12 +129,31 @@ function clearDynamicPfzZones() {
       if (source) {
         source.setData({ type: 'FeatureCollection', features: [] });
       }
+      // Clear chlorophyll overlay to transparent placeholder
+      const chlaSource = map.getSource('chla-raster-source');
+      if (chlaSource && chlaSource.updateImage) {
+        const blankCanvas = document.createElement('canvas');
+        blankCanvas.width = 1;
+        blankCanvas.height = 1;
+        chlaSource.updateImage({
+          url: blankCanvas.toDataURL(),
+          coordinates: [
+            [BOUNDS.west, BOUNDS.north],
+            [BOUNDS.east, BOUNDS.north],
+            [BOUNDS.east, BOUNDS.south],
+            [BOUNDS.west, BOUNDS.south]
+          ]
+        });
+      }
     } catch (e) {
       // Map source may not be initialized yet
     }
   }
   activeFishMarkers.forEach(m => m.remove());
   activeFishMarkers = [];
+  // Hide chlorophyll legend
+  const legend = document.getElementById('map-legend');
+  if (legend) legend.style.display = 'none';
 }
 
 function resetStatCards(promptText) {
@@ -200,11 +238,13 @@ function isCoordInsideNorthIndianOcean(lat, lon) {
 }
 
 function checkIsLand(lat, lon) {
-  if (typeof window.isLand === 'function') {
-    return window.isLand(lat, lon);
-  }
-  if (window.Coastline && typeof window.Coastline.isLand === 'function') {
-    return window.Coastline.isLand(lat, lon);
+  if (typeof window !== 'undefined') {
+    if (typeof window.isLand === 'function') {
+      return window.isLand(lat, lon);
+    }
+    if (window.Coastline && typeof window.Coastline.isLand === 'function') {
+      return window.Coastline.isLand(lat, lon);
+    }
   }
   // Coarse bounding box fallback
   if (lat >= 8.0 && lat <= 26.0 && lon >= 73.0 && lon <= 85.0) return true;
@@ -212,10 +252,12 @@ function checkIsLand(lat, lon) {
 }
 
 function applyLandCutout(canvas) {
-  if (typeof window.applyLandMaskToCanvas === 'function') {
-    window.applyLandMaskToCanvas(canvas, BOUNDS);
-  } else if (window.Coastline && typeof window.Coastline.applyLandMaskToCanvas === 'function') {
-    window.Coastline.applyLandMaskToCanvas(canvas, BOUNDS);
+  if (typeof window !== 'undefined') {
+    if (typeof window.applyLandMaskToCanvas === 'function') {
+      window.applyLandMaskToCanvas(canvas, BOUNDS);
+    } else if (window.Coastline && typeof window.Coastline.applyLandMaskToCanvas === 'function') {
+      window.Coastline.applyLandMaskToCanvas(canvas, BOUNDS);
+    }
   }
 }
 
@@ -269,70 +311,59 @@ function sampleChlaColor(val) {
   return [last.r, last.g, last.b, 210];
 }
 
-/**
- * 2D Chlorophyll-a raster value generator for MapLibre canvas overlay.
- * Note: This is a static illustrative visual layer independent of indices.nutrients/chla_val used in PFZ scoring - not the same data source.
- */
-function calculateChlaValue(lat, lon) {
-  // This is a static illustrative visual layer independent of indices.nutrients/chla_val used in PFZ scoring - not the same data source.
-  let chl = 0.14 + 0.05 * Math.sin(lat * 0.15 + lon * 0.12);
-
-
-  // Somali upwelling plume
-  const dSomali = Math.hypot(lat - 10.0, lon - 52.0);
-  if (dSomali < 9.0) chl += 3.6 * Math.exp(-(dSomali * dSomali) / 26.0);
-
-  // Oman upwelling plume
-  const dOman = Math.hypot(lat - 20.0, lon - 59.0);
-  if (dOman < 8.0) chl += 3.2 * Math.exp(-(dOman * dOman) / 22.0);
-
-  // Southwest India / Malabar upwelling
-  const dKerala = Math.hypot(lat - 10.5, lon - 75.5);
-  if (dKerala < 6.0) chl += 3.8 * Math.exp(-(dKerala * dKerala) / 16.0);
-
-  // Head of Bay of Bengal / Ganges delta
-  const dBoBNorth = Math.hypot(lat - 21.0, lon - 90.0);
-  if (dBoBNorth < 7.0) chl += 5.8 * Math.exp(-(dBoBNorth * dBoBNorth) / 20.0);
-
-  // Andaman Sea delta plume
-  const dAndaman = Math.hypot(lat - 15.0, lon - 95.5);
-  if (dAndaman < 6.0) chl += 4.2 * Math.exp(-(dAndaman * dAndaman) / 18.0);
-
-  // BoB PFZ Tuna Hotspot (12.4°N, 88.6°E)
-  const dAlpha = Math.hypot(lat - 12.4, lon - 88.6);
-  if (dAlpha < 5.0) chl += 2.6 * Math.exp(-(dAlpha * dAlpha) / 10.0);
-
-  // Arabian Sea Central Hotspot (15.8°N, 65.2°E)
-  const dBeta = Math.hypot(lat - 15.8, lon - 65.2);
-  if (dBeta < 5.0) chl += 2.0 * Math.exp(-(dBeta * dBeta) / 10.0);
-
-  // SW Arabian Basin Hotspot (10.5°N, 56.5°E)
-  const dGamma = Math.hypot(lat - 10.5, lon - 56.5);
-  if (dGamma < 5.0) chl += 1.6 * Math.exp(-(dGamma * dGamma) / 12.0);
-
-  return Math.max(0.02, Math.min(9.8, chl));
+function createBlankCanvas() {
+  if (typeof document === 'undefined') return null;
+  const c = document.createElement('canvas');
+  c.width = 1;
+  c.height = 1;
+  return c;
 }
 
-function createChlaCanvas() {
-  const lowW = 120;
-  const lowH = 50;
-  const lowCanvas = document.createElement('canvas');
-  lowCanvas.width = lowW;
-  lowCanvas.height = lowH;
-  const lowCtx = lowCanvas.getContext('2d');
-  const imgData = lowCtx.createImageData(lowW, lowH);
+/**
+ * Renders a 2D raster canvas overlay of surface chlorophyll-a proxy derived from real
+ * model predictions (/pfz-grid: upwelling + SLA eddy pumping + geostrophic current).
+ * Evaluated per selected date across the North Indian Ocean basin.
+ *
+ * @param {Object} gridData - { lats: number[], lons: number[], chla_grid: (number|null)[][] }
+ * @returns {HTMLCanvasElement|null}
+ */
+function renderChlaOverlayFromGrid(gridData) {
+  if (!gridData || !gridData.chla_grid || !gridData.lats || !gridData.lons) return null;
+  if (typeof document === 'undefined') return null;
 
-  for (let y = 0; y < lowH; y++) {
-    const lat = BOUNDS.north - (y / (lowH - 1)) * (BOUNDS.north - BOUNDS.south);
-    for (let x = 0; x < lowW; x++) {
-      const lon = BOUNDS.west + (x / (lowW - 1)) * (BOUNDS.east - BOUNDS.west);
-      const val = calculateChlaValue(lat, lon);
-      const [r, g, b, a] = sampleChlaColor(val);
-      const idx = (y * lowW + x) * 4;
-      imgData.data[idx]     = r;
-      imgData.data[idx + 1] = g;
-      imgData.data[idx + 2] = b;
-      imgData.data[idx + 3] = a;
+  const H = gridData.lats.length;
+  const W = gridData.lons.length;
+  const lowCanvas = document.createElement('canvas');
+  lowCanvas.width = W;
+  lowCanvas.height = H;
+  if (typeof lowCanvas.getContext !== 'function') {
+    const legend = document.getElementById('map-legend');
+    if (legend) legend.style.display = 'block';
+    return lowCanvas;
+  }
+  const lowCtx = lowCanvas.getContext('2d');
+  const imgData = lowCtx.createImageData(W, H);
+
+  // Map canvas pixel rows to grid rows: canvas y=0 is North (30°N), whereas
+  // gridData.lats[0] is South (5°N) and gridData.lats[H - 1] is North (30°N).
+  for (let y = 0; y < H; y++) {
+    const r = (H - 1) - y;
+    for (let c = 0; c < W; c++) {
+      const val = gridData.chla_grid[r][c];
+      const idx = (y * W + c) * 4;
+      if (val === null || val === undefined || isNaN(val)) {
+        // Transparent land / masked
+        imgData.data[idx]     = 0;
+        imgData.data[idx + 1] = 0;
+        imgData.data[idx + 2] = 0;
+        imgData.data[idx + 3] = 0;
+      } else {
+        const [red, green, blue, alpha] = sampleChlaColor(val);
+        imgData.data[idx]     = red;
+        imgData.data[idx + 1] = green;
+        imgData.data[idx + 2] = blue;
+        imgData.data[idx + 3] = alpha;
+      }
     }
   }
   lowCtx.putImageData(imgData, 0, 0);
@@ -349,7 +380,38 @@ function createChlaCanvas() {
   // Anti-aliased coastline land cutout
   applyLandCutout(highCanvas);
 
+  // Update MapLibre source if available
+  const activeMap = (typeof map !== 'undefined' && map) || (typeof window !== 'undefined' && window.map) || (typeof global !== 'undefined' && global.map);
+  if (activeMap && activeMap.getSource) {
+    const chlaSource = activeMap.getSource('chla-raster-source');
+    if (chlaSource && chlaSource.updateImage) {
+      chlaSource.updateImage({
+        url: highCanvas.toDataURL(),
+        coordinates: [
+          [BOUNDS.west, BOUNDS.north],
+          [BOUNDS.east, BOUNDS.north],
+          [BOUNDS.east, BOUNDS.south],
+          [BOUNDS.west, BOUNDS.south]
+        ]
+      });
+    }
+  }
+
+  // Show chlorophyll legend
+  const legend = document.getElementById('map-legend');
+  if (legend) legend.style.display = 'block';
+
   return highCanvas;
+}
+
+function calculateChlaValue(lat, lon) {
+  // Backward-compatible stub returning scalar proxy
+  return 0.25;
+}
+
+function createChlaCanvas(gridData) {
+  if (gridData) return renderChlaOverlayFromGrid(gridData);
+  return createBlankCanvas();
 }
 
 /* ── PFZ GeoJSON Polygons (Closed Dashed Boundaries) ─────── */
@@ -480,95 +542,287 @@ function identifyPfzClusters(gridData) {
 
     const id = `dynamic-zone-${idx + 1}`;
     const name = `${basinName} Candidate Zone ${idx + 1}`;
-    const tag = `PFZ Index: ${z.avgScore >= 0.70 ? 'Elevated' : 'Moderate'} (${z.avgScore.toFixed(2)})`;
+    const pfz_index = Number(z.avgScore.toFixed(2));
+    const tag = `PFZ Index: ${pfz_index >= 0.70 ? 'Elevated' : 'Moderate'} (${pfz_index.toFixed(2)})`;
 
     return {
       ...z,
       id,
       name,
       tag,
+      pfz_index,
+      data_quality_flag: false,
       ring: generateClusterRing(z.centroidLat, z.centroidLon, z.radiusLat, z.radiusLon)
     };
   });
 }
 
 /**
+ * Data-quality guard for temperature corruption bug.
+ * Inspects raw temperature profile across standard depths in the 0-50m band
+ * (depths: 0, 5, 10, 20, 30, 50m).
+ * Flags if:
+ *   a) Unphysical drop > 8°C between two adjacent standard depths in 0-50m
+ *   b) 3+ consecutive identical temperature values within 0-50m
+ *
+ * @param {Array|Object} rawProfile - Array of numbers, array of objects, or depth->temp map
+ * @returns {{ data_quality_flag: boolean, reason?: string }}
+ */
+function checkTemperatureDataQuality(rawProfile) {
+  if (!rawProfile) return { data_quality_flag: false };
+
+  let temps = [];
+  if (Array.isArray(rawProfile)) {
+    if (rawProfile.length > 0 && typeof rawProfile[0] === 'object' && rawProfile[0] !== null) {
+      // Array of objects [{ depth: 0, temperature: 28.0 }, ...]
+      const sorted = [...rawProfile]
+        .filter(item => (item.depth ?? item.d) <= 50)
+        .sort((a, b) => (a.depth ?? a.d) - (b.depth ?? b.d));
+      temps = sorted.map(item => Number(item.temperature ?? item.temp ?? item.t));
+    } else {
+      // Array of numbers [t0, t1, t2, t3, t4, t5, ...]
+      temps = rawProfile.slice(0, 6).map(Number);
+    }
+  } else if (typeof rawProfile === 'object' && rawProfile !== null) {
+    // Dict { 0: t0, 5: t1, 10: t2, 20: t3, 30: t4, 50: t5 }
+    const stdDepths = [0, 5, 10, 20, 30, 50];
+    temps = stdDepths.filter(d => d in rawProfile).map(d => Number(rawProfile[d]));
+  }
+
+  if (temps.length < 2) {
+    return { data_quality_flag: false };
+  }
+
+  // a) Unphysical drop > 8°C between adjacent standard depths in 0-50m
+  for (let i = 0; i < temps.length - 1; i++) {
+    const drop = temps[i] - temps[i + 1];
+    if (drop > 8.0) {
+      return {
+        data_quality_flag: true,
+        reason: `Unphysical drop of ${drop.toFixed(2)}°C (>8°C) between adjacent standard depths in 0-50m band`
+      };
+    }
+  }
+
+  // b) 3+ consecutive identical temperature values within 0-50m
+  for (let i = 0; i < temps.length - 2; i++) {
+    if (Math.abs(temps[i] - temps[i + 1]) < 1e-4 && Math.abs(temps[i + 1] - temps[i + 2]) < 1e-4) {
+      return {
+        data_quality_flag: true,
+        reason: `3+ consecutive identical temperature values (${temps[i]}°C) within 0-50m band`
+      };
+    }
+  }
+
+  return { data_quality_flag: false };
+}
+
+/**
+ * Evaluates candidate zone tier based on its pfz_index or avgScore.
+ *
+ * @param {Object} zone - Candidate zone object
+ * @returns {'elevated'|'moderate'|'low'}
+ */
+function getZoneTier(zone) {
+  const score = zone.pfz_index ?? zone.avgScore ?? zone.probScore ?? 0;
+  if (score >= 0.70) return 'elevated';
+  if (score >= 0.40) return 'moderate';
+  return 'low';
+}
+
+/**
+ * Determines whether a candidate zone qualifies for the auto-rendered map overlay.
+ * Must not be flagged for corrupted temperature data, and must meet HIGHLIGHT_MIN_TIER.
+ *
+ * @param {Object} zone - Candidate zone object
+ * @returns {boolean}
+ */
+function shouldHighlightZone(zone) {
+  if (!zone) return false;
+  if (zone.data_quality_flag) return false;
+
+  const profile = zone.temps || zone.temperatures || zone.rawProfile || zone.tempProfile;
+  if (profile) {
+    const dq = checkTemperatureDataQuality(profile);
+    if (dq.data_quality_flag) {
+      zone.data_quality_flag = true;
+      zone.data_quality_reason = dq.reason;
+      return false;
+    }
+  }
+
+  const zoneTier = getZoneTier(zone);
+  const minRank = TIER_ORDER[HIGHLIGHT_MIN_TIER.toLowerCase()] ?? 3;
+  const zoneRank = TIER_ORDER[zoneTier] ?? 1;
+  return zoneRank >= minRank;
+}
+
+/**
+ * Scores a candidate zone, inspecting its raw temperature profile (0-50m) for data quality.
+ * If corrupted, marks data_quality_flag: true instead of computing a normal score.
+ *
+ * @param {Object} zone - Candidate zone object
+ * @param {Array|Object} [tempProfile] - Raw temperature profile
+ * @returns {Object} Updated zone
+ */
+function scoreCandidateZone(zone, tempProfile) {
+  const profile = tempProfile || zone.temps || zone.temperatures || zone.rawProfile || zone.tempProfile;
+  const dq = checkTemperatureDataQuality(profile);
+  if (dq.data_quality_flag) {
+    zone.data_quality_flag = true;
+    zone.data_quality_reason = dq.reason;
+    zone.pfz_index = null;
+    zone.tier = 'flagged';
+    return zone;
+  }
+  zone.data_quality_flag = false;
+  const score = zone.pfz_index ?? zone.avgScore ?? zone.probScore ?? 0.70;
+  zone.pfz_index = score;
+  zone.tier = getZoneTier(zone);
+  return zone;
+}
+
+/**
  * Fetches /pfz-grid for the target date, identifies dynamic clusters,
  * updates the MapLibre GeoJSON layer, and places fish icon markers at cluster centroids.
+ * Restricts map rendering to Elevated candidate zones (pfz_index >= 0.70) with no
+ * data-quality corruption flags.
  *
- * @param {string} dateStr - Target date (YYYY-MM-DD)
+ * @param {string|Array} dateStr - Target date (YYYY-MM-DD) or custom zones array for testing
+ * @param {Array} [customZones] - Optional custom zones array overriding network fetch
  */
-async function loadAndRenderDynamicPfzZones(dateStr) {
+async function loadAndRenderDynamicPfzZones(dateStr, customZones) {
   const startTime = performance.now();
+  if (typeof dateStr === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    currentDateStr = dateStr;
+  }
   try {
-    const resp = await fetch(`http://localhost:8000/pfz-grid?date=${encodeURIComponent(dateStr)}`);
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const gridData = await resp.json();
-    const durationMs = Math.round(performance.now() - startTime);
+    let zones = [];
+    if (Array.isArray(customZones)) {
+      zones = customZones;
+    } else if (Array.isArray(dateStr)) {
+      zones = dateStr;
+    } else {
+      const resp = await fetch(`http://localhost:8000/pfz-grid?date=${encodeURIComponent(dateStr)}`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const gridData = await resp.json();
+      zones = identifyPfzClusters(gridData);
+      renderChlaOverlayFromGrid(gridData);
+    }
+    if (customZones && customZones.gridData) {
+      renderChlaOverlayFromGrid(customZones.gridData);
+    }
 
-    const zones = identifyPfzClusters(gridData);
+    // Ensure all zones have pfz_index, data_quality_flag evaluated
+    zones.forEach(z => {
+      if (z.pfz_index === undefined) {
+        z.pfz_index = z.avgScore ?? z.probScore ?? 0.70;
+      }
+      if (z.data_quality_flag === undefined) {
+        const profile = z.temps || z.temperatures || z.rawProfile || z.tempProfile;
+        if (profile) {
+          const dq = checkTemperatureDataQuality(profile);
+          z.data_quality_flag = dq.data_quality_flag;
+          if (dq.data_quality_flag) {
+            z.data_quality_reason = dq.reason;
+            z.pfz_index = null;
+          }
+        } else {
+          z.data_quality_flag = false;
+        }
+      }
+    });
+
+    // All candidate zones remain stored in currentDynamicZones so manual location search
+    // or clicking inside any zone (Elevated, Moderate, or Low) resolves the zone in the detail panel
     currentDynamicZones = zones;
 
+    const durationMs = Math.round(performance.now() - startTime);
     if (isDevModeEnabled()) {
-      console.log(`[Fisheries] Dynamically computed ${zones.length} PFZ zones for ${dateStr} in ${durationMs}ms:`, {
-        date: dateStr,
-        durationMs,
+      console.log(`[Fisheries] Dynamically identified ${zones.length} PFZ candidate zones for ${typeof dateStr === 'string' ? dateStr : 'custom'} in ${durationMs}ms:`, {
         zonesCount: zones.length,
         zones: zones.map(z => ({
           id: z.id,
           name: z.name,
           centroid: [z.centroidLon, z.centroidLat],
-          cellCount: z.cellCount,
           avgScore: z.avgScore,
-          radius: [z.radiusLat, z.radiusLon]
+          pfz_index: z.pfz_index,
+          data_quality_flag: z.data_quality_flag,
         }))
       });
     }
 
-    // 1. Update MapLibre GeoJSON Source
+    // Filter candidate zones for map overlay:
+    // Only render polygon outlines and pulsing fish markers for zones meeting HIGHLIGHT_MIN_TIER
+    // (default: pfz_index >= 0.70, Elevated tier) and with NO data quality corruption flags.
+    const highlightedZones = zones.filter(z => shouldHighlightZone(z));
+
+    // 1. Update MapLibre GeoJSON Source (PFZ dashed polygon outlines)
     const geojson = {
       type: 'FeatureCollection',
-      features: zones.map(z => ({
-        type: 'Feature',
-        properties: {
-          id: z.id,
-          name: z.name,
-          avgScore: z.avgScore,
-          cellCount: z.cellCount,
-        },
-        geometry: {
-          type: 'Polygon',
-          coordinates: [z.ring]
-        }
-      }))
+      features: highlightedZones.map(z => {
+        const score = z.pfz_index ?? z.avgScore ?? z.probScore ?? 0.70;
+        const tier = score >= 0.70 ? 'elevated' : (score >= 0.40 ? 'moderate' : 'low');
+        const fillColor = score >= 0.70 ? '#10B981' : (score >= 0.40 ? '#F59E0B' : '#64748B');
+        const lineColor = score >= 0.70 ? '#10B981' : (score >= 0.40 ? '#F59E0B' : '#64748B');
+        const fillOpacity = score >= 0.70 ? 0.22 : (score >= 0.40 ? 0.16 : 0.08);
+        const lineWidth = score >= 0.70 ? 2.4 : (score >= 0.40 ? 1.8 : 1.2);
+
+        return {
+          type: 'Feature',
+          properties: {
+            id: z.id,
+            name: z.name,
+            pfz_index: z.pfz_index ?? score,
+            avgScore: z.avgScore ?? score,
+            cellCount: z.cellCount,
+            tier: tier,
+            fillColor: fillColor,
+            lineColor: lineColor,
+            fillOpacity: fillOpacity,
+            lineWidth: lineWidth,
+          },
+          geometry: {
+            type: 'Polygon',
+            coordinates: [z.ring]
+          }
+        };
+      })
     };
 
-    if (typeof map !== 'undefined' && map && map.getSource) {
-      const source = map.getSource('pfz-zones');
+    const activeMap = (typeof map !== 'undefined' && map) || (typeof window !== 'undefined' && window.map) || (typeof global !== 'undefined' && global.map);
+    if (activeMap && activeMap.getSource) {
+      const source = activeMap.getSource('pfz-zones');
       if (source) {
         source.setData(geojson);
       }
     }
 
-    // 2. Clear old fish markers and place new ones at exact centroids (anchor: 'center')
+    // 2. Clear old fish markers and place new ones ONLY for highlighted zones
     activeFishMarkers.forEach(m => m.remove());
     activeFishMarkers = [];
 
-    if (typeof map !== 'undefined' && map && map.getContainer && typeof maplibregl !== 'undefined') {
-      zones.forEach(z => {
-        const el = buildFishBadgeElement();
+    const MarkerClass = (typeof maplibregl !== 'undefined' && maplibregl && maplibregl.Marker)
+      || (typeof window !== 'undefined' && window.maplibregl && window.maplibregl.Marker)
+      || (typeof global !== 'undefined' && global.maplibregl && global.maplibregl.Marker);
+
+    if (activeMap && activeMap.getContainer && MarkerClass) {
+      highlightedZones.forEach(z => {
+        const el = buildFishBadgeElement(z);
         el.addEventListener('click', (e) => {
           e.stopPropagation();
           selectLocation(z.centroidLat, z.centroidLon, true);
         });
-        const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
+        const marker = new MarkerClass({ element: el, anchor: 'center' })
           .setLngLat([z.centroidLon, z.centroidLat])
-          .addTo(map);
+          .addTo(activeMap);
         activeFishMarkers.push(marker);
       });
     }
 
-    return zones;
+    highlightedZones.allZones = zones;
+    highlightedZones.geojson = geojson;
+    return highlightedZones;
   } catch (err) {
     console.warn('[Fisheries] /pfz-grid fetch failed or unavailable:', err.message);
     return [];
@@ -591,9 +845,12 @@ function buildTeardropPin() {
   return wrap;
 }
 
-function buildFishBadgeElement() {
+function buildFishBadgeElement(zone) {
   const wrap = document.createElement('div');
   wrap.className = 'pfz-fish-marker-wrap';
+  const score = zone ? (zone.avgScore ?? zone.probScore ?? 0.70) : 0.70;
+  const tier = score >= 0.70 ? 'elevated' : (score >= 0.40 ? 'moderate' : 'low');
+  wrap.setAttribute('data-tier', tier);
 
   // Pulsing highlight ring - separate child element animated with scale/opacity only
   const pulse = document.createElement('div');
@@ -616,12 +873,36 @@ function buildFishBadgeElement() {
 
 function buildPopupHtml(lat, lon, zone, probScore) {
   const coordText = `${lat.toFixed(1)}°N, ${lon.toFixed(1)}°E`;
+  const isFlagged = Boolean(probScore === null || (zone && zone.data_quality_flag));
+
+  if (isFlagged) {
+    const sub = (zone && zone.data_quality_reason)
+      ? zone.data_quality_reason
+      : 'Upper ocean temperature profile (0–50m) contains unphysical gradients. PFZ calculation suppressed.';
+    return `
+    <div class="ky-pfz-speech-bubble">
+      <div class="ky-pfz-speech-bubble__title">PFZ Index: Data Flagged</div>
+      <div class="ky-pfz-speech-bubble__sub">${sub}</div>
+      <span class="ky-provenance-pill ky-provenance-pill--heuristic ky-pfz-speech-bubble__provenance">Quality Guard</span>
+      <div class="ky-pfz-speech-bubble__coord">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="#2563EB"><path d="M12 2L2 12l10 10 10-10L12 2z"/></svg>
+        ${coordText}
+      </div>
+      <div class="ky-pfz-speech-bubble__badge">
+        <svg width="9" height="9" viewBox="0 0 24 24" fill="#F59E0B"><circle cx="12" cy="12" r="8"/></svg>
+        Data Flagged
+      </div>
+    </div>
+  `;
+  }
+
   const rawScore = (probScore !== undefined && probScore !== null && !isNaN(probScore))
     ? Number(probScore)
-    : (zone ? (zone.probScore ?? zone.avgScore ?? 0.65) : 0.65);
+    : (zone ? (zone.pfz_index ?? zone.avgScore ?? zone.probScore ?? 0.65) : 0.65);
   const score = (typeof rawScore === 'number' && !isNaN(rawScore)) ? rawScore : 0.65;
 
   const tier = score >= 0.70 ? 'Elevated' : (score >= 0.40 ? 'Moderate' : 'Low');
+  const badgeDotColor = score >= 0.70 ? '#16A34A' : (score >= 0.40 ? '#2563EB' : '#D97706');
   const title = `PFZ Index: ${tier}`;
   let sub = 'Multi-parameter oceanographic index';
   let probBadge = '';
@@ -647,7 +928,7 @@ function buildPopupHtml(lat, lon, zone, probScore) {
         ${coordText}
       </div>
       <div class="ky-pfz-speech-bubble__badge">
-        <svg width="9" height="9" viewBox="0 0 24 24" fill="#16A34A"><circle cx="12" cy="12" r="8"/></svg>
+        <svg width="9" height="9" viewBox="0 0 24 24" fill="${badgeDotColor}"><circle cx="12" cy="12" r="8"/></svg>
         ${probBadge}
       </div>
     </div>
@@ -802,26 +1083,37 @@ function updateStatCards(zone, thermocline, upwelling, pfzScore, nutrientVal) {
 
   if (tcEl) tcEl.textContent = `${Math.round(thermocline)} m`;
   if (upEl) upEl.textContent = upwelling.toFixed(2);
-  if (pfzEl) pfzEl.textContent = pfzScore.toFixed(2);
+
+  const isFlagged = Boolean(pfzScore === null || (zone && zone.data_quality_flag));
+  if (isFlagged) {
+    if (pfzEl) pfzEl.textContent = '—';
+    if (pfzNote) pfzNote.textContent = (zone && zone.data_quality_reason) || 'Data quality flagged (0–50 m anomaly)';
+    if (pfzBadge) {
+      pfzBadge.style.display = '';
+      pfzBadge.textContent = 'Data Flagged';
+      pfzBadge.className = 'ky-stat-card__badge ky-stat-card__badge--amber';
+    }
+  } else if (pfzScore !== undefined && pfzScore !== null && !isNaN(pfzScore)) {
+    if (pfzEl) pfzEl.textContent = pfzScore.toFixed(2);
+    if (pfzNote) pfzNote.textContent = 'Combined oceanographic score';
+    if (pfzBadge) {
+      pfzBadge.style.display = '';
+      if (pfzScore >= 0.70) {
+        pfzBadge.textContent = 'High';
+        pfzBadge.className = 'ky-stat-card__badge ky-stat-card__badge--green';
+      } else if (pfzScore >= 0.40) {
+        pfzBadge.textContent = 'Moderate';
+        pfzBadge.className = 'ky-stat-card__badge ky-stat-card__badge--blue';
+      } else {
+        pfzBadge.textContent = 'Low';
+        pfzBadge.className = 'ky-stat-card__badge ky-stat-card__badge--amber';
+      }
+    }
+  }
 
   if (tcNote) tcNote.textContent = 'Max vertical gradient (dT/dz)';
   if (upNote) upNote.textContent = 'Derived from 0–50 m thermal gradient';
-  if (pfzNote) pfzNote.textContent = 'Combined oceanographic score';
   if (nutrNote) nutrNote.textContent = 'Surface value (matches 0m depth)';
-
-  if (pfzBadge) {
-    pfzBadge.style.display = '';
-    if (pfzScore >= 0.70) {
-      pfzBadge.textContent = 'High';
-      pfzBadge.className = 'ky-stat-card__badge ky-stat-card__badge--green';
-    } else if (pfzScore >= 0.40) {
-      pfzBadge.textContent = 'Moderate';
-      pfzBadge.className = 'ky-stat-card__badge ky-stat-card__badge--blue';
-    } else {
-      pfzBadge.textContent = 'Low';
-      pfzBadge.className = 'ky-stat-card__badge ky-stat-card__badge--amber';
-    }
-  }
 
   if (nutrEl) nutrEl.textContent = `${nutrientVal.toFixed(2)} mg/m³`;
 }
@@ -1101,9 +1393,25 @@ async function selectLocation(lat, lon, zoomTo = true) {
     });
 
     // Real oceanographic indices from backend prediction
+    const isDataFlagged = indices.data_quality_flag === true || (matchedZone && matchedZone.data_quality_flag === true);
+    if (isDataFlagged && matchedZone) {
+      matchedZone.data_quality_flag = true;
+      if (indices.data_quality_reason) matchedZone.data_quality_reason = indices.data_quality_reason;
+    }
     thermocline = indices.thermocline_depth !== undefined ? indices.thermocline_depth : (matchedZone ? (matchedZone.thermocline ?? 68) : 68);
     upwelling = indices.upwelling_index !== undefined ? indices.upwelling_index : (matchedZone ? (matchedZone.upwelling ?? 0.72) : 0.72);
-    pfzScore = indices.pfz_confidence_score !== undefined ? indices.pfz_confidence_score : (matchedZone ? (matchedZone.probScore ?? matchedZone.avgScore ?? 0.87) : 0.87);
+
+    // Single source of truth for candidate zone score:
+    // If a candidate zone was matched, use its authoritative score (matchedZone.pfz_index ?? matchedZone.avgScore)
+    // so that the map highlight tier, popup badge, and stat cards agree identically.
+    // For arbitrary ocean coordinates outside candidate zones, use the point prediction pfz_confidence_score.
+    if (isDataFlagged) {
+      pfzScore = null;
+    } else if (matchedZone && (matchedZone.pfz_index !== undefined || matchedZone.avgScore !== undefined)) {
+      pfzScore = matchedZone.pfz_index ?? matchedZone.avgScore;
+    } else {
+      pfzScore = indices.pfz_confidence_score !== undefined ? indices.pfz_confidence_score : (matchedZone ? (matchedZone.probScore ?? matchedZone.avgScore ?? 0.87) : 0.87);
+    }
 
     // Chlorophyll distinction (reconciled representations):
     // - Surface Chlorophyll-a stat card (Option a): Directly displays the SURFACE (0m) table value (nutrients[0]),
@@ -1179,8 +1487,8 @@ async function selectLocation(lat, lon, zoomTo = true) {
     temps = fallback.temps;
     nutrients = fallback.nutrients;
     thermocline = matchedZone ? (matchedZone.thermocline ?? 68) : 68;
-    upwelling = matchedZone ? (matchedZone.upwelling ?? 0.72) : 0.72;
-    pfzScore = matchedZone ? (matchedZone.probScore ?? matchedZone.avgScore ?? 0.87) : 0.87;
+    const isFallbackFlagged = Boolean(matchedZone && matchedZone.data_quality_flag);
+    pfzScore = isFallbackFlagged ? null : (matchedZone ? (matchedZone.pfz_index ?? matchedZone.avgScore ?? matchedZone.probScore ?? 0.87) : 0.87);
     const surfaceChla = (nutrients && nutrients.length > 0) ? nutrients[0] : (matchedZone ? (matchedZone.nutrient ?? 2.60) : 2.60);
     highlightDepth = matchedZone ? (matchedZone.highlightDepth ?? 100) : 100;
 
@@ -1242,11 +1550,11 @@ if (typeof maplibregl !== 'undefined' && typeof document !== 'undefined' && docu
   });
 
   map.on('load', () => {
-    // 1. Add Chlorophyll-a High-Res Raster Overlay
-    const chlaCanvas = createChlaCanvas();
+    // 1. Add Chlorophyll-a High-Res Raster Overlay (initially transparent placeholder)
+    const blankCanvas = createBlankCanvas();
     map.addSource('chla-raster-source', {
       type: 'image',
-      url: chlaCanvas.toDataURL(),
+      url: blankCanvas ? blankCanvas.toDataURL() : 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
       coordinates: [
         [BOUNDS.west, BOUNDS.north],
         [BOUNDS.east, BOUNDS.north],
@@ -1276,8 +1584,8 @@ if (typeof maplibregl !== 'undefined' && typeof document !== 'undefined' && docu
       type: 'fill',
       source: 'pfz-zones',
       paint: {
-        'fill-color': '#10B981',
-        'fill-opacity': 0.16
+        'fill-color': ['coalesce', ['get', 'fillColor'], '#10B981'],
+        'fill-opacity': ['coalesce', ['get', 'fillOpacity'], 0.16]
       }
     });
 
@@ -1286,8 +1594,8 @@ if (typeof maplibregl !== 'undefined' && typeof document !== 'undefined' && docu
       type: 'line',
       source: 'pfz-zones',
       paint: {
-        'line-color': '#FFFFFF',
-        'line-width': 2.2,
+        'line-color': ['coalesce', ['get', 'lineColor'], '#FFFFFF'],
+        'line-width': ['coalesce', ['get', 'lineWidth'], 2.2],
         'line-dasharray': [3, 2]
       }
     });
@@ -1352,6 +1660,36 @@ function initControls() {
   }
   if (btnZoomOut) {
     btnZoomOut.addEventListener('click', () => map.zoomOut());
+  }
+
+  // Formula Breakdown Modal Controls
+  const btnFormulaInfo = document.getElementById('btn-pfz-formula-info');
+  const formulaModal = document.getElementById('pfz-formula-modal');
+  const btnFormulaClose = document.getElementById('btn-pfz-formula-close');
+  const formulaBackdrop = document.getElementById('pfz-formula-backdrop');
+
+  if (btnFormulaInfo && formulaModal) {
+    btnFormulaInfo.addEventListener('click', (e) => {
+      e.stopPropagation();
+      formulaModal.style.display = 'flex';
+    });
+  }
+  if (btnFormulaClose && formulaModal) {
+    btnFormulaClose.addEventListener('click', () => {
+      formulaModal.style.display = 'none';
+    });
+  }
+  if (formulaBackdrop && formulaModal) {
+    formulaBackdrop.addEventListener('click', () => {
+      formulaModal.style.display = 'none';
+    });
+  }
+  if (typeof window !== 'undefined') {
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && formulaModal && formulaModal.style.display === 'flex') {
+        formulaModal.style.display = 'none';
+      }
+    });
   }
 
 
@@ -1533,6 +1871,11 @@ if (typeof window !== 'undefined') {
 /* ── Node.js / Testing & Global Exports ──────────────────── */
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
+    HIGHLIGHT_MIN_TIER,
+    checkTemperatureDataQuality,
+    scoreCandidateZone,
+    shouldHighlightZone,
+    getZoneTier,
     identifyPfzClusters,
     generateClusterRing,
     loadAndRenderDynamicPfzZones,
@@ -1541,6 +1884,9 @@ if (typeof module !== 'undefined' && module.exports) {
     getKeyInsights,
     calculateSubsurfaceProfile,
     calculateChlaValue,
+    createChlaCanvas,
+    renderChlaOverlayFromGrid,
+    sampleChlaColor,
     resetStatCards,
     updateEmptyStatePrompt,
     revealTvdPanel,
@@ -1549,10 +1895,18 @@ if (typeof module !== 'undefined' && module.exports) {
   };
 }
 if (typeof window !== 'undefined') {
+  window.HIGHLIGHT_MIN_TIER = HIGHLIGHT_MIN_TIER;
+  window.checkTemperatureDataQuality = checkTemperatureDataQuality;
+  window.scoreCandidateZone = scoreCandidateZone;
+  window.shouldHighlightZone = shouldHighlightZone;
+  window.getZoneTier = getZoneTier;
   window.identifyPfzClusters = identifyPfzClusters;
   window.generateClusterRing = generateClusterRing;
   window.loadAndRenderDynamicPfzZones = loadAndRenderDynamicPfzZones;
   window.clearDynamicPfzZones = clearDynamicPfzZones;
+  window.renderChlaOverlayFromGrid = renderChlaOverlayFromGrid;
+  window.createChlaCanvas = createChlaCanvas;
+  window.sampleChlaColor = sampleChlaColor;
   window.buildPopupHtml = buildPopupHtml;
   window.resetStatCards = resetStatCards;
   window.updateEmptyStatePrompt = updateEmptyStatePrompt;

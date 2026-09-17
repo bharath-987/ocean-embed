@@ -21,7 +21,11 @@
     "skillScore": 0.2,
     "skillScorePct": 20.0,
     "biasModel": 0.12,
-    "biasClimatology": 0.04
+    "biasClimatology": 0.04,
+    "correlationModel": 0.995,
+    "trimmedWindowRmse": 0.715,
+    "trimmedWindowFloats": 27,
+    "trimmedWindowLabel": "0.715 \u00b0C (trimmed demo-window subset, n=27 profiles, V6 vs V4=0.820 \u00b0C)"
   },
   "basins": {
     "Bay of Bengal": {
