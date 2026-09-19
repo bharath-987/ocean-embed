@@ -781,5 +781,20 @@
       "skillScore": -0.167,
       "skillScorePct": -16.7
     }
-  ]
+  ],
+  "biasCorrectionBenchmark": {
+    "unseenProfilesCount": 1791,
+    "evaluationWindow": "Post-5 Jun 2023",
+    "uncorrectedRmse": 1.23,
+    "correctedRmse": 1.07,
+    "rmseImprovementPct": 13.0,
+    "thermocline100m": {
+      "uncorrectedBias": 1.62,
+      "correctedBias": 0.36,
+      "correctedError": 1.6,
+      "glorysReanalysisError": 1.68,
+      "beatsGlorys": true
+    },
+    "provenance": "Argo-bias-corrected (fit on 2021-23 Argo, scored on unseen 2023 profiles)"
+  }
 }

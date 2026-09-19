@@ -1866,6 +1866,14 @@ body.kyogre-page {
   font-weight: 700 !important;
 }
 
+.ky-tvd-table-row--masked td {
+  color: #94A3B8 !important;
+}
+.ky-tvd-table-row--masked .ky-tvd-val {
+  color: #94A3B8 !important;
+  font-weight: 400 !important;
+}
+
 /* Empty placeholder state for TVD panel */
 .ky-tvd-empty {
   flex: 1;

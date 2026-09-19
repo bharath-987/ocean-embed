@@ -813,11 +813,11 @@ function renderComparisonData(data) {
     tbody.innerHTML = '';
     depths.forEach((depth, i) => {
       const tr = document.createElement('tr');
-      const ai = aiTemps[i] !== undefined ? aiTemps[i].toFixed(2) : '—';
-      const argo = argoTemps[i] !== undefined ? argoTemps[i].toFixed(2) : '—';
+      const ai = (aiTemps[i] !== null && aiTemps[i] !== undefined && !isNaN(aiTemps[i])) ? aiTemps[i].toFixed(2) : '—';
+      const argo = (argoTemps[i] !== null && argoTemps[i] !== undefined && !isNaN(argoTemps[i])) ? argoTemps[i].toFixed(2) : '—';
       const diff = diffs[i];
       let diffStr = '—';
-      if (diff !== undefined) {
+      if (diff !== null && diff !== undefined && !isNaN(diff)) {
         diffStr = diff.toFixed(2);
       }
 
@@ -857,15 +857,24 @@ function renderChart(depths, aiTemps, argoTemps) {
   const maxDepth = depths.length ? Math.max(...depths) : 1000;
 
   // Format {x, y} coordinate pairs: x = temperature (°C), y = depth (m)
-  const aiData = depths.map((d, i) => ({ x: aiTemps[i], y: d }));
-  const argoData = depths.map((d, i) => ({ x: argoTemps[i], y: d }));
+  const aiData = depths
+    .map((d, i) => (aiTemps[i] !== null && aiTemps[i] !== undefined && !isNaN(aiTemps[i])) ? { x: aiTemps[i], y: d } : null)
+    .filter(Boolean);
+  const argoData = depths
+    .map((d, i) => (argoTemps[i] !== null && argoTemps[i] !== undefined && !isNaN(argoTemps[i])) ? { x: argoTemps[i], y: d } : null)
+    .filter(Boolean);
+
+  const isRaw = currentComparisonData && currentComparisonData.raw;
+  const aiLabel = isRaw
+    ? 'AI Reconstructed (Raw Unsmoothed)'
+    : 'AI Reconstructed (Argo-bias-corrected)';
 
   chartInstance = new Chart(canvas, {
     type: 'line',
     data: {
       datasets: [
         {
-          label: 'AI Reconstructed',
+          label: aiLabel,
           data: aiData,
           borderColor: '#2563EB',
           backgroundColor: 'transparent',
@@ -1554,7 +1563,7 @@ async function verifyMetricsDev() {
     // 2. Fresh fetch of each float's per-depth comparison data (no caching)
     const compareResults = await Promise.all(
       profiles.map(p =>
-        fetch(`${API_BASE}/argo/compare?id=${encodeURIComponent(p.id)}`, { cache: 'no-store' })
+        fetch(`${API_BASE}/argo/compare?id=${encodeURIComponent(p.id)}&raw=true`, { cache: 'no-store' })
           .then(res => {
             if (!res.ok) throw new Error(`HTTP ${res.status} on float profile ${p.id}`);
             return res.json();

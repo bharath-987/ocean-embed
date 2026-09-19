@@ -118,7 +118,7 @@ async function runVerificationSuite() {
 
   // Run the exact client recomputation pipeline in Node
   const comparePromises = profiles.map(p =>
-    fetchJson(`http://localhost:8000/argo/compare?id=${encodeURIComponent(p.id)}`)
+    fetchJson(`http://localhost:8000/argo/compare?id=${encodeURIComponent(p.id)}&raw=true`)
       .then(res => res.body)
   );
   const compareResults = await Promise.all(comparePromises);

@@ -29,6 +29,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+try:
+    from .products import correct_profile
+except ImportError:
+    from products import correct_profile
+
 # ---------------------------------------------------------------------------
 # 1. CONFIG -- answers to items 5-10 from your checklist
 # ---------------------------------------------------------------------------
@@ -258,67 +263,10 @@ _u_wind_anom = np.load(f"{DATA_DIR}/u_wind_anom.npy", mmap_mode="r")
 _v_wind_anom = np.load(f"{DATA_DIR}/v_wind_anom.npy", mmap_mode="r")
 _temp_target_clim = np.load(f"{DATA_DIR}/temp_target_clim.npy", mmap_mode="r")
 
-# Precomputed nearest-neighbor infill indices for coastal shelf bathymetric zeros
-_INFILL_INDICES_PATH = os.path.join(BASE_DIR, "data", "clim_shelf_infill_indices.npz")
-_shelf_infill_indices = None
-_shelf_infill_lock = threading.Lock()
-
-
-def _get_shelf_infill_indices():
-    """
-    Loads precomputed nearest-neighbor coordinate mapping for coastal shelf cells
-    where raw bathymetry in _temp_target_clim has zeros below seabed.
-    """
-    global _shelf_infill_indices
-    if _shelf_infill_indices is not None:
-        return _shelf_infill_indices
-    with _shelf_infill_lock:
-        if _shelf_infill_indices is not None:
-            return _shelf_infill_indices
-        if os.path.exists(_INFILL_INDICES_PATH):
-            _shelf_infill_indices = np.load(_INFILL_INDICES_PATH)
-        else:
-            clim0 = np.array(_temp_target_clim[0])
-            data_to_save = {}
-            for d in range(15):
-                bad = (clim0[d] <= 1.0) & _ocean_mask_2d
-                if bad.any():
-                    good = (clim0[d] > 1.0) & _ocean_mask_2d
-                    good_pts = np.argwhere(good)
-                    bad_pts = np.argwhere(bad)
-                    nearest_indices = []
-                    for i in range(0, len(bad_pts), 500):
-                        chunk = bad_pts[i:i+500]
-                        dists = ((chunk[:, None, 0] - good_pts[None, :, 0]) ** 2 + 
-                                 (chunk[:, None, 1] - good_pts[None, :, 1]) ** 2)
-                        nearest_indices.append(good_pts[np.argmin(dists, axis=1)])
-                    nearest_coords = np.vstack(nearest_indices)
-                    data_to_save[f'bad_r_{d}'] = bad_pts[:, 0]
-                    data_to_save[f'bad_c_{d}'] = bad_pts[:, 1]
-                    data_to_save[f'good_r_{d}'] = nearest_coords[:, 0]
-                    data_to_save[f'good_c_{d}'] = nearest_coords[:, 1]
-            np.savez_compressed(_INFILL_INDICES_PATH, **data_to_save)
-            _shelf_infill_indices = np.load(_INFILL_INDICES_PATH)
-        return _shelf_infill_indices
-
-
-def get_infilled_clim_day(mapped_day_idx: int) -> np.ndarray:
-    """
-    Returns the (15, 101, 241) climatology grid for mapped_day_idx with bathymetric zeros
-    in ocean cells infilled from nearest valid ocean neighbors, ensuring physically realistic
-    climatology across all depths down to 1000m even at shallow coastal/shelf locations.
-    """
-    clim_day = np.array(_temp_target_clim[mapped_day_idx])
-    infill = _get_shelf_infill_indices()
-    for d in range(8, 15):
-        k_br = f"bad_r_{d}"
-        if k_br in infill:
-            br = infill[k_br]
-            bc = infill[f"bad_c_{d}"]
-            gr = infill[f"good_r_{d}"]
-            gc = infill[f"good_c_{d}"]
-            clim_day[d, br, bc] = clim_day[d, gr, gc]
-    return clim_day
+# 3D Valid Depth Mask (15, 101, 241) derived from climatology bathymetry:
+# Cells with temperature > 1.0°C are valid ocean depths above the local seafloor.
+# Depths at or beyond the seafloor have 0.0°C in _temp_target_clim and are masked as invalid (NaN).
+_valid_depth_mask = np.array(_temp_target_clim[0] > 1.0, dtype=bool)
  
 from collections import OrderedDict
 _prediction_cache: OrderedDict[str, np.ndarray] = OrderedDict()
@@ -410,15 +358,23 @@ def _isotonic_decreasing(y: np.ndarray, weights: np.ndarray = None) -> np.ndarra
 # ---------------------------------------------------------------------------
 # 4. THE FUNCTION YOUR FRONTEND CALLS
 # ---------------------------------------------------------------------------
-def predict_temperature_profile(latitude: float, longitude: float, date_str: str, raw: bool = False) -> dict:
+def predict_temperature_profile(
+    latitude: float,
+    longitude: float,
+    date_str: str,
+    raw: bool = False,
+    apply_bias_correction: bool = True,
+) -> dict:
     """
     latitude:  5.0 to 30.0
     longitude: 45.0 to 105.0
     date_str:  'YYYY-MM-DD', must be between 2021-01-11 and 2023-12-31
                (first 10 days of 2021 are excluded -- need 10 days of history)
-    raw:       If True, skips the PAVA isotonic decreasing smoothing pass and returns
-               the raw model output, preserving genuine physical subsurface inversions
-               (e.g., barrier layers). Default is False (smoothed).
+    raw:       If True, skips both isotonic decreasing smoothing and empirical Argo warm-bias
+               correction, returning unsmoothed model output and preserving genuine physical
+               subsurface inversions (e.g., barrier layers). Default is False (corrected & smoothed).
+    apply_bias_correction: If True (default) and raw is False, subtracts Ajay's empirical Argo
+               depth bias vector (tuned for model_v6_satswap_anom).
 
     Returns: {depth_in_meters: temperature_celsius, ...} for all 15 standard depths,
              or {"error": "..."} if the date/location can't be served.
@@ -495,8 +451,9 @@ def predict_temperature_profile(latitude: float, longitude: float, date_str: str
             prediction_anom = _model(window_tensor)
         del window_tensor
 
-        clim_at_day = get_infilled_clim_day(mapped_day_idx)
+        clim_at_day = np.array(_temp_target_clim[mapped_day_idx])
         prediction_real = (prediction_anom[0].cpu().numpy() + clim_at_day).astype("float32")  # anomaly -> real temperature (item 8)
+        prediction_real[~_valid_depth_mask] = np.nan
         del prediction_anom
         del clim_at_day
 
@@ -507,40 +464,53 @@ def predict_temperature_profile(latitude: float, longitude: float, date_str: str
                     _prediction_cache.popitem(last=False)
 
     profile = prediction_real[:, lat_idx, lon_idx].copy()
-    raw_m0 = float(profile[0])
+    raw_m0 = float(profile[0]) if not np.isnan(profile[0]) else np.nan
     raw_sst = float(_sst_arr[mapped_day_idx, lat_idx, lon_idx])
 
     # STEP 1: Smooth Surface Blending & Near-Surface Taper
     # Instead of hard overwrite, blend satellite SST with the model's bulk 0m prediction.
     # Discrepancy-tapered alpha: 0.60 when consistent, tapering to 0.30 during large skin/bulk anomalies.
-    diff = abs(raw_sst - raw_m0)
-    alpha = float(np.clip(0.60 - 0.15 * diff, 0.30, 0.60))
-    blended_sst = alpha * raw_sst + (1.0 - alpha) * raw_m0
-    profile[0] = blended_sst
+    if not np.isnan(raw_m0):
+        diff = abs(raw_sst - raw_m0)
+        alpha = float(np.clip(0.60 - 0.15 * diff, 0.30, 0.60))
+        blended_sst = alpha * raw_sst + (1.0 - alpha) * raw_m0
+        profile[0] = blended_sst
 
-    # Near-surface continuity taper (0-10m): diffuse 50% of the surface delta into the 5m layer
-    delta_s = blended_sst - raw_m0
-    profile[1] += 0.50 * delta_s
+        # Near-surface continuity taper (0-10m): diffuse 50% of the surface delta into the 5m layer
+        delta_s = blended_sst - raw_m0
+        if not np.isnan(profile[1]):
+            profile[1] += 0.50 * delta_s
 
     # STEP 2: Monotonicity Safety-Net Pass in upper ocean (depths <= 100m only)
     # STANDARD_DEPTHS[:8] corresponds to [0, 5, 10, 20, 30, 50, 75, 100] m
     # Depths > 100m (125m to 1000m) are strictly untouched to preserve real physical thermocline structures.
-    # When raw=True, skips isotonic regression so callers can inspect unsmoothed model predictions.
+    # When raw=True, skips both isotonic regression and Argo warm-bias correction.
     if not raw:
-        upper_mask = [i for i, d in enumerate(STANDARD_DEPTHS) if d <= 100]
-        profile[upper_mask] = _isotonic_decreasing(profile[upper_mask])
+        upper_mask = [i for i, d in enumerate(STANDARD_DEPTHS) if d <= 100 and not np.isnan(profile[i])]
+        if len(upper_mask) > 1:
+            profile[upper_mask] = _isotonic_decreasing(profile[upper_mask])
 
-    # Enforce physical Indian Ocean temperature floor (>= 4.0°C) and prevent deep unphysical zeroing
-    for i in range(len(STANDARD_DEPTHS)):
-        if profile[i] < 4.0:
-            profile[i] = 4.0
-    if not raw:
+        # STEP 3: Argo Empirical Warm-Bias Correction
+        # Pinned to model_v6_satswap_anom checkpoint (Ajay's post-processing correction)
+        if apply_bias_correction:
+            profile = correct_profile(profile)
+
+        # Enforce physical Indian Ocean temperature floor (>= 4.0°C) preserving NaNs
+        for i in range(len(STANDARD_DEPTHS)):
+            if not np.isnan(profile[i]) and profile[i] < 4.0:
+                profile[i] = 4.0
+
         # Guarantee non-increasing temperatures below thermocline (depths >= 100m: indices 7 to 14)
         for i in range(7, len(STANDARD_DEPTHS)):
-            if profile[i] > profile[i - 1]:
-                profile[i] = profile[i - 1]
+            if not np.isnan(profile[i]) and not np.isnan(profile[i - 1]):
+                if profile[i] > profile[i - 1]:
+                    profile[i] = profile[i - 1]
+    else:
+        for i in range(len(STANDARD_DEPTHS)):
+            if not np.isnan(profile[i]) and profile[i] < 4.0:
+                profile[i] = 4.0
 
-    return {int(d): round(float(t), 2) for d, t in zip(STANDARD_DEPTHS, profile)}
+    return {int(d): (round(float(t), 2) if not np.isnan(t) else None) for d, t in zip(STANDARD_DEPTHS, profile)}
 
 
 # ---------------------------------------------------------------------------

@@ -4,6 +4,232 @@
 > **MANDATORY PROTOCOL**: This file **MUST** be updated after **EVERY SINGLE TASK** without exception or user reminder.
 > Record status, files changed, and verification evidence for every item.
 
+- [x] **Task: SVAD argo.js Audit & Regression Test Suite Hardening** `[Completed 2026-09-19 12:06]`
+  - **Item 1: argo.js Sound Speed / SVAD Audit**:
+    - Performed comprehensive regex and AST search of `argo.js` and `argo.html` for all acoustic keywords (`Mackenzie`, `1448`, `sound`, `velocity`, `svad`, `speed`, `sld`, `acoustic`).
+    - Verified that `argo.js` does NOT contain any sound speed or SVAD calculations. The ARGO module is strictly focused on in-situ float temperature comparison, error statistics (RMSE, bias, Pearson correlation), and Murphy skill scores.
+    - Verified that the sole frontend calculation of sound velocity / SVAD resides in `app.js` in `updateStatCards` / `computeSVAD`.
+  - **Item 2: Extracted Modular `computeSVAD` & Exported to `window`**:
+    - In `app.js`, factored out `computeSVAD(depths, temps, surfaceInputs)` alongside `computeMLD` and `computeD20Isotherm`, and attached `window.computeSVAD = computeSVAD`.
+    - `updateStatCards(prediction)` calls `computeSVAD(depths, svadTemps, surfaceInputs)` with `svadTemps = (raw_temps && raw_temps.length) ? raw_temps : temps;`.
+    - Attached `window.updateStatCards = updateStatCards`.
+  - **Item 3: Dedicated Regression Test Suite (`test_stat_card_outputs.js`)**:
+    - Created `test_stat_card_outputs.js` in project root (synchronized with scratch copy).
+    - Tests real `app.js` source code directly via dynamic sandbox execution with DOM mock:
+      1. **Static source code audit**: Asserts `app.js` explicitly defines `svadTemps = (raw_temps && raw_temps.length) ? raw_temps : temps;` and forbids `svadTemps = temps;`.
+      2. **Central Arabian Sea profile**: Asserts `computeSVAD(depths, temps) === 5` (bias bump) while `computeSVAD(depths, raw_temps) === 50`. Asserts `updateStatCards` renders `50 m` and strictly does NOT render `5 m`.
+      3. **Adversarial Profile**: Constructed diametrically opposing profile where `temps` peaks at 0m ($32^\circ\text{C}$) while `raw_temps` peaks at 75m ($31^\circ\text{C}$). Asserts `updateStatCards` renders `75 m` and strictly does NOT render `0 m`.
+      4. **Mutation validation**: Proved that replacing `svadTemps` with `temps` immediately trips `assert.strictEqual('5 m', '50 m')` with exit code 1.
+      5. **Fallback validation**: Confirmed graceful fallback to `temps` when `raw_temps` is null.
+      6. **Multi-profile suite**: Verified all 4 diverse regimes (Open-Ocean: 50m, Persian Gulf: 0m, Sundarbans: 10m, Warm Core: 30m).
+  - **Item 4: Full Test Suite Verification (100% Pass)**:
+    - `node test_stat_card_outputs.js`: **ALL PASS** (100%)
+    - `node test_d20_card.js`: **ALL PASS** (100%)
+    - `python test_temperature_shelf_depths.py`: **4 / 4 PASS** (100%)
+    - `python test_argo_bias_correction.py`: **6 / 6 PASS** (100%)
+    - `python test_system.py`: **ALL PASS** (100%)
+    - `python test_argo_summary_regression.py`: **32 / 32 PASS** (100%)
+    - `python test_float16_migration.py`: **ALL PASS** (100%)
+
+- [x] **Task: Resolution of D20/MLD Discrepancy & SVAD Switch to Uncorrected `raw_temps`** `[Completed 2026-09-19 11:55]`
+  - **Item 1: Root Cause & Resolution of D20/MLD Discrepancy**:
+    - Polled live `/predict` endpoint for Central Arabian Sea ($15.50^\circ\text{N}, 65.00^\circ\text{E}$) on `2022-07-02`:
+      - `temps`: `[28.74, 28.83, 28.78, 28.64, 28.56, 28.26, 27.26, 25.45, 23.15, 21.28, 18.49, 14.98, 12.43, 10.97, 8.79]`
+      - `raw_temps`: `[28.41, 28.61, 28.76, 28.82, 29.00, 28.96, 27.65, 26.71, 23.27, 21.22, 19.08, 14.58, 12.04, 11.27, 9.42]`
+      - `indices.mld`: `57.6`
+      - `indices.d20`: `172.9`
+    - Identified divergence reason:
+      - Report (a) (`MLD = 18.3m, D20 = 102.5m`): Generated from the synthetic unit test `test_argo_bias_correction.py:test_mld_and_d20_separation()`, which tested a synthetic profile (`raw_temps = [29.0, 28.9, 28.9, 28.8, 28.8, 28.5, 25.0, 21.5, 18.0, ...]`) where $D_{20} = 102.5\text{m}$ and $MLD_{\text{corr}} = 18.3\text{m}$. It was never the live Central Arabian Sea prediction.
+      - Report (b) (`MLD = 55m, D20 = 173m`): Generated from `scratch/test_stat_card_outputs.js` where `raw_temps` had upper depths hardcoded to identical `28.76°C` values, resulting in `55m` instead of `58m`.
+      - On genuine model profile:
+        - $T(150\text{m}) = 21.28^\circ\text{C}$ and $T(200\text{m}) = 18.49^\circ\text{C} \implies D_{20} = 150 + \frac{21.28 - 20}{21.28 - 18.49} \times 50 = 172.94\text{ m} \approx 173\text{ m}$.
+        - $T_{\text{raw}}(10\text{m}) = 28.76^\circ\text{C}$, $T_{\text{target}} = 28.56^\circ\text{C}$. Crosses between 50m ($28.96^\circ\text{C}$) and 75m ($27.65^\circ\text{C}$) $\implies \text{MLD} = 50 + \frac{28.96 - 28.56}{28.96 - 27.65} \times 25 = 57.63\text{ m} \approx 58\text{ m}$.
+        - Parity confirmed across live API (`57.6`, `172.9`), `backend/products.py` (`57.6`, `172.9`), and `app.js` (`58`, `173`).
+  - **Item 2: Switch SVAD to Use `raw_temps` in `app.js`**:
+    - In `app.js:updateStatCards`, updated `svadTemps = (raw_temps && raw_temps.length) ? raw_temps : temps;` matching the MLD precedent.
+    - Prevents `ARGO_DEPTH_BIAS` (+0.073°C artificial warming at 5m and -0.024°C cooling at 0m) from dominating the sonic layer depth search in open-ocean profiles.
+  - **Item 3: Before / After SVAD Verification on 4 Profiles**:
+    1. **Deep Open-Ocean (Central Arabian Sea $15.5^\circ\text{N}, 65.0^\circ\text{E}$)**:
+       - BEFORE: **`5 m`** ($c = 1542.69\text{ m/s}$)
+       - AFTER: **`50 m`** ($c = 1543.78\text{ m/s}$) — correctly tracks the physical base of the mixed layer / acoustic channel.
+    2. **Mid-Depth Shelf Sea (Persian Gulf $28.13^\circ\text{N}, 50.45^\circ\text{E}$)**:
+       - BEFORE: **`0 m`** ($c = 1547.22\text{ m/s}$)
+       - AFTER: **`0 m`** ($c = 1547.26\text{ m/s}$) — correctly preserved.
+    3. **Shallow Shelf (Sundarbans Delta $20.90^\circ\text{N}, 87.20^\circ\text{E}$)**:
+       - BEFORE: **`5 m`** ($c = 1546.57\text{ m/s}$)
+       - AFTER: **`10 m`** ($c = 1546.60\text{ m/s}$) — tracks peak temperature at 10m ($30.12^\circ\text{C}$).
+    4. **Synthetic Deep Subsurface Warm Core (peaks at 30m)**:
+       - BEFORE: **`30 m`** ($c = 1543.77\text{ m/s}$)
+       - AFTER: **`30 m`** ($c = 1543.77\text{ m/s}$) — preserved.
+  - **Files Modified**:
+    - `app.js`: In `updateStatCards()`, switched SVAD calculation to use `const svadTemps = (raw_temps && raw_temps.length) ? raw_temps : temps;`.
+    - `scratch/test_stat_card_outputs.js`: Updated with live API values and before/after SVAD comparison.
+    - `TODO.md`: Updated task log.
+    - `RESEARCH.md`: Added documentation on SVAD uncorrected temperature input rationale.
+  - **Full Test Suite Verification (100% Pass)**:
+    - `python test_temperature_shelf_depths.py`: **4 / 4 PASS** (100%)
+    - `python test_argo_bias_correction.py`: **6 / 6 PASS** (100%)
+    - `python test_system.py`: **ALL PASS** (100%)
+    - `python test_argo_summary_regression.py`: **32 / 32 PASS** (100%)
+    - `python test_float16_migration.py`: **ALL PASS** (100%)
+    - `node test_d20_card.js`: **ALL PASS** (100%)
+
+- [x] **Task: Shelf Oceanographic Indices Depth-Range Validation & Anti-Flatline Null Guard** `[Completed 2026-09-18 20:33]`
+  - **Item 1: Hand Verification of Depth Ranges for Shelf/Gulf Points**:
+    - Confirmed valid non-null depths for the 4 target points:
+      - Sundarbans Delta ($20.90^\circ\text{N}, 87.20^\circ\text{E}$): Valid depths 0, 5, 10, 20m (seafloor 20m).
+      - West-coast Arabian Sea ($19.92^\circ\text{N}, 71.75^\circ\text{E}$): Valid depths 0, 5, 10, 20m (seafloor 20m).
+      - Persian Gulf ($28.13^\circ\text{N}, 50.45^\circ\text{E}$): Valid depths 0, 5, 10, 20, 30, 50m (seafloor 50m).
+      - Gulf of Mannar ($9.57^\circ\text{N}, 79.48^\circ\text{E}$): Valid depths 0, 5, 10m (seafloor 10m).
+    - `d20`: Correctly `None` across all 4 points because water column never reaches 20.0°C.
+    - `mld`: In Persian Gulf, correctly evaluates to $10.8\text{m} \le 50\text{m}$ seafloor. In Sundarbans, West-coast, and Gulf of Mannar, temperature drop across shallow column is $< 0.2^\circ\text{C}$ or column $< 10\text{m}$, correctly returning `None`.
+    - `d26`: In Persian Gulf, correctly evaluates to $24.5\text{m} \le 50\text{m}$ seafloor. In Sundarbans, West-coast, and Gulf of Mannar, water column is $\ge 29.5^\circ\text{C}$ all the way to seafloor, correctly returning `None`.
+  - **Item 2: Elimination of Misleading Numeric Defaults on Truncated Columns**:
+    - **TCHP**: Previously returned misleading `0.0 kJ/cm²` for Sundarbans, West-coast, and Gulf of Mannar when $D_{26}$ was unobserved. Fixed in `backend/products.py`: if surface temp $\ge 26.0^\circ\text{C}$ and $D_{26}$ is unobserved due to shallow seabed cutoff, `compute_tchp()` and `tchp_argo_corrected()` return `None` (`null`) for `value`, `band`, and `raw_tchp`.
+    - **OHC₃₀₀**: Added `compute_ohc300(profile, depths)` to `backend/products.py` and exposed `"ohc300"` in `/predict` `indices` (`backend/api_server.py`). If the water column does not reach 300m (seafloor cutoff), `ohc300` returns `None` (`null`) instead of calculating partial 10–50m sums (which previously yielded misleadingly low numbers like 123–245 kJ/cm²).
+    - **Frontend Card 2 (`app.js`)**: Updated `updateStatCards` to use `prediction.indices.ohc300` and display `—` with tooltip `"Water column is shallower than 300m (seafloor depth cutoff)"` when seafloor is shallower than 300m.
+    - **PFZ Grid Resilience (`backend/api_server.py`)**: Fixed NaN handling in `/pfz-grid` when shallow shelf cells lack 50m temperature, preventing ASGI `ValueError: Out of range float values are not JSON compliant: nan`.
+  - **Item 3: Anti-Flatline Regression Guard Null/NaN Hardening (`test_temperature_shelf_depths.py`)**:
+    - Added `_has_numeric_flatline(profile_vals, run_length=5)` which explicitly filters out `None`, `null`, and `NaN` before checking for runs of consecutive identical values.
+    - Added explicit unit tests:
+      1. Mock profile with 11 consecutive `None` values (simulating shelf seabed): asserts `_has_numeric_flatline == False`.
+      2. Mock profile with 11 consecutive `float('nan')` values: asserts `_has_numeric_flatline == False`.
+      3. Mock profile with genuine 5x 4.0°C flatline followed by nulls: asserts `_has_numeric_flatline == True`.
+      4. Sanity check showing naive comparison `[None]*5` falsely matches `None == None`.
+    - Verified all model profiles across shelf and open ocean coordinates pass with zero flatlines.
+    - Updated live API test asserting exact index nullability on shelf vs open ocean.
+  - **Files Modified**:
+    - `backend/products.py`: Updated `compute_tchp` and `tchp_argo_corrected` to return `None` when $D_{26}$ is unobserved, added `compute_ohc300`.
+    - `backend/api_server.py`: Added `ohc300` to `indices`, clamped `tc_depth` to valid seafloor depth, hardened `/pfz-grid` against NaNs.
+    - `app.js`: Updated OHC₃₀₀ calculation and empty-state tooltip in `updateStatCards`.
+    - `test_temperature_shelf_depths.py`: Updated anti-flatline regression test with explicit null/NaN exclusion and unit tests, verified live API shelf indices.
+    - `TODO.md`: Updated task log.
+    - `RESEARCH.md`: Documented physical criteria for truncated shelf indices in Section 25.
+  - **Full Test Suite Verification (100% Pass)**:
+    - `python test_temperature_shelf_depths.py`: **4 / 4 PASS** (100%)
+    - `python test_argo_bias_correction.py`: **6 / 6 PASS** (100%)
+    - `python test_argo_summary_regression.py`: **32 / 32 PASS** (100%)
+    - `python test_system.py`: **ALL PASS** (100%)
+    - `node test_argo_page.js`: **149 / 149 PASS** (100%)
+    - `node test_argo_skill_score.js`: **63 / 63 PASS** (100%)
+    - `node test_argo_metric_verify.js`: **51 / 51 PASS** (100%)
+    - `node test_fisheries.js`: **21 / 21 PASS** (100%)
+    - `node test_marine_ecology.js`: **157 / 157 PASS** (100%)
+    - `node test_remove_confidence.js`: **11 / 11 PASS** (100%)
+
+- [x] **Task: Fix Shallow Shelf/Gulf 4.0°C Flatline Bug with Strict Bathymetry Masking (Approach 2)** `[Completed 2026-09-18 19:48]`
+  - **Root Cause Confirmed**:
+    - `_temp_target_clim[0]` stores `0.0` for grid cells where a depth level is beneath the seafloor.
+    - The CNN model predicted small near-zero raw anomalies ($\approx +0.19^\circ\text{C}$). Adding this anomaly to $0.0^\circ\text{C}$ climatology produced temperatures $< 4.0^\circ\text{C}$.
+    - The Indian Ocean minimum floor clamp (`np.maximum(4.0, prof)`) clamped these sub-seafloor depths to exactly $4.0^\circ\text{C}$.
+    - Monotonicity smoothing below the thermocline (`profile[i] = min(profile[i], profile[i-1])`) then cascaded $4.0^\circ\text{C}$ all the way down to $1000\text{m}$.
+  - **Item 1: Seafloor Mask & Early Invalidation (`backend/inference.py`, `backend/api_server.py`)**:
+    - Created `_valid_depth_mask = np.array(_temp_target_clim[0] > 1.0, dtype=bool)` of shape `(15, 101, 241)` derived from physical climatology seafloor presence.
+    - Retired `_get_shelf_infill_indices()` and `get_infilled_clim_day()` — strictly no artificial climatology infilling below the seafloor.
+    - In `backend/inference.py:predict_temperature_profile`:
+      - Set depths beyond local seabed to `np.nan` immediately after raw model prediction.
+      - Scoped PAVA isotonic regression strictly to valid non-NaN upper depths.
+      - Preserved NaNs through `prod.correct_profile()`, the $4.0^\circ\text{C}$ floor clamp, and sub-thermocline monotonicity.
+      - Serialized `np.nan` to Python `None` in the returned profile dictionary so JSON produces standards-compliant `null`.
+    - In `backend/api_server.py:get_spatial_predictions`:
+      - Applied `out_spatial[~inf._valid_depth_mask] = inf.np.nan` early across the 3D grid.
+      - Serialized 2D grid slices to JSON replacing NaNs with `None` (`null`).
+    - In `backend/api_server.py:model_result_to_frontend`:
+      - Guaranteed `temps`, `raw_temps`, and `profile` return `None` (`null`) for sub-seafloor depths.
+      - Guarded thermocline depth ($Z_{tc}$) and upwelling index ($UI$) against `None` values.
+  - **Item 2: Frontend Rendering & Type-Coercion Hardening (`app.js`, `argo.js`, `style.css`)**:
+    - `app.js`:
+      - `updateDepthTable`: Renders `—` with `.ky-tvd-table-row--masked` and tooltip `"Depth X m is beyond the local seafloor"`.
+      - `buildChart`: Iterates standard depths and stops plotting at the first `null` (crisp seabed termination, avoiding false drops to 0).
+      - `computeD20Isotherm` & `computeMLD`: Explicit guards against `null`/`undefined`/`NaN` to prevent JavaScript type coercion (`null <= 20.0 === true`) from calculating false sub-surface crossings.
+      - `updateStatCards`: OHC₃₀₀ numerical trapezoidal integration terminates cleanly at the seabed (`if (t === null) break;`); Sound Velocity profile calculation filters out `null` depths.
+    - `argo.js`: Table and Chart.js dual profile views updated to filter and gracefully display `null` sub-seafloor values.
+    - `style.css`: Added muted styling (`#94A3B8`) for `.ky-tvd-table-row--masked td` and `.ky-tvd-val`.
+  - **Item 3: Automated Regression Suite & Live Backend Parity (`test_temperature_shelf_depths.py`)**:
+    - Updated assertions in `test_temperature_shelf_depths.py`: depths $\le \text{seafloor}$ are $\ge 4.0^\circ\text{C}$, depths $> \text{seafloor}$ are `None` (`null`).
+    - Added `test_anti_flatline_regression_guard` asserting no $\ge 5$ consecutive identical values in any ocean profile.
+    - Live backend test verifies exact `null` serialization across `/predict` for all shelf/gulf test coordinates.
+  - **Files Modified**:
+    - `backend/inference.py`: Built `_valid_depth_mask`, applied early NaN masking, preserved NaNs through PAVA/clamp/monotonicity, serialized `None`.
+    - `backend/api_server.py`: Early masking in `get_spatial_predictions`, JSON `null` serialization in `/predict` and `/temperature-grid`, guarded indices.
+    - `app.js`: Masked table row styling, chart cutoff at seabed, JS `null <= 20.0` coercion fixes in MLD/D20, OHC₃₀₀ seabed break.
+    - `argo.js`: Handled `null` depths in profile comparisons and charts.
+    - `style.css`: Added `.ky-tvd-table-row--masked` and muted styling.
+    - `test_temperature_shelf_depths.py`: Updated assertions for strict bathymetry masking, added anti-flatline regression test.
+  - **Full Test Suite Verification (100% Pass)**:
+    - `python test_temperature_shelf_depths.py`: **4 / 4 PASS** (100%)
+    - `python test_argo_bias_correction.py`: **6 / 6 PASS** (100%)
+    - `python test_argo_summary_regression.py`: **35 / 35 PASS** (100%)
+    - `python test_system.py`: **ALL PASS** (100%)
+    - `node test_argo_page.js`: **149 / 149 PASS** (100%)
+    - `node test_argo_skill_score.js`: **63 / 63 PASS** (100%)
+    - `node test_argo_metric_verify.js`: **51 / 51 PASS** (100%)
+    - `node test_fisheries.js`: **21 / 21 PASS** (100%)
+    - `node test_marine_ecology.js`: **157 / 157 PASS** (100%)
+    - `node test_remove_confidence.js`: **11 / 11 PASS** (100%)
+
+
+- [x] **Task: Integrate Ajay's Argo Warm-Bias Correction & Update Backend/Frontend Skill Board** `[Completed 2026-09-18 10:15]`
+  - **Item 1: Dedicated Correction Module & Oceanographic Indices (`backend/products.py`)**:
+    - Created `backend/products.py` implementing `DEPTHS`, `ARGO_DEPTH_BIAS`, `TCHP_OFFSET` ($2.67\text{ kJ/cm}^2$), and `TCHP_BAND` ($15.7\text{ kJ/cm}^2$).
+    - Pinned the module strictly to `model_v6_satswap_anom` checkpoint.
+    - Implemented `correct_profile(raw_profile)`: subtracts empirical bias vector across 1D, 2D, and 3D shapes while strictly preserving bathymetric/topographic `NaN` depths (`arr[np.isnan(arr)] = np.nan`), preventing artificial temperature generation over shallow shelves.
+    - Implemented `compute_d20()`, `compute_d26()`, `compute_mld()`, `compute_tchp()`, and `tchp_argo_corrected()` with physical oceanographic accuracy.
+  - **Item 2: Backend Pipeline Integration (`backend/inference.py`, `backend/api_server.py`)**:
+    - In `backend/inference.py:predict_temperature_profile`:
+      - For `raw=False`: blends satellite SST + 0–10m taper, applies upper-100m isotonic decreasing regression, applies `correct_profile()`, enforces Indian Ocean floor ($\ge 4.0^\circ\text{C}$), and guarantees non-increasing temperatures below thermocline ($\ge 100\text{m}$).
+      - For `raw=True`: bypasses both isotonic regression and `correct_profile`, preserving genuine subsurface inversions.
+    - In `backend/api_server.py:get_spatial_predictions`:
+      - Applies `prod.correct_profile()` across valid ocean cells when `raw=False`, with $4.0^\circ\text{C}$ floor and below-100m monotonicity.
+      - Guaranteed 100% exact numerical parity between `/predict` and `/temperature-grid` across all 15 depths.
+    - In `backend/api_server.py:model_result_to_frontend`:
+      - Separated MLD from corrected metrics: computes MLD using `raw_temps` (uncorrected), and D20, D26, and TCHP using `temps` (corrected).
+      - Returns `raw_temps` and physical indices (`mld`, `d20`, `d26`, `tchp`, `tchp_band`, `tchp_raw`) in response payload.
+    - In `backend/api_server.py:/argo/compare`:
+      - Default is `raw=False` (bias-corrected profile); passes `raw=True` query param through to bypass correction.
+  - **Item 3: Frontend UI, Tooltips & Skill Board Updates (`explore.html`, `app.js`, `argo.html`, `argo.js`)**:
+    - `explore.html`: Updated TVD table note to: *"Argo-bias-corrected (fit on 2021-23 Argo, scored on unseen 2023 profiles). 0–100 m: blended with satellite SST and adjusted for physical consistency."*
+    - `app.js`: In `updateStatCards()`, computes MLD from `prediction.raw_temps` (fallback `prediction.temps`). In `buildChart()`, updated dataset label to reflect `"Temperature — Argo-bias-corrected (fit on 2021-23 Argo, scored on unseen 2023 profiles)"`.
+    - `argo.html`: Added dedicated high-profile banner *"Argo Warm-Bias Correction Benchmark"* showcasing the 1,791 unseen Argo profiles (post-5 Jun 2023):
+      1. Overall RMSE: Uncorrected **1.23°C** $\rightarrow$ Corrected **1.07°C** (−13.0% error reduction).
+      2. 100m Core Bias: Drops from **+1.62°C** to **+0.36°C** (−78% bias reduction).
+      3. 100m Error: Corrected error is **1.60°C**, beating Copernicus GLORYS12 reanalysis error (**1.68°C**).
+      4. Provenance label: *"Argo-bias-corrected (fit on 2021-23 Argo, scored on unseen 2023 profiles)"*.
+    - `argo.js`: Updated comparison chart dataset label and ensured developer verification tool recomputes against baseline (`raw=true`).
+  - **Item 4: Automated Verification & 100% Pass Matrix**:
+    - Created `test_argo_bias_correction.py` covering: constants & version pinning, numerical accuracy & NaN preservation, Arabian Sea spot-check (100m drops by $1.266^\circ\text{C}$ from $26.71^\circ\text{C}$ to $25.45^\circ\text{C}$, 0m drops by $0.024^\circ\text{C}$ from $28.76^\circ\text{C}$ to $28.74^\circ\text{C}$), MLD raw vs corrected separation (MLD shoaling prevented), raw toggle bypass, and exact API server spatial parity.
+    - Updated `test_system.py` upper 50m monotonicity check tolerance for known 0.10°C Argo 0–5m sensor bias adjustment.
+  - **Files Modified**:
+    - `backend/products.py`: Created module with `DEPTHS`, `ARGO_DEPTH_BIAS`, `TCHP_OFFSET`, `TCHP_BAND`, `correct_profile`, `compute_d20`, `compute_d26`, `compute_mld`, `compute_tchp`, `tchp_argo_corrected`.
+    - `backend/inference.py`: Integrated `correct_profile` into `predict_temperature_profile`.
+    - `backend/api_server.py`: Integrated `prod.correct_profile` into `get_spatial_predictions`, updated `model_result_to_frontend` with `raw_temps` and physical indices.
+    - `backend/compute_skill_score.py`: Added `biasCorrectionBenchmark` metadata.
+    - `backend/data/argo_skill_score.json`: Added `biasCorrectionBenchmark` metadata block.
+    - `explore.html`: Updated TVD table note to reflect Argo-bias-corrected provenance.
+    - `app.js`: Computed MLD from `raw_temps`, updated chart dataset label.
+    - `argo.html`: Added 1,791 unseen profiles skill board benchmark section.
+    - `argo.js`: Updated comparison chart label and dev verify tool URL.
+    - `test_argo_bias_correction.py`: Created automated regression suite.
+    - `test_system.py`: Updated upper 50m monotonicity check tolerance.
+    - `test_argo_metric_verify.js`: Configured `/argo/compare` URL to query raw baseline.
+    - `RESEARCH.md`: Added Section 24 documenting complete bias correction architecture and validation evidence.
+    - `TODO.md`: Documented task completion and verification results.
+  - **Full Test Suite Verification (100% Pass)**:
+    - `python test_argo_bias_correction.py`: **6 / 6 PASS** (100%)
+    - `python test_system.py`: **ALL PASS** (100%)
+    - `python test_temperature_shelf_depths.py`: **4 / 4 PASS** (100%)
+    - `python test_argo_summary_regression.py`: **32 / 32 PASS** (100%)
+    - `node test_argo_page.js`: **149 / 149 PASS** (100%)
+    - `node test_argo_skill_score.js`: **63 / 63 PASS** (100%)
+    - `node test_argo_metric_verify.js`: **51 / 51 PASS** (100%)
+    - `node test_fisheries.js`: **21 / 21 PASS** (100%)
+    - `node test_marine_ecology.js`: **157 / 157 PASS** (100%)
+    - `node test_d20_card.js`: **ALL PASS** (100%)
+    - `node test_mld_and_collision.js`: **ALL PASS** (100%)
+    - `node test_interactions.js`: **ALL PASS** (100%)
+    - `node test_remove_confidence.js`: **11 / 11 PASS** (100%)
+    - Syntax verification: **Zero errors** across all Python and JS files.
+
 - [x] **Task: Audit /argo/summary Endpoint, Eliminate Hardcoded Cache, Dynamic Trimmed Scoring & Add Regression Test** `[Completed 2026-09-17 19:35]`
   - **Item 1: Root-Cause Analysis of `/argo/summary` Response & Reconciliation**:
     - Discovered that line 938 in `backend/api_server.py` defined a static hardcoded dictionary `_argo_summary_cache = { ... }` at module root.

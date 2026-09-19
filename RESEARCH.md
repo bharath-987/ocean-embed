@@ -219,6 +219,11 @@ Reconstructed 3D Temperature Field: (15, 101, 241)
   $$\text{SLD} = \arg\max_{z \le 300\text{ m}} c(T(z), S(z), z)$$
   - Immediately beneath the SLD, sound rays refract downward, creating an **Acoustic Shadow Zone** where naval sonar detection drops precipitously.
   - If sound speed decreases monotonically from the surface ($c(0) \ge c(z)$ for all $z$), no surface duct exists and the UI reports `0 m` accompanied by the explanatory caption and tooltip: *"No surface duct — sound speed decreases with depth"*, eliminating any ambiguity that `0 m` is an error or uncalculated state.
+- **Input Temperature Array (`raw_temps` Precedent)**:
+  - Crucially, SVAD is evaluated on **`raw_temps`** (uncorrected model output), exactly matching the precedent established for Mixed Layer Depth (MLD).
+  - The empirical Argo bias correction vector (`ARGO_DEPTH_BIAS`) contains $-0.0730^\circ\text{C}$ at $5\text{m}$ and $+0.0239^\circ\text{C}$ at $0\text{m}$. When bias correction is applied via `profile - bias`, it adds $+0.073^\circ\text{C}$ at $5\text{m}$ and subtracts $0.024^\circ\text{C}$ at $0\text{m}$, inducing an artificial $+0.097^\circ\text{C}$ warm bump at $5\text{m}$.
+  - In open-ocean profiles with a nearly isothermal upper mixed layer, this $+0.073^\circ\text{C}$ perturbation combined with the depth pressure term ($+0.08\text{ m/s}$) mechanically dominated the search for maximum sound velocity, causing open-ocean profiles across different coordinates and seasons to trivially return $5\text{m}$.
+  - Evaluating on `raw_temps` restores the physical sound velocity profile: open-ocean profiles increase sound speed with depth through the nearly isothermal surface layer until the thermocline (e.g. peaking at $50\text{m}$ right above the $58\text{m}$ mixed layer base), while mid-depth shelf seas (e.g. Persian Gulf: $0\text{m}$), estuaries (Sundarbans: $10\text{m}$), and subsurface warm lenses ($30\text{m}$) reflect their genuine dynamical acoustics.
 - **Provenance Tagging**:
   Because temperature is model-derived while salinity follows a climatological halocline approximation, Card 3 carries the honest provenance pill:
   `<span class="ky-provenance-pill ky-provenance-pill--heuristic">Estimated Heuristic</span>`
@@ -1992,3 +1997,128 @@ The Potential Fishing Zone (PFZ) Index is explicitly broken down into:
   3. Per-basin sample counts and RMSE parity across all 3 active basins.
   4. Dynamic non-frozen variance across multiple `/argo/compare` floats.
   5. Live HTTP verification over port 8000.
+
+---
+
+## 24. Ajay's Empirical Argo Warm-Bias Post-Processing Correction Architecture
+
+### 24.1 Context and Motivation
+- Neural network satellite-to-subsurface temperature reconstruction models frequently exhibit systematic warm biases in the thermocline core (~75–200m) due to internal wave displacement, sub-grid-scale pycnocline fluctuations, and asymmetric MSE loss weighting.
+- Ajay developed an empirical depth-dependent post-processing correction vector fit on 2021–2023 Argo float observations and independently scored on **1,791 completely unseen profiles** collected post-June 5, 2023.
+- The correction is purely a post-processing transformation on top of the existing V6 checkpoint (`model_v6_satswap_anom_best.pt`), requiring **zero retraining and zero new data dependencies**.
+
+### 24.2 Empirical Constants and Checkpoint Pinning
+- **Standard Depths** ($15$ levels):
+  `DEPTHS = [0, 5, 10, 20, 30, 50, 75, 100, 125, 150, 200, 300, 500, 700, 1000]` (meters)
+- **Empirical Depth-Bias Vector**:
+  $$\text{ARGO\_DEPTH\_BIAS} = [0.0239, -0.0730, -0.0247, 0.1150, 0.1966, 0.4969, 0.3907, 1.2660, 0.1142, -0.0594, 0.5943, -0.3995, -0.3958, 0.3015, 0.6239]^\circ\text{C}$$
+  - Note: Peak warm bias occurs at $100\text{ m}$ ($+1.2660^\circ\text{C}$), followed by $200\text{ m}$ ($+0.5943^\circ\text{C}$) and $50\text{ m}$ ($+0.4969^\circ\text{C}$). Surface levels ($0\text{–}10\text{ m}$) have near-zero bias adjustments ($\le 0.07^\circ\text{C}$).
+- **Post-Processing TCHP Adjustment**:
+  - `TCHP_OFFSET = 2.67` $\text{kJ/cm}^2$ (added to TCHP computed from the bias-corrected profile).
+  - `TCHP_BAND = 15.7` $\text{kJ/cm}^2$ ($\pm$ error band for operational presentation).
+- **Checkpoint Version Pinning**:
+  Pinned strictly to `model_v6_satswap_anom`. If the neural network checkpoint is updated or retrained, the bias vector must be refit.
+
+### 24.3 Pipeline Execution Order & Bathymetry Masking
+1. **Bathymetry Masking First**: Depths below seafloor or masked by topography are designated as `NaN`. `correct_profile` strictly preserves NaNs (`arr[np.isnan(arr)] = np.nan`), preventing artificial temperature creation over shallow continental shelves.
+2. **Surface Blending & Taper**: Blends satellite SST with model $0\text{ m}$ bulk prediction and diffuses $50\%$ of surface delta into $5\text{ m}$.
+3. **Upper-Ocean Monotonicity**: PAVA isotonic non-increasing pass on depths $\le 100\text{ m}$.
+4. **Argo Warm-Bias Correction**: Subtracts $\text{ARGO\_DEPTH\_BIAS}$ from valid depths.
+5. **Physical Temperature Floor**: Enforces Indian Ocean deep-water floor ($T(z) \ge 4.0^\circ\text{C}$) on non-NaN depths.
+6. **Sub-Thermocline Monotonicity**: Enforces non-increasing temperatures below $100\text{ m}$ ($T(z_i) = \min(T(z_i), T(z_{i-1}))$ for $i \ge 7$).
+
+### 24.4 Physical Rationale: MLD vs D20/D26/TCHP Separation
+- **Mixed Layer Depth (MLD)**:
+  - **CRITICAL DIRECTIVE**: Must be computed from the **RAW (uncorrected) profile**.
+  - **Oceanographic Rationale**: The de Boyer Montégut (2004) criterion detects where temperature drops $0.2^\circ\text{C}$ below the $10\text{ m}$ reference depth $T(10\text{m})$. The bias correction vector cools $50\text{ m}$ by $\sim 0.5^\circ\text{C}$ while leaving $10\text{ m}$ virtually untouched ($-0.02^\circ\text{C}$). This differential trips the $0.2^\circ\text{C}$ threshold prematurely, artificially shoaling MLD by $8\text{–}18\text{ m}$. On 1,791 unseen profiles:
+    - Raw profile MLD bias: $+0.3\text{ m}$
+    - Corrected profile MLD bias: $-7.5\text{ m}$ (worse!)
+  - Keeping MLD on raw profiles preserves $+0.3\text{ m}$ physical fidelity.
+- **D20, D26, and TCHP**:
+  - Computed from the **bias-corrected profile**. Eliminating the $+1.266^\circ\text{C}$ bias at $100\text{ m}$ directly corrects the thermocline depth, producing more accurate $20^\circ\text{C}$ and $26^\circ\text{C}$ isotherm crossings.
+
+### 24.5 Benchmark Validation Evidence (1,791 Unseen Profiles)
+- Evaluated on 1,791 in-situ Argo profiles collected after June 5, 2023:
+  - **Overall Profile RMSE**: Drops from **$1.23^\circ\text{C}$** (uncorrected) to **$1.07^\circ\text{C}$** (corrected) — a **$13.0\%$ error reduction**.
+  - **100m Core Bias**: Drops from **$+1.62^\circ\text{C}$** to **$+0.36^\circ\text{C}$** — a **$78\%$ bias reduction**.
+  - **100m RMSE**: Corrected error is **$1.60^\circ\text{C}$**, successfully outperforming the Copernicus GLORYS12 reanalysis reanalysis error of **$1.68^\circ\text{C}$**.
+- **Arabian Sea Spot-Check Parity** (`15.5°N, 65.0°E`, `2022-07-02`):
+  - $100\text{ m}$: Uncorrected $26.71^\circ\text{C} \rightarrow$ Corrected $25.45^\circ\text{C}$ ($\Delta = -1.266^\circ\text{C}$, $\sim 1.3^\circ\text{C}$ cooler).
+  - $0\text{ m}$: Uncorrected $28.76^\circ\text{C} \rightarrow$ Corrected $28.74^\circ\text{C}$ ($\Delta = -0.024^\circ\text{C}$, surface barely changed).
+  - 100% exact numerical parity verified across `/predict` and `/temperature-grid`.
+
+---
+
+## 25. Shallow Continental Shelf & Gulf Bathymetry Masking Architecture
+
+### 25.1 The 4.0°C Shelf Flatline Bug: Diagnosis & Root Cause
+In coastal and shallow shelf environments (e.g., Sundarbans Delta $20.90^\circ\text{N}, 87.20^\circ\text{E}$, West-coast Arabian Sea shelf $19.92^\circ\text{N}, 71.75^\circ\text{E}$, Persian Gulf $28.13^\circ\text{N}, 50.45^\circ\text{E}$, and Gulf of Mannar $9.57^\circ\text{N}, 79.48^\circ\text{E}$), the Temperature vs. Depth (TVD) profile previously exhibited an unphysical flatline at exactly $4.0^\circ\text{C}$ from $\sim 20\text{–}30\text{m}$ down to $1000\text{m}$.
+
+**Mechanism of the Bug**:
+1. In the precomputed climatology target array `_temp_target_clim` (`(365, 15, 101, 241)`), grid cells below the physical ocean seafloor are filled with `0.0`.
+2. The neural network predicts a continuous thermal anomaly field across all grid cells. Over shelf areas, the model predicted small residual anomalies ($\approx +0.19^\circ\text{C}$). Adding this anomaly to the $0.0^\circ\text{C}$ climatology yielded values $< 4.0^\circ\text{C}$ (e.g., $0.19^\circ\text{C}$).
+3. When the deep Indian Ocean floor clamp (`np.maximum(4.0, prof)`) was introduced in the post-processing pipeline, it raised these sub-seafloor values to $4.0^\circ\text{C}$.
+4. Subsequent sub-thermocline monotonicity smoothing ($T(z_i) = \min(T(z_i), T(z_{i-1}))$ for $z \ge 100\text{m}$) cascaded the $4.0^\circ\text{C}$ value down through all subsequent levels to $1000\text{m}$.
+
+### 25.2 Strict Bathymetry Masking (Approach 2)
+Rather than extrapolating or infilling artificial climatology into solid rock below the seabed, the platform enforces strict bathymetry masking:
+1. **Valid Depth Mask**:
+   $$\text{valid\_depth\_mask}[z, y, x] = (\_temp\_target\_clim[0, z, y, x] > 1.0)$$
+   Shape: `(15, 101, 241)`. Seafloor depth is identified as the deepest standard depth where climatology exceeds $1.0^\circ\text{C}$ (ocean waters in the North Indian Ocean never drop below $1.0^\circ\text{C}$).
+2. **Early Masking in Pipeline**:
+   - In `backend/inference.py:predict_temperature_profile`, after calculating `prediction_real = clim_day + raw_pred`, any depth $z$ where `_valid_depth_mask[z, lat_idx, lon_idx] == False` is immediately converted to `np.nan`.
+   - In `backend/api_server.py:get_spatial_predictions`, the 3D tensor is masked at the entry point: `out_spatial[~_valid_depth_mask] = np.nan`.
+3. **Preservation of NaNs Across Post-Processing Stages**:
+   - PAVA isotonic non-increasing regression is restricted strictly to valid upper depths: `pava_decreasing(valid_slice)`.
+   - `prod.correct_profile()` preserves existing NaNs (`arr[np.isnan(arr)] = np.nan`).
+   - The $4.0^\circ\text{C}$ floor clamp ignores NaNs via `np.where(np.isnan(prof), np.nan, np.maximum(4.0, prof))`.
+   - Sub-thermocline monotonicity passes only operate on non-NaN depths.
+4. **JSON Serialization**:
+   - In standard RFC 8259 JSON, `NaN` is not a valid token. All masked sub-seafloor values are mapped to Python `None`, serializing cleanly to JSON `null` in `/predict`, `/temperature-grid`, and `/argo/compare`.
+
+### 25.3 Seafloor Depths by Representative Geographic Location
+| Location | Coordinates | Seafloor Depth | Valid Standard Depths | Masked Sub-Seafloor Depths |
+| :--- | :---: | :---: | :---: | :---: |
+| **Sundarbans Delta** | $20.90^\circ\text{N}, 87.20^\circ\text{E}$ | $20\text{ m}$ | 0, 5, 10, 20 m | 30 to 1000 m (`null`) |
+| **West-Coast Arabian Shelf** | $19.92^\circ\text{N}, 71.75^\circ\text{E}$ | $20\text{ m}$ | 0, 5, 10, 20 m | 30 to 1000 m (`null`) |
+| **Persian Gulf** | $28.13^\circ\text{N}, 50.45^\circ\text{E}$ | $50\text{ m}$ | 0, 5, 10, 20, 30, 50 m | 75 to 1000 m (`null`) |
+| **Gulf of Mannar** | $9.57^\circ\text{N}, 79.48^\circ\text{E}$ | $10\text{ m}$ | 0, 5, 10 m | 20 to 1000 m (`null`) |
+| **Gulf of Kutch** | $22.50^\circ\text{N}, 69.00^\circ\text{E}$ | $20\text{ m}$ | 0, 5, 10, 20 m | 30 to 1000 m (`null`) |
+| **Central Arabian Sea (Control)** | $15.50^\circ\text{N}, 65.00^\circ\text{E}$ | $> 1000\text{ m}$ | All 15 levels (0 to 1000 m) | None |
+
+### 25.4 Frontend UI & Oceanographic Indices Guarding
+1. **JavaScript Type-Coercion Guarding**:
+   - In JavaScript, `null <= 20.0` evaluates to `true` (numeric coercion `0 <= 20.0`).
+   - All isotherm crossings (`computeD20Isotherm`) and mixed layer depth calculations (`computeMLD`) explicitly guard against missing values:
+     ```javascript
+     if (t === null || t === undefined || isNaN(t)) continue;
+     ```
+2. **TVD Table & Profile Cutoff**:
+   - Depth table renders `—` for `null` depths, applying class `.ky-tvd-table-row--masked` and tooltip `"Depth X m is beyond the local seafloor"`.
+   - Chart.js profile stops plotting at the first `null` value, creating a clean vertical cutoff at the seabed rather than dropping falsely to 0.
+
+### 25.5 Oceanographic Index Behavior in Shallow/Truncated Water Columns
+When the physical water column terminates at the seabed (shallow bathymetry), standard oceanographic indices must never return artificial extrapolated values or misleading zero defaults:
+
+1. **D20 and D26 Isotherm Depths**:
+   - Both require the water column to genuinely cross the threshold temperature ($20^\circ\text{C}$ or $26^\circ\text{C}$) within the valid non-null depths.
+   - If the profile terminates above the threshold (e.g. all valid depths $\ge 29^\circ\text{C}$ down to seabed), the isotherm is unobserved and returns `None` (`null`).
+   - If a crossing occurs within the column (e.g. Persian Gulf: $D_{26} = 24.5\text{m} \le 50\text{m}$ seabed), the interpolated depth is returned.
+
+2. **Mixed Layer Depth (MLD)**:
+   - Evaluated using de Boyer Montégut (2004) criterion ($T(10\text{m}) - 0.2^\circ\text{C}$) on raw profiles.
+   - Requires at least 10m depth to establish reference temperature. If seafloor $< 10\text{m}$, returns `None`.
+   - If the temperature decrease across the valid shallow column is $< 0.2^\circ\text{C}$, the mixed layer base extends beyond the seabed or the column is vertically uniform $\rightarrow$ returns `None`.
+
+3. **Tropical Cyclone Heat Potential (TCHP)**:
+   - Defined as $\int_0^{D_{26}} (T(z) - 26) dz$.
+   - If surface temperature $< 26.0^\circ\text{C}$, returns $0.0\text{ kJ/cm}^2$ (genuinely no heat $> 26^\circ\text{C}$).
+   - If surface temperature $\ge 26.0^\circ\text{C}$ but $D_{26}$ is unobserved due to seabed truncation, returning $0.0$ would falsely imply cold water. In this case, TCHP returns `None` (`null`).
+
+4. **Ocean Heat Content in Upper 300m ($OHC_{300}$)**:
+   - Defined as the heat content integrated down to $300\text{m}$.
+   - If the water column terminates before $300\text{m}$ (seafloor depth $< 300\text{m}$), $OHC_{300}$ cannot be meaningfully computed. Integrating only 10m or 20m of water produces misleadingly small numbers (e.g. $123\text{ kJ/cm}^2$ vs open ocean $\sim 2700\text{ kJ/cm}^2$).
+   - Returns `None` (`null`), displaying `—` with tooltip `"Water column is shallower than 300m (seafloor depth cutoff)"`.
+
+
+

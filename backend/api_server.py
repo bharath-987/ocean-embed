@@ -23,6 +23,10 @@ from typing import Optional
 import inference as inf
 from inference import predict_temperature_profile
 from marine_ecology import detect_marine_heatwaves, _load_climatology
+try:
+    import products as prod
+except ImportError:
+    from backend import products as prod
 
 # ---------------------------------------------------------------------------
 # SIH DEMO CACHE PRE-WARMING CONFIGURATION
@@ -336,36 +340,58 @@ def model_result_to_frontend(result: dict, latitude: float, longitude: float, da
         return {"error": result["error"]}
 
     depths = inf.STANDARD_DEPTHS
-    temps = [result[d] for d in depths]
+    temps = [(round(float(result[d]), 2) if (result[d] is not None and not inf.np.isnan(result[d])) else None) for d in depths]
     surf_inputs = extract_surface_inputs(latitude, longitude, date_str)
 
     # Inspect raw temperature profile across 0-50m band for corruption
     depths_0_50 = [d for d in depths if d <= 50]
     raw_profile = raw_result if raw_result is not None else result
-    raw_temps_0_50 = [float(raw_profile[d]) for d in depths_0_50]
+    raw_temps = [(round(float(raw_profile[d]), 2) if (raw_profile[d] is not None and not inf.np.isnan(raw_profile[d])) else None) for d in depths]
+    raw_temps_0_50 = [float(raw_profile[d]) for d in depths_0_50 if (raw_profile[d] is not None and not inf.np.isnan(raw_profile[d]))]
     dq_flag, dq_reason = check_temperature_data_quality(raw_temps_0_50)
+
+    # Oceanographic indices:
+    # MLD computed from RAW profile (preserves de Boyer Montégut 0.2°C accuracy; bias correction shoals MLD)
+    # D20, D26, TCHP, and OHC300 computed from CORRECTED profile
+    raw_temps_for_indices = [t if t is not None else inf.np.nan for t in raw_temps]
+    temps_for_indices = [t if t is not None else inf.np.nan for t in temps]
+    mld_val = prod.compute_mld(raw_temps_for_indices, depths)
+    d20_val = prod.compute_d20(temps_for_indices, depths)
+    d26_val = prod.compute_d26(temps_for_indices, depths)
+    tchp_info = prod.tchp_argo_corrected(temps_for_indices, depths)
+    ohc300_val = prod.compute_ohc300(temps_for_indices, depths)
 
     # 1. Thermocline Depth (Z_tc): depth of maximum -dT/dz in upper 20-250m
     max_grad = -999.0
-    tc_depth = 60.0
+    valid_depths = [d for d, t in zip(depths, temps) if t is not None]
+    tc_depth = min(60.0, float(valid_depths[-1])) if valid_depths else 60.0
     for i in range(len(depths) - 1):
         z1, z2 = depths[i], depths[i + 1]
         if z2 > 250:
             break
+        t1, t2 = temps[i], temps[i + 1]
+        if t1 is None or t2 is None:
+            break
         dz = z2 - z1
         if dz > 0:
-            grad = (temps[i] - temps[i + 1]) / dz
+            grad = (t1 - t2) / dz
             if grad > max_grad:
                 max_grad = grad
                 tc_depth = (z1 + z2) / 2.0
+
+    if valid_depths:
+        tc_depth = min(tc_depth, float(valid_depths[-1]))
 
     # 2. Upwelling Index (UI in [0, 1]):
     # Derived from surface-to-50m thermal gradient (T(0) - T(50)):
     # - Weak gradient (<1°C drop across 50m, stratified/downwelling) -> Low UI (~0.0 - 0.2)
     # - Moderate gradient (1-3°C drop across 50m) -> Moderate UI (~0.3 - 0.6)
     # - Strong gradient (>4°C drop, cold water shoaling near surface) -> High UI (~0.7 - 1.0)
-    t0 = temps[0]
-    t50 = temps[depths.index(50)] if 50 in depths else (temps[5] if len(temps) > 5 else t0)
+    t0 = temps[0] if temps[0] is not None else 28.0
+    t50 = temps[depths.index(50)] if (50 in depths and depths.index(50) < len(temps)) else None
+    if t50 is None:
+        valid_t = [t for t in temps if t is not None]
+        t50 = valid_t[-1] if valid_t else t0
     temp_gap = max(0.0, t0 - t50)
     upwelling_val = max(0.0, min(1.0, temp_gap / 5.0))
 
@@ -442,14 +468,22 @@ def model_result_to_frontend(result: dict, latitude: float, longitude: float, da
     else:
         pfz_val = round(max(0.1, min(0.98, 0.35 * tc_factor + 0.35 * upwelling_val + 0.15 * front_strength + 0.15 * min(1.0, surface_chla / 3.0))), 2)
 
-    profile = [{"depth": d, "temperature": round(float(t), 2)} for d, t in zip(depths, temps)]
+    profile = [{"depth": d, "temperature": (round(float(t), 2) if t is not None else None)} for d, t in zip(depths, temps)]
 
     return {
         "depths": depths,
         "temps": temps,
+        "raw_temps": raw_temps,
         "profile": profile,
         "surfaceInputs": surf_inputs,
         "indices": {
+            "mld": mld_val,
+            "d20": d20_val,
+            "d26": d26_val,
+            "tchp": tchp_info["value"],
+            "tchp_band": tchp_info["band"],
+            "tchp_raw": tchp_info["raw_tchp"],
+            "ohc300": ohc300_val,
             "thermocline_depth": round(tc_depth, 1),
             "upwelling_index": round(upwelling_val, 2),
             "thermal_front_gradient": front_grad_mag,
@@ -603,8 +637,9 @@ def get_spatial_predictions(date_str: str, raw: bool = False):
             prediction_anom = inf._model(window_tensor)
         del window_tensor
 
-        clim_at_day = inf.get_infilled_clim_day(mapped_day_idx)
+        clim_at_day = inf.np.array(inf._temp_target_clim[mapped_day_idx])
         prediction_real = (prediction_anom[0].cpu().numpy() + clim_at_day).astype("float32")
+        prediction_real[~inf._valid_depth_mask] = inf.np.nan
         del prediction_anom
         del clim_at_day
         if use_cache:
@@ -620,13 +655,15 @@ def get_spatial_predictions(date_str: str, raw: bool = False):
     out_spatial = prediction_real.copy()
 
     raw_m0 = out_spatial[0].copy()
+    valid_s0 = ~inf.np.isnan(raw_m0) & ~land_mask
     diff = inf.np.abs(raw_sst - raw_m0)
     alpha = inf.np.clip(0.60 - 0.15 * diff, 0.30, 0.60)
     blended_sst = alpha * raw_sst + (1.0 - alpha) * raw_m0
-    out_spatial[0] = blended_sst
+    out_spatial[0, valid_s0] = blended_sst[valid_s0]
 
     delta_s = blended_sst - raw_m0
-    out_spatial[1] += 0.50 * delta_s
+    valid_s1 = ~inf.np.isnan(out_spatial[1]) & ~land_mask
+    out_spatial[1, valid_s1] += 0.50 * delta_s[valid_s1]
 
     # Monotonicity safety-net pass across ocean cells (depths <= 100m only)
     if not raw:
@@ -635,17 +672,30 @@ def get_spatial_predictions(date_str: str, raw: bool = False):
             upper_depth_count = sum(1 for d in inf.STANDARD_DEPTHS if d <= 100)  # 8 depths: 0-100m
             upper_subset = out_spatial[:upper_depth_count, ocean_cells]
             for c in range(upper_subset.shape[1]):
-                upper_subset[:, c] = inf._isotonic_decreasing(upper_subset[:, c])
+                col = upper_subset[:, c]
+                valid_mask_c = ~inf.np.isnan(col)
+                if valid_mask_c.sum() > 1:
+                    upper_subset[valid_mask_c, c] = inf._isotonic_decreasing(col[valid_mask_c])
             out_spatial[:upper_depth_count, ocean_cells] = upper_subset
 
-            # Guarantee non-increasing temperatures below thermocline (depths >= 100m)
-            for d in range(7, len(inf.STANDARD_DEPTHS)):
-                out_spatial[d][ocean_cells] = inf.np.minimum(out_spatial[d][ocean_cells], out_spatial[d - 1][ocean_cells])
+            # Argo Empirical Warm-Bias Correction (pinned to model_v6_satswap_anom)
+            out_spatial[:, ocean_cells] = prod.correct_profile(out_spatial[:, ocean_cells])
 
     for d in range(len(inf.STANDARD_DEPTHS)):
         out_spatial[d][land_mask] = 0.0
+        valid_ocean_d = (~land_mask) & (~inf.np.isnan(out_spatial[d]))
+        out_spatial[d][valid_ocean_d] = inf.np.maximum(4.0, out_spatial[d][valid_ocean_d])
+
+    if not raw:
         ocean_cells = ~land_mask
-        out_spatial[d][ocean_cells] = inf.np.maximum(4.0, out_spatial[d][ocean_cells])
+        if ocean_cells.any():
+            # Guarantee non-increasing temperatures below thermocline (depths >= 100m)
+            for d in range(7, len(inf.STANDARD_DEPTHS)):
+                valid_pair = ocean_cells & (~inf.np.isnan(out_spatial[d])) & (~inf.np.isnan(out_spatial[d - 1]))
+                out_spatial[d][valid_pair] = inf.np.minimum(out_spatial[d][valid_pair], out_spatial[d - 1][valid_pair])
+
+    # Re-enforce valid depth mask (depths below seafloor remain strictly NaN)
+    out_spatial[~inf._valid_depth_mask] = inf.np.nan
 
     if use_cache:
         with _spatial_prediction_cache_lock:
@@ -668,7 +718,7 @@ def temperature_grid(
     Generated directly from the CNN-LSTM deep learning model output, guaranteeing
     100% exact numerical consistency with the /predict endpoint and TVD table.
     When raw=True (or smoothing=False), returns unsmoothed model output bypassing PAVA.
-    Land cells are represented as 0.0.
+    Land cells are represented as 0.0. Masked cells below the seafloor return null.
     """
     if depth not in inf.STANDARD_DEPTHS:
         raise HTTPException(status_code=400, detail=f"Invalid depth {depth}. Must be one of {inf.STANDARD_DEPTHS}")
@@ -686,7 +736,11 @@ def temperature_grid(
     sub_lons = inf._target_lons.tolist()
 
     spatial_preds = get_spatial_predictions(date, raw=is_raw)
-    grid_slice = spatial_preds[depth_idx].astype(float).tolist()
+    grid_slice = inf.np.where(
+        inf.np.isnan(spatial_preds[depth_idx]),
+        None,
+        inf.np.round(spatial_preds[depth_idx], 2)
+    ).tolist()
 
     return {
         "depth": depth,
@@ -815,7 +869,8 @@ def compute_pfz_grid(date_str: str) -> dict:
     # 1. Thermocline depth (tc_depth): depth of maximum temperature gradient in upper 300m
     depths = inf.STANDARD_DEPTHS
     # Upper 300m intervals: 0-5, 5-10, 10-20, 20-30, 30-50, 50-75, 75-100, 100-125, 125-150, 150-200, 200-300 (11 intervals)
-    grads = [(sub_temps[i] - sub_temps[i + 1]) / (depths[i + 1] - depths[i]) for i in range(11)]
+    # Replace sub-seafloor NaNs with -999.0 so argmax ignores missing depths below local bathymetry
+    grads = [inf.np.nan_to_num((sub_temps[i] - sub_temps[i + 1]) / (depths[i + 1] - depths[i]), nan=-999.0) for i in range(11)]
     grad_stack = inf.np.stack(grads, axis=0)
     max_idx = inf.np.argmax(grad_stack, axis=0)
     mid_arr = inf.np.array([(depths[i] + depths[i + 1]) / 2.0 for i in range(11)], dtype="float32")
@@ -823,9 +878,13 @@ def compute_pfz_grid(date_str: str) -> dict:
     tc_factor = inf.np.clip((120.0 - tc_depth) / 80.0, 0.0, 1.0)
 
     # 2. Upwelling index (UI in [0, 1]): derived from surface-to-50m thermal gradient
+    # In shallow shelf waters where 50m is beneath the seafloor, forward fill deepest valid depth <= 50m
     t0_grid = sub_temps[0]
-    t50_grid = sub_temps[5]
-    temp_gap = inf.np.maximum(0.0, t0_grid - t50_grid)
+    sub_0_50 = sub_temps[:6].copy()
+    for k in range(1, 6):
+        sub_0_50[k] = inf.np.where(inf.np.isnan(sub_0_50[k]), sub_0_50[k - 1], sub_0_50[k])
+    t50_grid = sub_0_50[5]
+    temp_gap = inf.np.nan_to_num(inf.np.maximum(0.0, t0_grid - t50_grid), nan=0.0)
     upwelling_val = inf.np.clip(temp_gap / 5.0, 0.0, 1.0)
 
     # 2b. Horizontal Thermal Front Gradient across full grid, sampled to resolution
@@ -884,6 +943,8 @@ def compute_pfz_grid(date_str: str) -> dict:
             elif not ocean_mask[r, c]:
                 is_land = True
             elif corrupted_grid[r, c]:
+                is_land = True
+            elif inf.np.isnan(pfz_grid[r, c]) or inf.np.isnan(chla_val[r, c]):
                 is_land = True
 
             if is_land:
@@ -1031,24 +1092,28 @@ def compare_argo_profile(
         raise HTTPException(status_code=400, detail=pred["error"])
 
     depths = inf.STANDARD_DEPTHS
-    ai_temps = [round(float(pred[d]), 2) for d in depths]
-    argo_temps = [round(float(t), 2) for t in profile["temperatures"]]
+    ai_temps = [(round(float(pred[d]), 2) if pred[d] is not None else None) for d in depths]
+    argo_temps = [(round(float(t), 2) if t is not None else None) for t in profile["temperatures"]]
 
     # Depth-by-depth differences (AI - ARGO)
-    diffs = [round(ai - argo, 2) for ai, argo in zip(ai_temps, argo_temps)]
+    diffs = [(round(ai - argo, 2) if (ai is not None and argo is not None) else None) for ai, argo in zip(ai_temps, argo_temps)]
 
-    # Metrics
-    ai_arr = inf.np.array(ai_temps, dtype=float)
-    argo_arr = inf.np.array(argo_temps, dtype=float)
-    diff_arr = ai_arr - argo_arr
+    # Metrics computed over valid depth pairs
+    valid_pairs = [(ai, argo) for ai, argo in zip(ai_temps, argo_temps) if ai is not None and argo is not None]
+    if valid_pairs:
+        ai_arr = inf.np.array([p[0] for p in valid_pairs], dtype=float)
+        argo_arr = inf.np.array([p[1] for p in valid_pairs], dtype=float)
+        diff_arr = ai_arr - argo_arr
 
-    rmse = round(float(inf.np.sqrt(inf.np.mean(inf.np.square(diff_arr)))), 2)
-    bias = round(float(inf.np.mean(diff_arr)), 2)
-    if inf.np.std(ai_arr) > 1e-4 and inf.np.std(argo_arr) > 1e-4:
-        corr = round(float(inf.np.corrcoef(ai_arr, argo_arr)[0, 1]), 4)
+        rmse = round(float(inf.np.sqrt(inf.np.mean(inf.np.square(diff_arr)))), 2)
+        bias = round(float(inf.np.mean(diff_arr)), 2)
+        if inf.np.std(ai_arr) > 1e-4 and inf.np.std(argo_arr) > 1e-4:
+            corr = round(float(inf.np.corrcoef(ai_arr, argo_arr)[0, 1]), 4)
+        else:
+            corr = 1.0
+        max_abs_err = round(float(inf.np.max(inf.np.abs(diff_arr))), 2)
     else:
-        corr = 1.0
-    max_abs_err = round(float(inf.np.max(inf.np.abs(diff_arr))), 2)
+        rmse, bias, corr, max_abs_err = 0.0, 0.0, 1.0, 0.0
 
     surf_inputs = extract_surface_inputs(lat, lon, date_str)
 

@@ -2396,9 +2396,10 @@ function clearSurfaceInputs() {
 /* ── D20 Isotherm Depth Calculation (Linear Interpolation) ── */
 
 function computeD20Isotherm(depths, temps) {
-  if (!temps || !depths || temps.length === 0) return null;
+  if (!temps || !depths || temps.length === 0 || temps[0] === null || isNaN(temps[0])) return null;
   if (temps[0] <= 20.0) return depths[0];
   for (let i = 1; i < depths.length; i++) {
+    if (temps[i] === null || temps[i] === undefined || isNaN(temps[i])) break;
     if (temps[i] <= 20.0) {
       const d0 = depths[i - 1];
       const d1 = depths[i];
@@ -2424,8 +2425,10 @@ function computeMLD(depths, temps) {
   // while preserving the 0m table display.
   const idx10 = depths.indexOf(10) !== -1 ? depths.indexOf(10) : 2;
   const tRef = temps[idx10];
+  if (tRef === null || tRef === undefined || isNaN(tRef)) return null;
   const targetT = tRef - 0.2;
   for (let i = idx10 + 1; i < depths.length; i++) {
+    if (temps[i] === null || temps[i] === undefined || isNaN(temps[i])) break;
     if (temps[i] <= targetT) {
       const d0 = depths[i - 1];
       const d1 = depths[i];
@@ -2441,15 +2444,67 @@ if (typeof window !== 'undefined') {
   window.computeMLD = computeMLD;
 }
 
+/* ── Sound Velocity / Acoustic Shadow Depth (Mackenzie 1981, Regional Halocline) ── */
+
+function computeSVAD(depths, temps, surfaceInputs) {
+  if (!temps || !depths || temps.length === 0) return null;
+  let S = 35.0;
+  if (surfaceInputs && surfaceInputs.sss) {
+    if (typeof surfaceInputs.sss.val === 'number') {
+      S = surfaceInputs.sss.val;
+    } else if (typeof surfaceInputs.sss.val === 'string') {
+      const parsedS = parseFloat(surfaceInputs.sss.val);
+      if (!isNaN(parsedS)) S = parsedS;
+    }
+  }
+
+  const validTemps = [];
+  const validDepths = [];
+  for (let i = 0; i < depths.length; i++) {
+    if (temps[i] !== null && temps[i] !== undefined && !isNaN(temps[i])) {
+      validTemps.push(temps[i]);
+      validDepths.push(depths[i]);
+    } else {
+      break;
+    }
+  }
+
+  if (validTemps.length === 0) return null;
+
+  const soundSpeeds = validDepths.map((z, i) => {
+    const T = validTemps[i];
+    // Regional climatological halocline approximation for North Indian Ocean (Levitus / WOA / Rao & Sivakumar 2003):
+    // S(z) = S_inf + (S_0 - S_inf) * exp(-z / z_h), with S_inf = 35.0 PSU and z_h = 150.0 m
+    const Sz = 35.0 + (S - 35.0) * Math.exp(-z / 150.0);
+    return 1448.96 + 4.591 * T - 5.304e-2 * (T * T) + 2.374e-4 * (T * T * T) + 1.340 * (Sz - 35.0) + 1.630e-2 * z;
+  });
+
+  let maxC = soundSpeeds[0];
+  let maxIdx = 0;
+
+  for (let i = 1; i < soundSpeeds.length && validDepths[i] <= 300; i++) {
+    if (soundSpeeds[i] > maxC) {
+      maxC = soundSpeeds[i];
+      maxIdx = i;
+    }
+  }
+  return validDepths[maxIdx];
+}
+if (typeof window !== 'undefined') {
+  window.computeSVAD = computeSVAD;
+}
+
 /* ── Update Stat Cards from cast result ──────────────────── */
 
 function updateStatCards(prediction) {
-  const { temps, depths: pDepths, surfaceInputs, validation } = prediction;
+  const { temps, depths: pDepths, surfaceInputs, validation, raw_temps } = prediction;
   const depths = pDepths || DEPTHS;
 
   // 1: Mixed Layer Depth (MLD)
   // de Boyer Montégut (2004) criterion: depth where temperature first drops 0.2°C below 10m reference depth T(10m)
-  const mld = computeMLD(depths, temps);
+  // CRITICAL: MLD must be computed from raw_temps (uncorrected) to avoid premature shoaling
+  const mldTemps = (raw_temps && raw_temps.length) ? raw_temps : temps;
+  const mld = computeMLD(depths, mldTemps);
 
   const mldEl = document.getElementById('stat-mld-val');
   if (mldEl) {
@@ -2459,20 +2514,33 @@ function updateStatCards(prediction) {
 
   // 2: Ocean Heat Content – 300m (OHC₃₀₀) in kJ/cm²
   // Absolute OHC integrated over 0–300m: OHC = (rho * cp / 1e7) * sum( avg_T_layer * dz )
-  // rho = 1025 kg/m³, cp = 3993 J/(kg·K) across layers with depths <= 300m
+  // rho = 1025 kg/m³, cp = 3993 J/(kg·K).
+  // CRITICAL: If water column does not reach 300m (shelf seafloor cutoff), OHC₃₀₀ is null (—).
   let ohc = null;
   let heatSum = 0;
-  if (temps && temps.length > 1) {
-    const rho = 1025; // kg/m^3
-    const cp = 3993;  // J/(kg·K)
-
-    for (let i = 1; i < depths.length && depths[i] <= 300; i++) {
-      const dz = depths[i] - depths[i - 1];
-      const avgT = (temps[i - 1] + temps[i]) / 2.0;
-      heatSum += avgT * dz;
+  if (prediction && prediction.indices && prediction.indices.ohc300 !== undefined) {
+    ohc = prediction.indices.ohc300;
+  } else if (temps && temps.length > 1) {
+    const idx300 = depths.indexOf(300);
+    if (idx300 !== -1 && idx300 < temps.length && temps[idx300] !== null && temps[idx300] !== undefined && !isNaN(temps[idx300])) {
+      let allValid = true;
+      for (let i = 0; i <= idx300; i++) {
+        if (temps[i] === null || temps[i] === undefined || isNaN(temps[i])) {
+          allValid = false;
+          break;
+        }
+      }
+      if (allValid) {
+        const rho = 1025; // kg/m^3
+        const cp = 3993;  // J/(kg·K)
+        for (let i = 1; i <= idx300; i++) {
+          const dz = depths[i] - depths[i - 1];
+          const avgT = (temps[i - 1] + temps[i]) / 2.0;
+          heatSum += avgT * dz;
+        }
+        ohc = parseFloat(((rho * cp / 1e7) * heatSum).toFixed(1));
+      }
     }
-
-    ohc = parseFloat(((rho * cp / 1e7) * heatSum).toFixed(1));
   }
 
   // Developer mode raw log BEFORE formatting/display
@@ -2483,44 +2551,17 @@ function updateStatCards(prediction) {
   const ohcEl = document.getElementById('stat-ohc-val');
   if (ohcEl) {
     ohcEl.textContent = ohc !== null ? `${ohc.toFixed(1)} kJ/cm²` : '—';
-    ohcEl.title = ohc !== null ? `Ocean heat content in upper 300m: ${ohc.toFixed(1)} kJ/cm²` : '';
+    ohcEl.title = ohc !== null ? `Ocean heat content in upper 300m: ${ohc.toFixed(1)} kJ/cm²` : 'Water column is shallower than 300m (seafloor depth cutoff)';
   }
 
   // 3: Sound Velocity / Acoustic Shadow Depth (SVAD)
   // Mackenzie (1981) formula:
   // c(T,S,z) = 1448.96 + 4.591*T - 5.304e-2*T^2 + 2.374e-4*T^3 + 1.340*(S-35) + 1.630e-2*z
   // Sonic Layer Depth (SLD): depth of maximum sound speed in the upper water column before decreasing
-  let svad = null;
-  if (temps && temps.length > 0) {
-    let S = 35.0;
-    if (surfaceInputs && surfaceInputs.sss) {
-      if (typeof surfaceInputs.sss.val === 'number') {
-        S = surfaceInputs.sss.val;
-      } else if (typeof surfaceInputs.sss.val === 'string') {
-        const parsedS = parseFloat(surfaceInputs.sss.val);
-        if (!isNaN(parsedS)) S = parsedS;
-      }
-    }
-
-    const soundSpeeds = depths.map((z, i) => {
-      const T = temps[i];
-      // Regional climatological halocline approximation for North Indian Ocean (Levitus / WOA / Rao & Sivakumar 2003):
-      // S(z) = S_inf + (S_0 - S_inf) * exp(-z / z_h), with S_inf = 35.0 PSU and z_h = 150.0 m
-      const Sz = 35.0 + (S - 35.0) * Math.exp(-z / 150.0);
-      return 1448.96 + 4.591 * T - 5.304e-2 * (T * T) + 2.374e-4 * (T * T * T) + 1.340 * (Sz - 35.0) + 1.630e-2 * z;
-    });
-
-    let maxC = soundSpeeds[0];
-    let maxIdx = 0;
-
-    for (let i = 1; i < soundSpeeds.length && depths[i] <= 300; i++) {
-      if (soundSpeeds[i] > maxC) {
-        maxC = soundSpeeds[i];
-        maxIdx = i;
-      }
-    }
-    svad = depths[maxIdx];
-  }
+  // CRITICAL: SVAD must be computed from raw_temps (uncorrected) matching MLD precedent,
+  // to avoid artificial +0.073°C bump at 5m from ARGO_DEPTH_BIAS dominating the sonic layer depth search.
+  const svadTemps = (raw_temps && raw_temps.length) ? raw_temps : temps;
+  const svad = computeSVAD(depths, svadTemps, surfaceInputs);
 
   const svadEl = document.getElementById('stat-svad-val');
   const svadSubEl = document.getElementById('stat-svad-sub');
@@ -2561,6 +2602,9 @@ function updateStatCards(prediction) {
     }
   }
 }
+if (typeof window !== 'undefined') {
+  window.updateStatCards = updateStatCards;
+}
 
 /* ── Depth-Temperature table renderer ── */
 
@@ -2575,9 +2619,19 @@ function updateDepthTable(depths, temps, profile = null, nearestArgo = null) {
       tr.className = 'ky-tvd-table-row--highlight';
     }
 
-    tr.innerHTML = `<td>${depth}</td><td class="ky-tvd-val">${temps[i].toFixed(1)}</td>`;
+    const tVal = (temps && temps[i] !== null && temps[i] !== undefined && !isNaN(temps[i]))
+      ? temps[i].toFixed(1)
+      : '—';
+    const isMasked = tVal === '—';
+    if (isMasked) {
+      tr.classList.add('ky-tvd-table-row--masked');
+    }
+
+    tr.innerHTML = `<td>${depth}</td><td class="ky-tvd-val">${tVal}</td>`;
     tr.style.cursor = 'pointer';
-    tr.title = `Click to inspect depth ${depth} m`;
+    tr.title = isMasked
+      ? `Depth ${depth} m is beyond the local seafloor`
+      : `Click to inspect depth ${depth} m`;
     tr.addEventListener('click', () => {
       setDepthSelection(depth, true);
     });
@@ -2834,9 +2888,23 @@ function buildChart(prediction) {
 
   const borderWidths = depths.map((_, i) => 1.5 + 1.5 * (i / (n - 1)));
 
+  const chartLabel = (prediction && prediction.raw)
+    ? 'Temperature (Raw Unsmoothed)'
+    : 'Temperature — Argo-bias-corrected (fit on 2021-23 Argo, scored on unseen 2023 profiles)';
+
+  const chartData = [];
+  for (let i = 0; i < depths.length; i++) {
+    const t = temps[i];
+    if (t !== null && t !== undefined && !isNaN(t)) {
+      chartData.push({ x: t, y: depths[i] });
+    } else {
+      break; // Stop plotting at seafloor
+    }
+  }
+
   const mainDataset = {
-    label: 'Temperature',
-    data: temps.map((t, i) => ({ x: t, y: depths[i] })),
+    label: chartLabel,
+    data: chartData,
     parsing: false,
     borderColor: '#1D64F2',
     borderWidth: 2,
