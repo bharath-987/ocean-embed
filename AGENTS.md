@@ -23,15 +23,15 @@ Before running `git commit` or `git push`, the agent **MUST** complete every ste
    - Confirm the FastAPI backend is running and healthy on `http://localhost:8000`.
    - Test `/predict` endpoint with sample coordinates and valid date:
      ```powershell
-     Invoke-RestMethod -Uri "http://localhost:8000/predict" -Method Post -ContentType "application/json" -Body '{"latitude": 15.5, "longitude": 65.0, "date": "2022-07-02"}'
+     Invoke-RestMethod -Uri "http://localhost:8000/predict" -Method Post -ContentType "application/json" -Body '{"latitude": 15.5, "longitude": 65.0, "date": "2023-10-22"}'
      ```
    - Test `/temperature-grid` endpoint for multiple depths (e.g. 0m, 200m, 1000m):
      ```powershell
-     Invoke-RestMethod -Uri "http://localhost:8000/temperature-grid?date=2022-07-02&depth=200"
+     Invoke-RestMethod -Uri "http://localhost:8000/temperature-grid?date=2023-10-22&depth=200"
      ```
    - Test `/parameter-grid` endpoint for all 6 surface parameters (`sst`, `ssh`, `sss`, `sla`, `current`, `wind`):
      ```powershell
-     Invoke-RestMethod -Uri "http://localhost:8000/parameter-grid?param=ssh&date=2022-07-02"
+     Invoke-RestMethod -Uri "http://localhost:8000/parameter-grid?param=ssh&date=2023-10-22"
      ```
 
 3. **Frontend Functional Gating Verification**:

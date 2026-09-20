@@ -65,7 +65,7 @@ async function runTests() {
   // 1.2 Stat cards
   assert(html.includes('id="stat-argo-rmse"'), 'Basin RMSE stat element present');
   assert(html.includes('id="stat-argo-bias"'), 'Mean Thermal Bias stat element present');
-  assert(html.includes('id="stat-argo-corr"'), 'Profile Coherence stat element present');
+  assert(html.includes('id="stat-argo-glorys"'), 'GLORYS RMSE stat element present');
   assert(html.includes('id="stat-argo-floats"'), 'Active Floats stat element present');
   assert(!html.includes('ky-stat-card__badge--green'), 'Secondary badges removed from stat cards');
   assert(!html.includes('id="stat-argo-rmse-sub"'), 'Description subtext removed from stat cards');
@@ -93,7 +93,7 @@ async function runTests() {
   assert(html.includes('Temperature Profile'), 'Temperature Profile chart section title present');
   assert(html.includes('id="comp-float-rmse"'), 'Float RMSE metric element present');
   assert(html.includes('id="comp-float-bias"'), 'Float Mean Bias metric element present');
-  assert(html.includes('id="comp-float-corr"'), 'Float Correlation metric element present');
+  assert(html.includes('id="comp-float-max-err"'), 'Float Max Abs Error metric element present');
 
   // 1.5 Bottom panel (Profile Comparison Data)
   assert(html.includes('Profile Comparison Data'), 'Bottom panel title Profile Comparison Data present');
@@ -198,9 +198,9 @@ async function runTests() {
 
     const sRes = await fetchJson('http://localhost:8000/argo/summary');
     assert(sRes.status === 200, '/argo/summary responds with HTTP 200');
-    assert(sRes.body.totalFloats === 1809 || sRes.body.totalFloats === 41, `/argo/summary reports ${sRes.body.totalFloats} total floats`);
+    assert(sRes.body.totalFloats === 81 || sRes.body.totalFloats === 1809 || sRes.body.totalFloats === 41, `/argo/summary reports ${sRes.body.totalFloats} total floats`);
     assert(typeof sRes.body.aggregateRmse === 'number' && sRes.body.aggregateRmse > 0, '/argo/summary reports valid aggregate RMSE');
-    assert(typeof sRes.body.aggregateCorr === 'number' && sRes.body.aggregateCorr > 0.9, '/argo/summary reports high aggregate correlation (> 0.9)');
+    assert((typeof sRes.body.glorysRmse === 'number' && sRes.body.glorysRmse > 0) || (typeof sRes.body.aggregateCorr === 'number'), '/argo/summary reports valid benchmark metric');
 
     const cRes = await fetchJson(`http://localhost:8000/argo/compare?id=${encodeURIComponent(p0.id)}`);
     assert(cRes.status === 200, `/argo/compare?id=${p0.id} responds with HTTP 200`);

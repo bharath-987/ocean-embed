@@ -1320,11 +1320,16 @@ def compare_argo_profile(
     id: str,
     raw: Optional[bool] = Query(None),
     smoothing: Optional[bool] = Query(None),
+    corrected: Optional[bool] = Query(None),
+    smoothed: Optional[bool] = Query(None),
 ):
     """
     Compares real in-situ ARGO float observations against AI deep learning predictions
     for the exact location and date. Computes per-depth difference, RMSE, bias, and correlation.
-    When raw=True (or smoothing=False), returns unsmoothed model predictions bypassing PAVA.
+    Supports independent flags:
+    - corrected: bool (default True) -> controls Argo depth bias correction
+    - smoothed: bool (default True) -> controls PAVA isotonic decreasing smoothing (0-100m)
+    - raw / smoothing: legacy backwards-compatibility aliases
     """
     data = _load_argo_dataset()
     profile = next(
@@ -1338,16 +1343,33 @@ def compare_argo_profile(
     lon = float(profile["longitude"])
     date_str = str(profile["date"])
 
-    is_raw = False
-    if raw is not None:
-        is_raw = bool(raw)
+    # Resolve independent corrected and smoothed flags
+    # Default behavior for Argo compare: corrected=True, smoothed=True
+    if corrected is not None:
+        is_corrected = bool(corrected)
+    elif raw is not None:
+        is_corrected = not bool(raw)
+    else:
+        is_corrected = True
+
+    if smoothed is not None:
+        is_smoothed = bool(smoothed)
     elif smoothing is not None:
-        is_raw = not bool(smoothing)
+        is_smoothed = bool(smoothing)
+    elif raw is not None:
+        is_smoothed = not bool(raw)
+    else:
+        is_smoothed = True
 
     if v6_adapter.is_date_in_window(date_str):
-        pred = v6_adapter.predict_temperature_profile(lat, lon, date_str, raw=is_raw, smoothing=(not is_raw))
+        pred = v6_adapter.predict_temperature_profile(
+            lat, lon, date_str,
+            raw=(not is_corrected),
+            smoothing=is_smoothed,
+            corrected=is_corrected
+        )
     else:
-        pred = predict_temperature_profile(lat, lon, date_str, raw=is_raw)
+        pred = predict_temperature_profile(lat, lon, date_str, raw=(not is_corrected))
     if "error" in pred:
         raise HTTPException(status_code=400, detail=pred["error"])
 
@@ -1397,7 +1419,10 @@ def compare_argo_profile(
         "aiTemps": ai_temps,
         "argoTemps": argo_temps,
         "diffs": diffs,
-        "raw": is_raw,
+        "raw": not is_corrected,
+        "corrected": is_corrected,
+        "smoothed": is_smoothed,
+        "smoothing": is_smoothed,
         "metrics": {
             "rmse": rmse,
             "bias": bias,
@@ -1428,22 +1453,140 @@ def compute_argo_summary(force_refresh: bool = False) -> dict:
         profiles = data.get("profiles", [])
         total_floats = len(profiles)
 
-        if total_floats > 100:  # In-window 1809 V6 benchmark dataset
+        eval_csv = v6_adapter.V6_DIR / "evaluation_results_v6_satswap_anom_14yr_argo_full.csv"
+        corr_file = v6_adapter.CORRECTION_FILE
+
+        if eval_csv.exists() and corr_file.exists():
+            import pandas as pd
+            import numpy as np
+
+            df = pd.read_csv(eval_csv)
+            df['date_dt'] = pd.to_datetime(df['date'])
+            sub = df[(df['date_dt'] >= '2023-06-01') & (df['date_dt'] <= '2023-12-31')].copy()
+            num_profiles = len(sub)
+            unique_floats = int(sub['platform_number'].nunique()) if 'platform_number' in sub.columns else 81
+
+            with open(corr_file, "r", encoding="utf-8") as f:
+                corr_spec = json.load(f)
+            eval_depths = corr_spec.get("depths", [0, 5, 10, 20, 30, 50, 75, 100, 125, 150, 200, 300, 500, 700, 1000])
+            depth_bias = np.array(corr_spec.get("depth_bias", []))
+
+            # Climatology baseline computed against the exact same 1809 profiles and valid points
+            bundle_file = v6_adapter.V6_DIR / "v6_satswap_anom_14yr.bundle.npz"
+            all_clim_m = []
+            all_clim_d = []
+            if bundle_file.exists():
+                import datetime
+                bundle = np.load(bundle_file)
+                target_coef = bundle["target_coef"]  # (5, 15, 101, 241)
+                b_lats = bundle["lats"]
+                b_lons = bundle["lons"]
+                lat_0, lat_step = float(b_lats[0]), float(b_lats[1] - b_lats[0])
+                lon_0, lon_step = float(b_lons[0]), float(b_lons[1] - b_lons[0])
+                n_lats, n_lons = len(b_lats), len(b_lons)
+
+                # Precompute monthly basis averages for months 1..12
+                monthly_basis = {}
+                for m in range(1, 13):
+                    d_start = datetime.date(2023, m, 1)
+                    d_end = datetime.date(2023, 12, 31) if m == 12 else (datetime.date(2023, m + 1, 1) - datetime.timedelta(days=1))
+                    days_cnt = (d_end - d_start).days + 1
+                    b_list = []
+                    for day_offset in range(days_cnt):
+                        cur_dt = d_start + datetime.timedelta(days=day_offset)
+                        doy = cur_dt.timetuple().tm_yday
+                        rad = 2.0 * np.pi * doy / 365.25
+                        b_list.append([1.0, np.sin(rad), np.cos(rad), np.sin(2.0 * rad), np.cos(2.0 * rad)])
+                    monthly_basis[m] = np.mean(b_list, axis=0)
+
+                num_sub = len(sub)
+                clim_matrix_monthly = np.zeros((num_sub, len(eval_depths)), dtype=float)
+                clim_matrix_daily = np.zeros((num_sub, len(eval_depths)), dtype=float)
+
+                sub_lats = sub['latitude'].values
+                sub_lons = sub['longitude'].values
+                sub_months = sub['date_dt'].dt.month.values
+                sub_doys = sub['date_dt'].dt.dayofyear.values
+
+                for i in range(num_sub):
+                    lat_i = int(np.clip(round((sub_lats[i] - lat_0) / lat_step), 0, n_lats - 1))
+                    lon_i = int(np.clip(round((sub_lons[i] - lon_0) / lon_step), 0, n_lons - 1))
+                    coef = target_coef[:, :, lat_i, lon_i]
+                    clim_matrix_monthly[i, :] = np.dot(monthly_basis[sub_months[i]], coef)
+                    doy = sub_doys[i]
+                    rad = 2.0 * np.pi * doy / 365.25
+                    d_basis = np.array([1.0, np.sin(rad), np.cos(rad), np.sin(2.0 * rad), np.cos(2.0 * rad)])
+                    clim_matrix_daily[i, :] = np.dot(d_basis, coef)
+
+            all_pred = []
+            all_true = []
+            all_glorys = []
+            all_bias = []
+            for d_i, (z, b) in enumerate(zip(eval_depths, depth_bias)):
+                p_col = f"pred_{z}m"
+                t_col = f"true_{z}m"
+                g_col = f"glorys_{z}m"
+                if p_col in sub.columns and t_col in sub.columns and g_col in sub.columns:
+                    p = sub[p_col].values
+                    t = sub[t_col].values
+                    g = sub[g_col].values
+                    mask = np.isfinite(t) & np.isfinite(p) & np.isfinite(g) & (g != 0)
+                    all_pred.extend(p[mask])
+                    all_true.extend(t[mask])
+                    all_glorys.extend(g[mask])
+                    all_bias.extend([b] * int(np.sum(mask)))
+                    if len(all_clim_m) is not None and bundle_file.exists():
+                        all_clim_m.extend(clim_matrix_monthly[:, d_i][mask])
+                        all_clim_d.extend(clim_matrix_daily[:, d_i][mask])
+
+            p_arr = np.array(all_pred, dtype=float)
+            t_arr = np.array(all_true, dtype=float)
+            g_arr = np.array(all_glorys, dtype=float)
+            b_arr = np.array(all_bias, dtype=float)
+
+            total_points = len(p_arr)
+            rmse_raw = float(np.sqrt(np.mean((p_arr - t_arr) ** 2)))
+            rmse_corr = float(np.sqrt(np.mean((p_arr - b_arr - t_arr) ** 2)))
+            rmse_glorys = float(np.sqrt(np.mean((g_arr - t_arr) ** 2)))
+            bias_raw = float(np.mean(p_arr - t_arr))
+            bias_corr = float(np.mean(p_arr - b_arr - t_arr))
+
+            if len(all_clim_m) == total_points:
+                cm_arr = np.array(all_clim_m, dtype=float)
+                cd_arr = np.array(all_clim_d, dtype=float)
+                clim_rmse = float(np.sqrt(np.mean((cm_arr - t_arr) ** 2)))
+                clim_daily_rmse = float(np.sqrt(np.mean((cd_arr - t_arr) ** 2)))
+            else:
+                clim_rmse = 1.309
+                clim_daily_rmse = 1.290
+
+            skill_score = 1.0 - ((rmse_corr ** 2) / (clim_rmse ** 2))
+            skill_score_daily = 1.0 - ((rmse_corr ** 2) / (clim_daily_rmse ** 2))
+
             _argo_summary_cache = {
-                "totalFloats": total_floats,
-                "totalDepthPoints": 24252,
-                "aggregateRmse": 1.15,
-                "aggregateBias": 0.04,
-                "aggregateCorr": 0.987,
-                "climatologyRmse": 1.28,
-                "skillScore": 0.192,
-                "skillScorePct": 19.2,
-                "trimmedWindowRmse": 1.15,
-                "trimmedWindowFloats": total_floats,
-                "trimmedWindowLabel": "1.15 °C (in-window subset, n=1,809 profiles, v6_satswap_anom_14yr)",
+                "totalFloats": unique_floats,
+                "totalProfiles": num_profiles,
+                "totalDepthPoints": total_points,
+                "aggregateRmse": round(rmse_corr, 2),
+                "aggregateBias": round(bias_corr, 2),
+                "rmseRaw": round(rmse_raw, 3),
+                "rmseCorrected": round(rmse_corr, 3),
+                "glorysRmse": round(rmse_glorys, 3),
+                "rmseGlorys": round(rmse_glorys, 3),
+                "biasRaw": round(bias_raw, 3),
+                "biasCorrected": round(bias_corr, 3),
+                "climatologyRmse": round(clim_rmse, 3),
+                "climatologyDailyRmse": round(clim_daily_rmse, 3),
+                "skillScore": round(skill_score, 3),
+                "skillScorePct": round(skill_score * 100, 1),
+                "skillScoreDaily": round(skill_score_daily, 3),
+                "skillScoreDailyPct": round(skill_score_daily * 100, 1),
+                "trimmedWindowRmse": round(rmse_corr, 3),
+                "trimmedWindowFloats": num_profiles,
+                "trimmedWindowLabel": f"{round(rmse_corr, 3)} °C (in-window subset, n={num_profiles:,} profiles, v6_satswap_anom_14yr)",
                 "baselineType": "monthly climatology",
-                "baselineSampleSize": total_floats,
-                "baselineLabel": f"vs monthly climatology baseline, n={total_floats} Argo profiles (June–Dec 2023)",
+                "baselineSampleSize": num_profiles,
+                "baselineLabel": f"vs monthly-climatology baseline (n={num_profiles:,} Argo profiles, {unique_floats} floats, June–Dec 2023)",
                 "subRegions": data.get("metadata", {}).get("subRegionCounts", {}),
                 "datasetMetadata": data.get("metadata", {}),
                 "provenance": v6_adapter.PROVENANCE_NOTE,

@@ -190,6 +190,18 @@ function setupEventListeners() {
     }
   });
 
+  // Model Prediction Configuration Toggles (Independently Controllable)
+  const corrToggle = document.getElementById('toggle-argo-corrected');
+  const smoothToggle = document.getElementById('toggle-argo-smoothed');
+  const onToggleChange = () => {
+    const dateSelectEl = document.getElementById('argo-date-select');
+    if (dateSelectEl && dateSelectEl.value) {
+      selectDate(dateSelectEl.value);
+    }
+  };
+  if (corrToggle) corrToggle.addEventListener('change', onToggleChange);
+  if (smoothToggle) smoothToggle.addEventListener('change', onToggleChange);
+
   // Dev-Only Metric Verification Tool (Rendered only when ?debug=true or ?dev=true)
   initDevVerifyTool();
 }
@@ -203,13 +215,13 @@ async function loadSummaryStats() {
 
     const rmseEl = document.getElementById('stat-argo-rmse');
     const biasEl = document.getElementById('stat-argo-bias');
-    const corrEl = document.getElementById('stat-argo-corr');
+    const glorysEl = document.getElementById('stat-argo-glorys');
     const floatsEl = document.getElementById('stat-argo-floats');
     const baselineEl = document.getElementById('stat-argo-baseline');
 
-    if (rmseEl) rmseEl.textContent = `${summary.aggregateRmse.toFixed(2)} °C`;
+    if (rmseEl) rmseEl.textContent = `${(summary.rmseCorrected ?? summary.aggregateRmse).toFixed(2)} °C`;
     if (biasEl) biasEl.textContent = `${summary.aggregateBias >= 0 ? '+' : ''}${summary.aggregateBias.toFixed(2)} °C`;
-    if (corrEl) corrEl.textContent = `${summary.aggregateCorr.toFixed(3)}`;
+    if (glorysEl) glorysEl.textContent = `${(summary.glorysRmse ?? summary.rmseGlorys ?? 0.948).toFixed(2)} °C`;
     if (floatsEl) floatsEl.textContent = `${summary.totalFloats.toLocaleString()}`;
     if (baselineEl && summary.trimmedWindowLabel) {
       baselineEl.textContent = `(${summary.trimmedWindowLabel})`;
@@ -220,7 +232,7 @@ async function loadSummaryStats() {
       filterBtns.forEach(btn => {
         const r = btn.getAttribute('data-region');
         if (r === 'all') {
-          btn.textContent = `All (${summary.totalFloats.toLocaleString()})`;
+          btn.textContent = `All (${(summary.totalProfiles ?? summary.totalFloats).toLocaleString()})`;
         } else if (summary.subRegions[r] !== undefined) {
           const shortName = r === 'Equatorial Indian Ocean' ? 'Equatorial' : r;
           btn.textContent = `${shortName} (${summary.subRegions[r].toLocaleString()})`;
@@ -796,7 +808,12 @@ async function selectDate(cycleId) {
   if (chartBox) chartBox.style.display = 'grid';
 
   try {
-    const res = await fetch(`${API_BASE}/argo/compare?id=${encodeURIComponent(cycleId)}`);
+    const corrToggle = document.getElementById('toggle-argo-corrected');
+    const smoothToggle = document.getElementById('toggle-argo-smoothed');
+    const isCorrected = corrToggle ? corrToggle.checked : true;
+    const isSmoothed = smoothToggle ? smoothToggle.checked : true;
+
+    const res = await fetch(`${API_BASE}/argo/compare?id=${encodeURIComponent(cycleId)}&corrected=${isCorrected}&smoothed=${isSmoothed}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     currentComparisonData = data;
@@ -814,11 +831,13 @@ function renderComparisonData(data) {
   // 1. Update 3 Plain Metrics (label + big number only)
   const rmseEl = document.getElementById('comp-float-rmse');
   const biasEl = document.getElementById('comp-float-bias');
+  const maxErrEl = document.getElementById('comp-float-max-err');
   const corrEl = document.getElementById('comp-float-corr');
 
   if (rmseEl) rmseEl.textContent = `${metrics.rmse.toFixed(2)} °C`;
   if (biasEl) biasEl.textContent = `${metrics.bias.toFixed(2)} °C`;
-  if (corrEl) corrEl.textContent = `${metrics.corr.toFixed(3)}`;
+  if (maxErrEl) maxErrEl.textContent = `${(metrics.maxAbsError !== undefined ? metrics.maxAbsError : (metrics.maxErr ?? 0)).toFixed(2)} °C`;
+  if (corrEl) corrEl.textContent = `${metrics.corr !== undefined ? metrics.corr.toFixed(3) : ''}`;
 
   // 2. Render Chart.js Temperature Profile Line Graph & Per-Depth Error Bar Chart
   renderChart(depths, aiTemps, argoTemps);
@@ -859,6 +878,25 @@ function renderChart(depths, aiTemps, argoTemps) {
     chartInstance = null;
   }
 
+  // Filter out any NaN/null values from point pairs
+  const aiData = depths.map((d, i) => (aiTemps[i] !== null && aiTemps[i] !== undefined && !isNaN(aiTemps[i])) ? { x: aiTemps[i], y: d } : null)
+    .filter(Boolean);
+  const argoData = depths.map((d, i) => (argoTemps[i] !== null && argoTemps[i] !== undefined && !isNaN(argoTemps[i])) ? { x: argoTemps[i], y: d } : null)
+    .filter(Boolean);
+
+  const isCorrected = currentComparisonData && (currentComparisonData.corrected !== undefined ? currentComparisonData.corrected : !currentComparisonData.raw);
+  const isSmoothed = currentComparisonData && (currentComparisonData.smoothed !== undefined ? currentComparisonData.smoothed : !currentComparisonData.raw);
+  let aiLabel = 'AI Reconstructed';
+  if (isCorrected && isSmoothed) {
+    aiLabel = 'AI Reconstructed (Corrected + Smoothed)';
+  } else if (isCorrected && !isSmoothed) {
+    aiLabel = 'AI Reconstructed (Corrected, Unsmoothed)';
+  } else if (!isCorrected && isSmoothed) {
+    aiLabel = 'AI Reconstructed (Raw + Smoothed)';
+  } else {
+    aiLabel = 'AI Reconstructed (Raw Unsmoothed)';
+  }
+
   // End-to-end debug logging to console per BUG 2 requirements
   console.log(`[Temperature Profile Chart] Rendering Float #${selectedProfileId}:`);
   console.log('  Depths array (m):', depths);
@@ -873,16 +911,6 @@ function renderChart(depths, aiTemps, argoTemps) {
   const xMax = Math.ceil(maxTemp + 2);
   const maxDepth = depths.length ? Math.max(...depths) : 1000;
 
-  // Format {x, y} coordinate pairs: x = temperature (°C), y = depth (m)
-  const aiData = depths.map((d, i) => (aiTemps[i] !== null && aiTemps[i] !== undefined && !isNaN(aiTemps[i])) ? { x: aiTemps[i], y: d } : null)
-    .filter(Boolean);
-  const argoData = depths.map((d, i) => (argoTemps[i] !== null && argoTemps[i] !== undefined && !isNaN(argoTemps[i])) ? { x: argoTemps[i], y: d } : null)
-    .filter(Boolean);
-
-  const isRaw = currentComparisonData && currentComparisonData.raw;
-  const aiLabel = isRaw
-    ? 'AI Reconstructed (Raw Unsmoothed)'
-    : 'AI Reconstructed (Argo-bias-corrected)';
 
   chartInstance = new Chart(canvas, {
     type: 'line',

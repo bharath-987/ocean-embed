@@ -132,16 +132,16 @@
         <!-- 2. STAT CARDS ROW (4 Cards: icon + label + big number only) -->
         <div class="ky-argo-stat-grid">
           <!-- Card 1: Basin RMSE -->
-          <div class="ky-argo-mini-card" title="RMSE: 1.15 °C (vs monthly climatology baseline, n=1,809 Argo profiles, June–Dec 2023 benchmark)">
+          <div class="ky-argo-mini-card" title="RMSE: 0.901 °C (vs monthly-climatology baseline (n=1,809 Argo profiles, 81 floats, June–Dec 2023))">
             <div class="ky-argo-mini-card__icon ky-argo-mini-card__icon--blue">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                 <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
               </svg>
             </div>
             <div class="ky-argo-mini-card__body">
-              <span class="ky-argo-mini-card__label" title="RMSE: 1.15 °C (vs monthly climatology baseline, n=1,809 Argo profiles, June–Dec 2023 benchmark)">Basin RMSE</span>
-              <span class="ky-argo-mini-card__val" id="stat-argo-rmse">1.15 °C</span>
-              <span class="ky-argo-mini-card__baseline">(in-window benchmark, n=1,809 profiles)</span>
+              <span class="ky-argo-mini-card__label" title="RMSE: 0.901 °C (vs monthly-climatology baseline (n=1,809 Argo profiles, 81 floats, June–Dec 2023))">Basin RMSE</span>
+              <span class="ky-argo-mini-card__val" id="stat-argo-rmse">0.90 °C</span>
+              <span class="ky-argo-mini-card__baseline" id="stat-argo-baseline">(in-window benchmark, n=1,809 profiles)</span>
             </div>
           </div>
 
@@ -154,22 +154,21 @@
             </div>
             <div class="ky-argo-mini-card__body">
               <span class="ky-argo-mini-card__label">Mean Thermal Bias</span>
-              <span class="ky-argo-mini-card__val" id="stat-argo-bias">+0.04 °C</span>
+              <span class="ky-argo-mini-card__val" id="stat-argo-bias">+0.08 °C</span>
             </div>
           </div>
 
-          <!-- Card 3: Profile Coherence -->
+          <!-- Card 3: GLORYS RMSE -->
           <div class="ky-argo-mini-card">
             <div class="ky-argo-mini-card__icon ky-argo-mini-card__icon--purple">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                <rect x="3" y="12" width="4" height="9" rx="1"/>
-                <rect x="10" y="7" width="4" height="14" rx="1"/>
-                <rect x="17" y="3" width="4" height="18" rx="1"/>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M3 3v18h18"/>
+                <path d="M18 9l-5 5-4-4-3 3"/>
               </svg>
             </div>
             <div class="ky-argo-mini-card__body">
-              <span class="ky-argo-mini-card__label">Profile Coherence</span>
-              <span class="ky-argo-mini-card__val" id="stat-argo-corr">0.987</span>
+              <span class="ky-argo-mini-card__label">GLORYS RMSE</span>
+              <span class="ky-argo-mini-card__val" id="stat-argo-glorys">0.95 °C</span>
             </div>
           </div>
 
@@ -183,7 +182,7 @@
             </div>
             <div class="ky-argo-mini-card__body">
               <span class="ky-argo-mini-card__label">Active Floats</span>
-              <span class="ky-argo-mini-card__val" id="stat-argo-floats">1,809</span>
+              <span class="ky-argo-mini-card__val" id="stat-argo-floats">81</span>
             </div>
           </div>
         </div>
@@ -285,6 +284,18 @@
                 <div class="ky-argo-date-sub" id="argo-date-sub">Choose an available observation date (2021–2023)</div>
               </div>
 
+              <!-- Model Prediction Configuration Toggles (Independently Controllable) -->
+              <div class="ky-argo-config-toggles" style="display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 12px; padding: 8px 12px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;">
+                <label class="ky-tvd-raw-toggle-label" for="toggle-argo-corrected" style="display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: 12px; color: #334155; font-weight: 500;" title="Apply Argo depth bias correction vector">
+                  <input type="checkbox" id="toggle-argo-corrected" class="ky-tvd-raw-checkbox" checked />
+                  <span>Bias-Corrected</span>
+                </label>
+                <label class="ky-tvd-raw-toggle-label" for="toggle-argo-smoothed" style="display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: 12px; color: #334155; font-weight: 500;" title="Apply PAVA isotonic decreasing smoothing (0–100m only)">
+                  <input type="checkbox" id="toggle-argo-smoothed" class="ky-tvd-raw-checkbox" checked />
+                  <span>PAVA Smoothed (0–100m)</span>
+                </label>
+              </div>
+
               <!-- Temperature Profile & Per-Depth Error Section -->
               <div class="ky-argo-chart-section">
                 <div class="ky-argo-chart-header">
@@ -331,7 +342,7 @@
                 </div>
               </div>
 
-              <!-- 3 Plain Metrics in a Row (RMSE, Mean Bias, Correlation) -->
+              <!-- 3 Plain Metrics in a Row (RMSE, Mean Bias, Max Abs Error) -->
               <div class="ky-argo-plain-metrics">
                 <div class="ky-argo-plain-metric">
                   <span class="ky-argo-plain-metric__label">RMSE</span>
@@ -342,8 +353,8 @@
                   <span class="ky-argo-plain-metric__val" id="comp-float-bias">—</span>
                 </div>
                 <div class="ky-argo-plain-metric">
-                  <span class="ky-argo-plain-metric__label">Correlation</span>
-                  <span class="ky-argo-plain-metric__val" id="comp-float-corr">—</span>
+                  <span class="ky-argo-plain-metric__label">Max Abs Error</span>
+                  <span class="ky-argo-plain-metric__val" id="comp-float-max-err">—</span>
                 </div>
               </div>
             </div>

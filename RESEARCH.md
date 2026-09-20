@@ -2636,3 +2636,53 @@ All placeholder metrics were removed and replaced with verified figures from `PI
 - **Inference Latency**: $< 1.5\text{ms}$ cached / $\sim 1.2\text{s}$ cold CPU basin grid.
 - **Applications 01–05**: Formatted with real operational consequence framing (what breaks when data is absent).
 
+---
+
+## 40. 14-Year Model Architecture & In-Window ARGO Validation Benchmark
+
+### 40.1 Model Specifications & Active Serving Window
+The production backend integrates the 14-year satellite-trained model checkpoint (`v6_satswap_anom_14yr`):
+- **Model Directory**: `backend/data/v6_satswap_anom_14yr/`
+- **Active Window**: `2023-06-01` to `2023-12-31` (214 continuous days).
+- **Grid Resolution**: $101 \times 241$ cells ($0.25^\circ$ spatial resolution) covering $5.0^\circ\text{N} - 30.0^\circ\text{N}$, $45.0^\circ\text{E} - 105.0^\circ\text{E}$.
+- **Depths**: 15 standard levels ($0\text{m} \dots 1000\text{m}$).
+- **Climatology**: 5-harmonic spatial tensor of shape `(5, 15, 101, 241)`.
+
+### 40.2 Deploy-Time Data Unpacking Mechanism
+Because `.npz` archive files cannot be directly memory-mapped via NumPy, high-speed serving uses pre-unpacked single-array `.npy` files:
+1. At deploy / initialization time, `serving.unpack(npz_path, out_dir)` extracts arrays into `backend/data/v6_satswap_anom_14yr/unpacked/` (which is excluded from Git via `.gitignore` to maintain a lightweight repository).
+2. At backend startup, `serving.ServingData` memory-maps (`mmap_mode="r"`) these `.npy` arrays. Serving an arbitrary profile reads only 15 `float16` values directly from OS disk cache in $<1\text{ms}$ without loading the full 214-day field into resident RAM.
+
+### 40.3 In-Situ ARGO Validation Benchmark Numbers
+Computed from `evaluation_results_v6_satswap_anom_14yr_argo_full.csv` across the active window ($n=1,809$ profiles):
+- **Unique Profiling Floats**: **81** active floats (distinct WMO platforms, corrected from profile count).
+- **Total Valid Depth Points**: **24,185** points (filtered by `isfinite(true) & isfinite(pred) & isfinite(glorys) & (glorys != 0)` to exclude no-model depths).
+- **Raw Profile RMSE**: **1.002°C** (mean error $\sqrt{\text{mean}((\text{pred} - \text{true})^2)}$).
+- **Bias-Corrected Profile RMSE**: **0.901°C** (applying empirical depth bias vector from `correction_v6_satswap_anom_14yr.json`).
+- **GLORYS12V1 Reanalysis RMSE**: **0.948°C** across identical points (demonstrating Kyogre AI outperforms Copernicus GLORYS reanalysis by $0.047^\circ\text{C}$).
+- **Mean Thermal Bias**: Raw $+0.22^\circ\text{C}$, Corrected $+0.08^\circ\text{C}$.
+- **Skill Score**:
+  - **vs Monthly Harmonic Climatology Baseline**: **52.6%** ($SS = 1 - (0.9009^2 / 1.3090^2)$ with $RMSE_{clim,monthly} = 1.309^\circ\text{C}$).
+  - **vs Daily Harmonic Climatology Baseline**: **51.2%** ($SS = 1 - (0.9009^2 / 1.2895^2)$ with $RMSE_{clim,daily} = 1.290^\circ\text{C}$).
+  - Origin of the prior 1.28 figure: The exact daily harmonic climatology RMSE is $1.2895^\circ\text{C}$, which was truncated to $1.28^\circ\text{C}$ in preliminary calculations.
+- **Correlation Removal**: Pooled cross-depth Pearson correlation is completely eliminated from aggregate summary statistics as it pools across all depths where seasonal gradient produces an artificial score of $\ge 0.968$ even on zero-skill baselines.
+
+### 40.4 Independent Prediction Flag Split & Monotonicity Boundaries
+- **Flag Decoupling**: `/argo/compare` supports independent `corrected: bool` and `smoothed: bool` query parameters. Users can view corrected profiles without smoothing, or raw profiles with smoothing.
+- **Removal of Deep Clamp**: The forced non-increasing loop below $100\text{m}$ (depth index $\ge 7$) was removed in `v6_adapter.py` to avoid suppressing real, validated thermohaline intrusions (such as Red Sea and Persian Gulf warm outflow water between $200\text{m} - 800\text{m}$). PAVA isotonic decreasing smoothing is restricted strictly to the validated $0\text{m} - 100\text{m}$ upper mixed layer.
+
+### 40.5 In-Window Climatology Baseline & Skill Score Recomputation
+To address the risk of stale reference baselines, the monthly and daily climatology baselines were computed directly against the identical $n=1,809$ in-window Argo profiles and 24,185 valid depth points (`2023-06-01` to `2023-12-31`, `isfinite(true) & isfinite(pred) & isfinite(glorys) & (glorys != 0)`) using the 14-year model bundle's harmonic expansion coefficients (`target_coef` $\in \mathbb{R}^{5 \times 15 \times 101 \times 241}$):
+1. **Monthly Harmonic Climatology ($RMSE = 1.3090^\circ\text{C}$)**:
+   - For each calendar month $m \in \{6..12\}$, the 5 harmonic basis terms $[1, \sin t, \cos t, \sin 2t, \cos 2t]$ are averaged over all calendar days in that month.
+   - Evaluated across all 24,185 observations: $RMSE_{clim,monthly} = 1.3090^\circ\text{C}$.
+   - Resulting Skill Score:
+     $$SS_{monthly} = 1 - \frac{0.9009^2}{1.3090^2} = 1 - \frac{0.8116}{1.7135} = 52.64\% \ (\mathbf{52.6\%})$$
+2. **Daily Harmonic Climatology ($RMSE = 1.2895^\circ\text{C}$)**:
+   - Evaluated on each profile's exact day-of-year $t = 2\pi \cdot \text{doy} / 365.25$: $RMSE_{clim,daily} = 1.2895^\circ\text{C}$ (rounds to $1.29^\circ\text{C}$).
+   - Resulting Skill Score:
+     $$SS_{daily} = 1 - \frac{0.9009^2}{1.2895^2} = 51.19\% \ (\mathbf{51.2\%})$$
+3. **Label Consistency**:
+   - Replaced all occurrences of `"vs monthly-climatology baseline (41-profile validation dataset)"` with `"vs monthly-climatology baseline (n=1,809 Argo profiles, 81 floats, June–Dec 2023)"`.
+   - Updated `baselineSampleSize: 1809` and dynamic tooltip text in `argo.html`, `backend/api_server.py`, and test suites.
+

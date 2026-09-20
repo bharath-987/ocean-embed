@@ -134,13 +134,15 @@ def predict_temperature_profile(
     raw: bool = True,
     smoothing: bool = False,
     apply_sst_blend: bool = True,
+    corrected: Optional[bool] = None,
 ) -> Dict[str, Any]:
     """
     Wrap ServingData.profile() to output {depth: temp} dictionary format expected by frontend.
 
     By default:
-    - raw=True (or smoothing=False): Returns non-monotonic natural profile (preserving inversions).
-    - If smoothing=True (or raw=False): Applies PAVA isotonic decreasing smoothing.
+    - raw=True (or corrected=False): Returns uncorrected profile.
+    - corrected=True (or raw=False): Returns bias-corrected profile.
+    - smoothing=True: Applies PAVA isotonic decreasing smoothing (0–100m only).
     - If date is outside 2023-06-01 to 2023-12-31, fails gracefully without falling back to old model.
     """
     if not is_date_in_window(date_str):
@@ -188,18 +190,19 @@ def predict_temperature_profile(
             if len(corr_vals) > 1 and not np.isnan(corr_vals[1]):
                 corr_vals[1] += 0.50 * delta_s
 
-    # Select working profile: raw vs corrected
-    work_profile = np.array(raw_vals if raw else corr_vals, dtype=float)
+    # Select working profile: raw vs corrected (independently controllable)
+    if corrected is not None:
+        use_corrected = bool(corrected)
+    else:
+        use_corrected = not bool(raw)
 
-    # Monotonic smoothing toggle
+    work_profile = np.array(corr_vals if use_corrected else raw_vals, dtype=float)
+
+    # Monotonic smoothing toggle (0–100m only; deep clamp removed to preserve physical inversions)
     if smoothing:
         upper_mask = [i for i, d in enumerate(depths) if d <= 100 and not np.isnan(work_profile[i])]
         if len(upper_mask) > 1:
             work_profile[upper_mask] = _isotonic_decreasing(work_profile[upper_mask])
-        for i in range(7, len(depths)):
-            if not np.isnan(work_profile[i]) and not np.isnan(work_profile[i - 1]):
-                if work_profile[i] > work_profile[i - 1]:
-                    work_profile[i] = work_profile[i - 1]
 
     # Floor physical Indian Ocean temperatures at 4.0°C
     for i in range(len(work_profile)):
@@ -256,10 +259,6 @@ def get_profile_data(
         upper_mask = [i for i, d in enumerate(depths) if d <= 100 and not np.isnan(corr_arr[i])]
         if len(upper_mask) > 1:
             corr_arr[upper_mask] = _isotonic_decreasing(corr_arr[upper_mask])
-        for i in range(7, len(depths)):
-            if not np.isnan(corr_arr[i]) and not np.isnan(corr_arr[i - 1]):
-                if corr_arr[i] > corr_arr[i - 1]:
-                    corr_arr[i] = corr_arr[i - 1]
 
     for i in range(len(raw_arr)):
         if not np.isnan(raw_arr[i]) and raw_arr[i] < 4.0:

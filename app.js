@@ -3215,9 +3215,9 @@ document.getElementById('btn-cast').addEventListener('click', function () {
   const dateObj = dayIndexToDate(dayIdx);
   const dateStr = dateToISO(dateObj);
 
-  // Date guard — model needs 10 days of prior satellite history (2021-01-11 to 2023-12-31)
-  if (dayIdx < MIN_VALID_DAY || dayIdx > TOTAL_DAYS) {
-    showRegionNotice('Date requires 10 days of prior satellite history. Please select a date between 2021-01-11 and 2023-12-31.', 'warning');
+  // Date guard — V6 SatSwap 14-Year Model Active Window (2023-06-01 to 2023-12-31)
+  if (dayIdx < WINDOW_START_DAY || dayIdx > WINDOW_END_DAY) {
+    showRegionNotice('Currently serving the new 14-year model for June–December 2023. Please select a date between 2023-06-01 and 2023-12-31.', 'warning');
     return;
   }
 

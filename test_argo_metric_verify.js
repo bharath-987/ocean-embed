@@ -51,7 +51,7 @@ async function runVerificationSuite() {
   // Confirm original 4 summary cards are completely intact
   assert(html.includes('id="stat-argo-rmse"'), 'Original Basin RMSE card untouched');
   assert(html.includes('id="stat-argo-bias"'), 'Original Mean Thermal Bias card untouched');
-  assert(html.includes('id="stat-argo-corr"'), 'Original Profile Coherence card untouched');
+  assert(html.includes('id="stat-argo-glorys"'), 'Original GLORYS RMSE card untouched');
   assert(html.includes('id="stat-argo-floats"'), 'Original Active Floats card untouched');
 
   // 2. CSS Styling & Kyogre Theme Alignment (style.css)

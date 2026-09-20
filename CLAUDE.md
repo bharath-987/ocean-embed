@@ -34,8 +34,8 @@
   ```
 - **Test Backend API Health**:
   ```powershell
-  Invoke-RestMethod -Uri "http://localhost:8000/temperature-grid?date=2022-07-02&depth=200"
-  Invoke-RestMethod -Uri "http://localhost:8000/parameter-grid?param=ssh&date=2022-07-02"
+  Invoke-RestMethod -Uri "http://localhost:8000/temperature-grid?date=2023-10-22&depth=200"
+  Invoke-RestMethod -Uri "http://localhost:8000/parameter-grid?param=ssh&date=2023-10-22"
   ```
 - **Check Git Status**:
   ```powershell

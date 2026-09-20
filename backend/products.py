@@ -2,10 +2,10 @@
 oceanembed / kyogre products module.
 Empirical Argo warm-bias correction and physical oceanographic indices.
 
-PINNED CHECKPOINT: model_v6_satswap_anom_best.pt
+PINNED MODEL: v6_satswap_anom_14yr (serving via v6_adapter.py / model_v6_satswap_anom_best.pt)
 CRITICAL NOTE: The empirical depth-bias vector ARGO_DEPTH_BIAS is specifically tuned
-for the V6 anomaly model (model_v6_satswap_anom). If the neural network checkpoint changes
-or is retrained, the bias vector MUST be refitted against the validation dataset.
+for the 14-year V6 model (v6_satswap_anom_14yr, correction_v6_satswap_anom_14yr.json).
+If the checkpoint changes or is retrained, the bias vector MUST be refitted against the validation dataset.
 """
 
 from typing import List, Optional, Union
