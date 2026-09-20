@@ -39,8 +39,9 @@ except ImportError:
 REPO_ID = os.environ.get("HF_DATASET_REPO_ID", "bharath-987/ocean-embed-data")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.environ.get("DATA_DIR", os.path.join(BASE_DIR, "data", "float16"))
+V6_DIR = os.environ.get("V6_DIR", os.path.join(BASE_DIR, "data", "v6_satswap_anom_14yr"))
 
-# Expected dataset files and byte sizes for continuous 2021-01-01 to 2023-12-31 (1095 days)
+# Expected float16 dataset files and byte sizes for continuous 2021-01-01 to 2023-12-31 (1095 days)
 KNOWN_SIZES: Dict[str, int] = {
     "ssh_anom.npy": 53306918,
     "sss_anom.npy": 53306918,
@@ -54,7 +55,72 @@ KNOWN_SIZES: Dict[str, int] = {
     "day_index_map.json": 16398,
 }
 
+# 14-Year Model (v6_satswap_anom_14yr) files and byte sizes (Hugging Face dataset)
+V6_KNOWN_SIZES: Dict[str, int] = {
+    "correction_v6_satswap_anom_14yr.json": 1415,
+    "v6_satswap_anom_14yr.bundle.npz": 10268579,
+    "products_v6_satswap_anom_14yr_2023-06-01_2023-12-31.npz": 13716391,
+    "field_v6_satswap_anom_14yr_2023-06-01_2023-12-31.npz": 39400611,
+    "embeddings_v6_satswap_anom_14yr_2023-06-01_2023-12-31.npz": 76636282,
+}
+
 REQUIRED_FILES = list(KNOWN_SIZES.keys())
+V6_REQUIRED_FILES = list(V6_KNOWN_SIZES.keys())
+
+
+def is_v6_unpacked(v6_dir: str = V6_DIR) -> bool:
+    """Check if v6 model unpacked folders (field, products, embeddings) exist and are complete."""
+    unpacked = os.path.join(v6_dir, "unpacked")
+    for sub in ("field", "products", "embeddings"):
+        meta = os.path.join(unpacked, sub, "meta.json")
+        if not os.path.exists(meta):
+            return False
+    return True
+
+
+def ensure_v6_unpacked(v6_dir: str = V6_DIR) -> None:
+    """
+    Idempotently unpacks v6 model .npz files into unpacked/ subdirectories.
+    If already unpacked, skips cleanly without modifying anything.
+    If any required .npz asset is missing, raises an explicit, descriptive FileNotFoundError.
+    """
+    if is_v6_unpacked(v6_dir):
+        return
+
+    # Check for serving.py unpack function
+    sys.path.insert(0, v6_dir)
+    try:
+        import serving
+    except ImportError as err:
+        raise RuntimeError(f"Cannot import serving module from {v6_dir}: {err}") from err
+
+    npz_mapping = {
+        "field": "field_v6_satswap_anom_14yr_2023-06-01_2023-12-31.npz",
+        "products": "products_v6_satswap_anom_14yr_2023-06-01_2023-12-31.npz",
+        "embeddings": "embeddings_v6_satswap_anom_14yr_2023-06-01_2023-12-31.npz",
+    }
+
+    unpacked_dir = os.path.join(v6_dir, "unpacked")
+    for sub, npz_name in npz_mapping.items():
+        out_sub = os.path.join(unpacked_dir, sub)
+        meta_file = os.path.join(out_sub, "meta.json")
+        if os.path.exists(meta_file):
+            continue  # Subdirectory already unpacked cleanly
+
+        npz_path = os.path.join(v6_dir, npz_name)
+        if not os.path.exists(npz_path):
+            raise FileNotFoundError(
+                f"\n{'=' * 80}\n"
+                f"MISSING REQUIRED MODEL ASSET: '{npz_name}' was not found in {v6_dir}!\n"
+                f"The 14-year model (v6_satswap_anom_14yr) requires this precomputed .npz file.\n"
+                f"Please run: 'python backend/fetch_data.py' to download all required model assets\n"
+                f"from Hugging Face repository '{REPO_ID}'.\n"
+                f"{'=' * 80}\n"
+            )
+
+        print(f"[v6_adapter] Unpacking {npz_name} -> {out_sub}...", flush=True)
+        serving.unpack(npz_path, out_sub)
+        print(f"[v6_adapter] [PASS] Unpacked {sub} successfully.", flush=True)
 
 
 def is_data_complete(dest_dir: str = DATA_DIR) -> bool:
@@ -221,20 +287,100 @@ def fetch_all_data(dest_dir: str = DATA_DIR, force: bool = False, repo_id: Optio
     print("=" * 80, flush=True)
 
 
+def is_v6_complete(dest_dir: str = V6_DIR) -> bool:
+    """Check if all required v6 model files exist in dest_dir with exact expected byte sizes."""
+    if not os.path.isdir(dest_dir):
+        return False
+    for filename, expected_size in V6_KNOWN_SIZES.items():
+        filepath = os.path.join(dest_dir, filename)
+        if not os.path.exists(filepath):
+            return False
+        if os.path.getsize(filepath) != expected_size:
+            return False
+    return True
+
+
+def fetch_v6_data(dest_dir: str = V6_DIR, force: bool = False, repo_id: Optional[str] = None) -> None:
+    """
+    Downloads and verifies the 14-year v6 model assets from Hugging Face.
+    Idempotently unpacks into unpacked/ once downloaded.
+    """
+    target_repo = repo_id or os.environ.get("HF_DATASET_REPO_ID", REPO_ID)
+    os.makedirs(dest_dir, exist_ok=True)
+
+    hf_token = os.environ.get("HF_TOKEN")
+    if hf_token and not hf_token.strip():
+        hf_token = None
+
+    print("=" * 80, flush=True)
+    print("  OceanEmbed — 14-Year Model (v6_satswap_anom_14yr) Fetcher & Unpacker", flush=True)
+    print(f"  Repository:  {target_repo} (dataset)", flush=True)
+    print(f"  Destination: {dest_dir}", flush=True)
+    print("=" * 80, flush=True)
+
+    if not force and is_v6_complete(dest_dir):
+        total_mb = sum(V6_KNOWN_SIZES.values()) / (1024 * 1024)
+        print(f"[PASS] All {len(V6_REQUIRED_FILES)} v6 model files exist locally ({total_mb:.2f} MB).", flush=True)
+    else:
+        for idx, filename in enumerate(V6_REQUIRED_FILES, start=1):
+            target_path = os.path.join(dest_dir, filename)
+            expected_size = V6_KNOWN_SIZES.get(filename)
+
+            if os.path.exists(target_path):
+                local_size = os.path.getsize(target_path)
+                if expected_size is not None and local_size == expected_size:
+                    print(f"[{idx}/{len(V6_REQUIRED_FILES)}] SKIP: {filename} exists with matching size ({local_size:,} bytes).", flush=True)
+                    continue
+
+            # Try to download from repo root or v6_satswap_anom_14yr/
+            print(f"[{idx}/{len(V6_REQUIRED_FILES)}] DOWNLOADING: {filename}...", flush=True)
+            t0 = time.perf_counter()
+            try:
+                hf_hub_download(
+                    repo_id=target_repo,
+                    filename=f"v6_satswap_anom_14yr/{filename}",
+                    repo_type="dataset",
+                    local_dir=dest_dir,
+                    token=hf_token,
+                )
+                # Move file up if it downloaded into nested subfolder
+                nested = os.path.join(dest_dir, "v6_satswap_anom_14yr", filename)
+                if os.path.exists(nested) and not os.path.exists(target_path):
+                    import shutil
+                    shutil.move(nested, target_path)
+            except Exception:
+                # Fallback to downloading from repo root
+                hf_hub_download(
+                    repo_id=target_repo,
+                    filename=filename,
+                    repo_type="dataset",
+                    local_dir=dest_dir,
+                    token=hf_token,
+                )
+            elapsed = time.perf_counter() - t0
+            actual_size = os.path.getsize(target_path)
+            print(f"[{idx}/{len(V6_REQUIRED_FILES)}] [PASS] DONE: {filename} ({actual_size/(1024*1024):.2f} MB) in {elapsed:.1f}s", flush=True)
+
+    # Ensure files are unpacked
+    ensure_v6_unpacked(dest_dir)
+
+
 def ensure_data_ready(dest_dir: str = DATA_DIR) -> bool:
     """
-    Guarantees the float16 dataset is present and verified before server start.
-    If incomplete, downloads missing files. Fails loudly on error.
+    Guarantees the float16 dataset AND 14-year v6 model assets are present,
+    verified, and unpacked before server start.
     """
-    if is_data_complete(dest_dir):
-        return True
-    fetch_all_data(dest_dir=dest_dir)
-    return is_data_complete(dest_dir)
+    if not is_data_complete(dest_dir):
+        fetch_all_data(dest_dir=dest_dir)
+    if not is_v6_complete(V6_DIR) or not is_v6_unpacked(V6_DIR):
+        fetch_v6_data(dest_dir=V6_DIR)
+    return is_data_complete(dest_dir) and is_v6_unpacked(V6_DIR)
 
 
 if __name__ == "__main__":
     try:
         fetch_all_data()
+        fetch_v6_data()
     except Exception as e:
         print(f"Dataset fetch terminated with error: {e}", file=sys.stderr, flush=True)
         sys.exit(1)

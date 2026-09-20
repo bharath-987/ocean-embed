@@ -19,12 +19,12 @@ const APPLICATIONS: ApplicationCard[] = [
       'Pelagic schools follow sharp thermal boundaries where nutrient upwelling concentrates biomass. Relying only on surface chlorophyll sends artisan fleets on 40-nautical-mile blind searches; subsurface thermocline depth pinpoints active feeding fronts directly.',
   },
   {
-    id: 'defense',
-    code: '03 // MARITIME DEFENSE & SONAR ACOUSTICS',
-    title: 'Sound Velocity Profiles & Shadow Zones',
-    parameter: 'Sonic Layer Depth & Acoustic Refraction',
+    id: 'robotics',
+    code: '03 // AUTONOMOUS UNDERWATER VEHICLES & GLIDERS',
+    title: 'Density Stratification & Buoyancy Trim',
+    parameter: 'Thermocline Gradient & Vertical Density Structure',
     description:
-      'Sonar waves bend away from warmer layers, creating acoustic shadow zones where submarines disappear from active hull-mounted sonar. Without real-time vertical temperature profiles, naval acoustic propagation models calculate false detection ranges.',
+      'Long-endurance ocean gliders and autonomous vehicles rely on variable buoyancy engines calibrated against ambient seawater density. Accurate subsurface temperature reconstruction prevents ballast exhaustion and optimizes dive glideslope efficiency across dynamic frontal zones.',
   },
   {
     id: 'assimilation',

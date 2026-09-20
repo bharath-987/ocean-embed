@@ -43,8 +43,6 @@ const makeElement = () => {
 const domElements = {
   'stat-mld-val': makeElement(),
   'stat-ohc-val': makeElement(),
-  'stat-svad-val': makeElement(),
-  'stat-svad-sub': makeElement(),
   'stat-d20-val': makeElement()
 };
 
@@ -54,7 +52,7 @@ global.document = {
 
 // Evaluate setStatsLoading
 const setStatsLoadingFn = new Function('isLoading', `
-  const statIds = ['stat-mld-val', 'stat-ohc-val', 'stat-svad-val', 'stat-d20-val'];
+  const statIds = ['stat-mld-val', 'stat-ohc-val', 'stat-d20-val'];
   statIds.forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
@@ -67,10 +65,6 @@ const setStatsLoadingFn = new Function('isLoading', `
       el.classList.remove('ky-stat-card__val--loading');
     }
   });
-  if (isLoading) {
-    const svadSubEl = document.getElementById('stat-svad-sub');
-    if (svadSubEl) svadSubEl.style.display = 'none';
-  }
 `);
 
 // Test loading state

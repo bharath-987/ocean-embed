@@ -155,6 +155,8 @@ class PredictRequest(BaseModel):
     date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
     raw: Optional[bool] = None
     smoothing: Optional[bool] = None
+    corrected: Optional[bool] = None
+    smoothed: Optional[bool] = None
 
 
 class MarineHeatwaveRequest(BaseModel):
@@ -679,27 +681,43 @@ def predict(
     req: PredictRequest,
     raw: Optional[bool] = Query(None),
     smoothing: Optional[bool] = Query(None),
+    corrected: Optional[bool] = Query(None),
+    smoothed: Optional[bool] = Query(None),
 ):
     _validate_date_available(req.date, need_history=False)
 
-    is_raw = True  # Default to raw non-monotonic profile per Ajay's rule
-    if raw is not None:
-        is_raw = bool(raw)
-    elif smoothing is not None:
-        is_raw = not bool(smoothing)
+    # Independent flag resolution: corrected & smoothed (default smoothed=False everywhere)
+    if corrected is not None:
+        is_corrected = bool(corrected)
+    elif req.corrected is not None:
+        is_corrected = bool(req.corrected)
+    elif raw is not None:
+        is_corrected = not bool(raw)
     elif req.raw is not None:
-        is_raw = bool(req.raw)
-    elif req.smoothing is not None:
-        is_raw = not bool(req.smoothing)
+        is_corrected = not bool(req.raw)
+    else:
+        is_corrected = False  # Default to raw profile
 
-    smoothing_flag = (not is_raw)
+    if smoothed is not None:
+        is_smoothed = bool(smoothed)
+    elif req.smoothed is not None:
+        is_smoothed = bool(req.smoothed)
+    elif smoothing is not None:
+        is_smoothed = bool(smoothing)
+    elif req.smoothing is not None:
+        is_smoothed = bool(req.smoothing)
+    else:
+        is_smoothed = False  # Default smoothed=false everywhere
 
     if v6_adapter.is_date_in_window(req.date):
         result = v6_adapter.predict_temperature_profile(
-            req.latitude, req.longitude, req.date, raw=is_raw, smoothing=smoothing_flag
+            req.latitude, req.longitude, req.date,
+            raw=(not is_corrected),
+            smoothing=is_smoothed,
+            corrected=is_corrected,
         )
-        raw_result = result if is_raw else v6_adapter.predict_temperature_profile(
-            req.latitude, req.longitude, req.date, raw=True, smoothing=False
+        raw_result = result if (not is_corrected and not is_smoothed) else v6_adapter.predict_temperature_profile(
+            req.latitude, req.longitude, req.date, raw=True, smoothing=False, corrected=False
         )
     else:
         raise HTTPException(
@@ -714,7 +732,9 @@ def predict(
         raise HTTPException(status_code=400, detail=result["error"])
 
     resp = model_result_to_frontend(result, req.latitude, req.longitude, req.date, raw_result=raw_result)
-    resp["raw"] = is_raw
+    resp["raw"] = not is_corrected
+    resp["corrected"] = is_corrected
+    resp["smoothed"] = is_smoothed
     return resp
 
 
@@ -725,9 +745,19 @@ def predict_get(
     date: str = Query(..., pattern=r"^\d{4}-\d{2}-\d{2}$"),
     raw: Optional[bool] = Query(None),
     smoothing: Optional[bool] = Query(None),
+    corrected: Optional[bool] = Query(None),
+    smoothed: Optional[bool] = Query(None),
 ):
-    req = PredictRequest(latitude=latitude, longitude=longitude, date=date, raw=raw, smoothing=smoothing)
-    return predict(req, raw=raw, smoothing=smoothing)
+    req = PredictRequest(
+        latitude=latitude,
+        longitude=longitude,
+        date=date,
+        raw=raw,
+        smoothing=smoothing,
+        corrected=corrected,
+        smoothed=smoothed,
+    )
+    return predict(req, raw=raw, smoothing=smoothing, corrected=corrected, smoothed=smoothed)
 
 
 _spatial_prediction_cache = {}
@@ -893,36 +923,47 @@ def temperature_grid(
     depth: int = 0,
     raw: Optional[bool] = Query(None),
     smoothing: Optional[bool] = Query(None),
+    corrected: Optional[bool] = Query(None),
+    smoothed: Optional[bool] = Query(None),
 ):
     """
     Return real gridded ocean temperature slice at the specified depth and date.
     Generated directly from the v6_satswap_anom_14yr model, guaranteeing
     100% exact numerical consistency with the /predict endpoint and TVD table.
-    When raw=True (default, per Ajay's rule), returns raw non-monotonic output.
+    Supports independent corrected and smoothed flags (default smoothed=False everywhere).
     """
     if depth not in inf.STANDARD_DEPTHS:
         raise HTTPException(status_code=400, detail=f"Invalid depth {depth}. Must be one of {inf.STANDARD_DEPTHS}")
 
     _validate_date_available(date, need_history=False)
 
-    is_raw = True  # Default raw non-monotonic per Ajay's rule
-    if raw is not None:
-        is_raw = bool(raw)
+    # Resolve independent corrected and smoothed flags
+    if corrected is not None:
+        is_corrected = bool(corrected)
+    elif raw is not None:
+        is_corrected = not bool(raw)
+    else:
+        is_corrected = False  # Default to raw non-monotonic profile
+
+    if smoothed is not None:
+        is_smoothed = bool(smoothed)
     elif smoothing is not None:
-        is_raw = not bool(smoothing)
+        is_smoothed = bool(smoothing)
+    else:
+        is_smoothed = False  # Default smoothed=false everywhere
 
     sub_lats = v6_adapter.TARGET_LATS.tolist()
     sub_lons = v6_adapter.TARGET_LONS.tolist()
 
     if v6_adapter.is_date_in_window(date):
-        m = v6_adapter.temperature_map(date, depth, corrected=(not is_raw))
+        m = v6_adapter.temperature_map(date, depth, corrected=is_corrected)
         grid_slice = inf.np.where(
             inf.np.isnan(m),
             None,
             inf.np.round(m, 2)
         ).tolist()
     else:
-        spatial_preds = get_spatial_predictions(date, raw=is_raw)
+        spatial_preds = get_spatial_predictions(date, raw=(not is_corrected))
         depth_idx = inf.STANDARD_DEPTHS.index(depth)
         grid_slice = inf.np.where(
             inf.np.isnan(spatial_preds[depth_idx]),
@@ -933,7 +974,9 @@ def temperature_grid(
     return {
         "depth": depth,
         "date": date,
-        "raw": is_raw,
+        "raw": not is_corrected,
+        "corrected": is_corrected,
+        "smoothed": is_smoothed,
         "bounds": {
             "south": float(v6_adapter.MIN_LAT),
             "north": float(v6_adapter.MAX_LAT),
@@ -1262,12 +1305,12 @@ _argo_skill_score_cache = None
 def _load_argo_skill_score():
     """
     Loads and caches the precomputed ARGO skill score benchmark dataset
-    (model vs monthly climatology normals across 41 ARGO floats).
+    from committed backend/data/argo_summary_14yr.json.
     """
     global _argo_skill_score_cache
     if _argo_skill_score_cache is not None:
         return _argo_skill_score_cache
-    path = os.path.join(os.path.dirname(__file__), "data", "argo_skill_score.json")
+    path = os.path.join(os.path.dirname(__file__), "data", "argo_summary_14yr.json")
     if os.path.exists(path):
         with open(path, "r", encoding="utf-8") as f:
             _argo_skill_score_cache = json.load(f)
@@ -1278,13 +1321,13 @@ def _load_argo_skill_score():
 @app.get("/argo/skill-score")
 def get_argo_skill_score():
     """
-    Returns the comprehensive Skill Score benchmark (model vs monthly climatology baseline, n=41 Argo profiles)
-    validated against 41 in-situ ARGO profiles across all 15 standard depths and 4 basins.
+    Returns the comprehensive Skill Score benchmark (model vs monthly climatology baseline)
+    validated against 1,809 in-situ ARGO profiles across all 15 standard depths and basins.
     Formula: Skill Score = 1 - (RMSE_model^2 / RMSE_climatology^2).
     """
     data = _load_argo_skill_score()
     if not data:
-        raise HTTPException(status_code=404, detail="ARGO skill score benchmark data not found.")
+        raise HTTPException(status_code=404, detail="ARGO skill score benchmark data not found (argo_summary_14yr.json).")
     return data
 
 
@@ -1344,7 +1387,7 @@ def compare_argo_profile(
     date_str = str(profile["date"])
 
     # Resolve independent corrected and smoothed flags
-    # Default behavior for Argo compare: corrected=True, smoothed=True
+    # Default behavior for Argo compare: corrected=True, smoothed=False (default smoothed=false everywhere)
     if corrected is not None:
         is_corrected = bool(corrected)
     elif raw is not None:
@@ -1356,10 +1399,8 @@ def compare_argo_profile(
         is_smoothed = bool(smoothed)
     elif smoothing is not None:
         is_smoothed = bool(smoothing)
-    elif raw is not None:
-        is_smoothed = not bool(raw)
     else:
-        is_smoothed = True
+        is_smoothed = False  # Default smoothed=false everywhere
 
     if v6_adapter.is_date_in_window(date_str):
         pred = v6_adapter.predict_temperature_profile(
@@ -1438,8 +1479,9 @@ def compare_argo_profile(
 
 def compute_argo_summary(force_refresh: bool = False) -> dict:
     """
-    Computes and caches aggregate ARGO validation statistics against the active model checkpoint.
-    Guarantees thread-safe in-memory caching while supporting on-demand dynamic recalculation.
+    Returns aggregate ARGO validation statistics directly from the committed
+    14-year summary file (backend/data/argo_summary_14yr.json), guaranteeing
+    instant sub-millisecond responses without requiring runtime bundle computation.
     """
     global _argo_summary_cache
     if _argo_summary_cache is not None and not force_refresh:
@@ -1449,185 +1491,24 @@ def compute_argo_summary(force_refresh: bool = False) -> dict:
         if _argo_summary_cache is not None and not force_refresh:
             return _argo_summary_cache
 
-        data = _load_argo_dataset()
-        profiles = data.get("profiles", [])
-        total_floats = len(profiles)
+        summary_file = os.path.join(os.path.dirname(__file__), "data", "argo_summary_14yr.json")
+        if not os.path.exists(summary_file):
+            raise HTTPException(
+                status_code=404,
+                detail="ARGO summary dataset not found (argo_summary_14yr.json). Please run 'python backend/compute_argo_summary.py' to generate it."
+            )
 
-        eval_csv = v6_adapter.V6_DIR / "evaluation_results_v6_satswap_anom_14yr_argo_full.csv"
-        corr_file = v6_adapter.CORRECTION_FILE
+        with open(summary_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
 
-        if eval_csv.exists() and corr_file.exists():
-            import pandas as pd
-            import numpy as np
-
-            df = pd.read_csv(eval_csv)
-            df['date_dt'] = pd.to_datetime(df['date'])
-            sub = df[(df['date_dt'] >= '2023-06-01') & (df['date_dt'] <= '2023-12-31')].copy()
-            num_profiles = len(sub)
-            unique_floats = int(sub['platform_number'].nunique()) if 'platform_number' in sub.columns else 81
-
-            with open(corr_file, "r", encoding="utf-8") as f:
-                corr_spec = json.load(f)
-            eval_depths = corr_spec.get("depths", [0, 5, 10, 20, 30, 50, 75, 100, 125, 150, 200, 300, 500, 700, 1000])
-            depth_bias = np.array(corr_spec.get("depth_bias", []))
-
-            # Climatology baseline computed against the exact same 1809 profiles and valid points
-            bundle_file = v6_adapter.V6_DIR / "v6_satswap_anom_14yr.bundle.npz"
-            all_clim_m = []
-            all_clim_d = []
-            if bundle_file.exists():
-                import datetime
-                bundle = np.load(bundle_file)
-                target_coef = bundle["target_coef"]  # (5, 15, 101, 241)
-                b_lats = bundle["lats"]
-                b_lons = bundle["lons"]
-                lat_0, lat_step = float(b_lats[0]), float(b_lats[1] - b_lats[0])
-                lon_0, lon_step = float(b_lons[0]), float(b_lons[1] - b_lons[0])
-                n_lats, n_lons = len(b_lats), len(b_lons)
-
-                # Precompute monthly basis averages for months 1..12
-                monthly_basis = {}
-                for m in range(1, 13):
-                    d_start = datetime.date(2023, m, 1)
-                    d_end = datetime.date(2023, 12, 31) if m == 12 else (datetime.date(2023, m + 1, 1) - datetime.timedelta(days=1))
-                    days_cnt = (d_end - d_start).days + 1
-                    b_list = []
-                    for day_offset in range(days_cnt):
-                        cur_dt = d_start + datetime.timedelta(days=day_offset)
-                        doy = cur_dt.timetuple().tm_yday
-                        rad = 2.0 * np.pi * doy / 365.25
-                        b_list.append([1.0, np.sin(rad), np.cos(rad), np.sin(2.0 * rad), np.cos(2.0 * rad)])
-                    monthly_basis[m] = np.mean(b_list, axis=0)
-
-                num_sub = len(sub)
-                clim_matrix_monthly = np.zeros((num_sub, len(eval_depths)), dtype=float)
-                clim_matrix_daily = np.zeros((num_sub, len(eval_depths)), dtype=float)
-
-                sub_lats = sub['latitude'].values
-                sub_lons = sub['longitude'].values
-                sub_months = sub['date_dt'].dt.month.values
-                sub_doys = sub['date_dt'].dt.dayofyear.values
-
-                for i in range(num_sub):
-                    lat_i = int(np.clip(round((sub_lats[i] - lat_0) / lat_step), 0, n_lats - 1))
-                    lon_i = int(np.clip(round((sub_lons[i] - lon_0) / lon_step), 0, n_lons - 1))
-                    coef = target_coef[:, :, lat_i, lon_i]
-                    clim_matrix_monthly[i, :] = np.dot(monthly_basis[sub_months[i]], coef)
-                    doy = sub_doys[i]
-                    rad = 2.0 * np.pi * doy / 365.25
-                    d_basis = np.array([1.0, np.sin(rad), np.cos(rad), np.sin(2.0 * rad), np.cos(2.0 * rad)])
-                    clim_matrix_daily[i, :] = np.dot(d_basis, coef)
-
-            all_pred = []
-            all_true = []
-            all_glorys = []
-            all_bias = []
-            for d_i, (z, b) in enumerate(zip(eval_depths, depth_bias)):
-                p_col = f"pred_{z}m"
-                t_col = f"true_{z}m"
-                g_col = f"glorys_{z}m"
-                if p_col in sub.columns and t_col in sub.columns and g_col in sub.columns:
-                    p = sub[p_col].values
-                    t = sub[t_col].values
-                    g = sub[g_col].values
-                    mask = np.isfinite(t) & np.isfinite(p) & np.isfinite(g) & (g != 0)
-                    all_pred.extend(p[mask])
-                    all_true.extend(t[mask])
-                    all_glorys.extend(g[mask])
-                    all_bias.extend([b] * int(np.sum(mask)))
-                    if len(all_clim_m) is not None and bundle_file.exists():
-                        all_clim_m.extend(clim_matrix_monthly[:, d_i][mask])
-                        all_clim_d.extend(clim_matrix_daily[:, d_i][mask])
-
-            p_arr = np.array(all_pred, dtype=float)
-            t_arr = np.array(all_true, dtype=float)
-            g_arr = np.array(all_glorys, dtype=float)
-            b_arr = np.array(all_bias, dtype=float)
-
-            total_points = len(p_arr)
-            rmse_raw = float(np.sqrt(np.mean((p_arr - t_arr) ** 2)))
-            rmse_corr = float(np.sqrt(np.mean((p_arr - b_arr - t_arr) ** 2)))
-            rmse_glorys = float(np.sqrt(np.mean((g_arr - t_arr) ** 2)))
-            bias_raw = float(np.mean(p_arr - t_arr))
-            bias_corr = float(np.mean(p_arr - b_arr - t_arr))
-
-            if len(all_clim_m) == total_points:
-                cm_arr = np.array(all_clim_m, dtype=float)
-                cd_arr = np.array(all_clim_d, dtype=float)
-                clim_rmse = float(np.sqrt(np.mean((cm_arr - t_arr) ** 2)))
-                clim_daily_rmse = float(np.sqrt(np.mean((cd_arr - t_arr) ** 2)))
-            else:
-                clim_rmse = 1.309
-                clim_daily_rmse = 1.290
-
-            skill_score = 1.0 - ((rmse_corr ** 2) / (clim_rmse ** 2))
-            skill_score_daily = 1.0 - ((rmse_corr ** 2) / (clim_daily_rmse ** 2))
-
-            _argo_summary_cache = {
-                "totalFloats": unique_floats,
-                "totalProfiles": num_profiles,
-                "totalDepthPoints": total_points,
-                "aggregateRmse": round(rmse_corr, 2),
-                "aggregateBias": round(bias_corr, 2),
-                "rmseRaw": round(rmse_raw, 3),
-                "rmseCorrected": round(rmse_corr, 3),
-                "glorysRmse": round(rmse_glorys, 3),
-                "rmseGlorys": round(rmse_glorys, 3),
-                "biasRaw": round(bias_raw, 3),
-                "biasCorrected": round(bias_corr, 3),
-                "climatologyRmse": round(clim_rmse, 3),
-                "climatologyDailyRmse": round(clim_daily_rmse, 3),
-                "skillScore": round(skill_score, 3),
-                "skillScorePct": round(skill_score * 100, 1),
-                "skillScoreDaily": round(skill_score_daily, 3),
-                "skillScoreDailyPct": round(skill_score_daily * 100, 1),
-                "trimmedWindowRmse": round(rmse_corr, 3),
-                "trimmedWindowFloats": num_profiles,
-                "trimmedWindowLabel": f"{round(rmse_corr, 3)} °C (in-window subset, n={num_profiles:,} profiles, v6_satswap_anom_14yr)",
-                "baselineType": "monthly climatology",
-                "baselineSampleSize": num_profiles,
-                "baselineLabel": f"vs monthly-climatology baseline (n={num_profiles:,} Argo profiles, {unique_floats} floats, June–Dec 2023)",
-                "subRegions": data.get("metadata", {}).get("subRegionCounts", {}),
-                "datasetMetadata": data.get("metadata", {}),
-                "provenance": v6_adapter.PROVENANCE_NOTE,
-            }
-        else:
-            from compute_skill_score import compute_argo_skill_score
-            skill_payload = compute_argo_skill_score(save_json=True)
-            overall = skill_payload.get("overall", {})
-            basins = skill_payload.get("basins", {})
-
-            sub_summary = {}
-            for r_name, r_data in basins.items():
-                sub_summary[r_name] = {
-                    "count": r_data.get("count", 0),
-                    "insufficientSample": r_data.get("insufficientSample", False),
-                    "rmse": r_data.get("rmseModel", 0.0),
-                    "climatologyRmse": r_data.get("rmseClimatology", 0.0),
-                    "skillScore": r_data.get("skillScore", 0.0),
-                    "skillScorePct": r_data.get("skillScorePct", 0.0),
-                }
-                if r_data.get("insufficientNote"):
-                    sub_summary[r_name]["insufficientNote"] = r_data["insufficientNote"]
-
-            _argo_summary_cache = {
-                "totalFloats": overall.get("totalFloats", 41),
-                "totalDepthPoints": overall.get("totalDepthPoints", 615),
-                "aggregateRmse": overall.get("rmseModel", 0.75),
-                "aggregateBias": overall.get("biasModel", 0.12),
-                "aggregateCorr": overall.get("correlationModel", 0.995),
-                "climatologyRmse": overall.get("rmseClimatology", 0.84),
-                "skillScore": overall.get("skillScore", 0.200),
-                "skillScorePct": overall.get("skillScorePct", 20.0),
-                "trimmedWindowRmse": overall.get("trimmedWindowRmse", 0.715),
-                "trimmedWindowFloats": overall.get("trimmedWindowFloats", 27),
-                "trimmedWindowLabel": overall.get("trimmedWindowLabel", "0.715 °C (trimmed demo-window subset, n=27 profiles, V6 vs V4=0.820 °C)"),
-                "baselineType": overall.get("baselineType", "monthly climatology"),
-                "baselineSampleSize": overall.get("baselineSampleSize", 41),
-                "baselineLabel": overall.get("baselineLabel", "vs monthly climatology baseline, n=41 Argo profiles"),
-                "subRegions": sub_summary,
-                "datasetMetadata": data.get("metadata", {}),
-            }
+        overall = data.get("overall", {})
+        res = dict(overall)
+        res["overall"] = overall
+        res["basins"] = data.get("basins", {})
+        res["depths"] = data.get("depths", [])
+        res["subRegions"] = data.get("subRegions", {})
+        res["provenance"] = data.get("provenance", v6_adapter.PROVENANCE_NOTE)
+        _argo_summary_cache = res
         return _argo_summary_cache
 
 

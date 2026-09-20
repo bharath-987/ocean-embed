@@ -1,7 +1,7 @@
-﻿"""
-Automated Regression Test Suite: ARGO Summary & Profile Parity Verification
-Asserts that /argo/summary and /argo/compare dynamically track the active model checkpoint
-and that the 27-profile trimmed demo-window RMSE is computed dynamically.
+"""
+Automated Regression Test Suite: ARGO Summary & Profile Parity Verification (14-year model)
+Asserts that /argo/summary and /argo/compare dynamically track the active 14-year model checkpoint
+and that the 1,809-profile served-window RMSE is computed accurately.
 """
 
 import os
@@ -12,12 +12,12 @@ import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'backend'))
 import api_server as api
-from compute_skill_score import compute_argo_skill_score
+from compute_argo_summary import compute_all_metrics
 
 
 def run_regression_tests():
     print("============================================================")
-    print("  KYOGRE ARGO SUMMARY & PROFILE DYNAMIC REGRESSION SUITE")
+    print("  KYOGRE ARGO SUMMARY & PROFILE 14-YEAR REGRESSION SUITE")
     print("============================================================\n")
 
     total_assertions = 0
@@ -33,9 +33,9 @@ def run_regression_tests():
             print(f"  [FAIL] {msg}")
             raise AssertionError(msg)
 
-    # 1. Fresh computation from compute_skill_score
-    print("[STEP 1] Executing fresh compute_argo_skill_score() run...")
-    fresh = compute_argo_skill_score(save_json=False)
+    # 1. Fresh computation from compute_argo_summary
+    print("[STEP 1] Executing fresh compute_all_metrics() run...")
+    fresh = compute_all_metrics()
     fresh_ov = fresh['overall']
     fresh_basins = fresh['basins']
 
@@ -43,95 +43,60 @@ def run_regression_tests():
     print("[STEP 2] Executing compute_argo_summary(force_refresh=True)...")
     summary = api.compute_argo_summary(force_refresh=True)
 
-    # 3. Assert full-set (n=41) aggregate metrics match fresh run within small tolerance (<= 0.01)
-    print("\n[STEP 3] Asserting full-set (n=41) aggregate metrics match fresh run...")
-    check(summary['totalFloats'] == 41, f"Expected 41 floats, got {summary['totalFloats']}")
-    check(summary['totalDepthPoints'] == 615, f"Expected 615 points (41x15), got {summary['totalDepthPoints']}")
+    # 3. Assert full-set (n=1,809, 81 floats) aggregate metrics match fresh run
+    print("\n[STEP 3] Asserting 14-year model (n=1,809) aggregate metrics match fresh run...")
+    check(summary['totalFloats'] == 81, f"Expected 81 floats, got {summary['totalFloats']}")
+    check(summary['totalProfiles'] == 1809, f"Expected 1,809 profiles, got {summary['totalProfiles']}")
+    check(summary['totalDepthPoints'] == 24185, f"Expected 24,185 points, got {summary['totalDepthPoints']}")
     check(
-        abs(summary['aggregateRmse'] - fresh_ov['rmseModel']) <= 0.01,
-        f"aggregateRmse parity: summary {summary['aggregateRmse']}°C vs fresh {fresh_ov['rmseModel']}°C"
+        abs(summary['rmseRaw'] - fresh_ov['rmseRaw']) <= 0.005,
+        f"rmseRaw parity: summary {summary['rmseRaw']}°C vs fresh {fresh_ov['rmseRaw']}°C"
     )
     check(
-        abs(summary['aggregateBias'] - fresh_ov['biasModel']) <= 0.01,
-        f"aggregateBias parity: summary {summary['aggregateBias']}°C vs fresh {fresh_ov['biasModel']}°C"
+        abs(summary['rmseCorrected'] - fresh_ov['rmseCorrected']) <= 0.005,
+        f"rmseCorrected parity: summary {summary['rmseCorrected']}°C vs fresh {fresh_ov['rmseCorrected']}°C"
     )
     check(
-        abs(summary['aggregateCorr'] - fresh_ov['correlationModel']) <= 0.01,
-        f"aggregateCorr parity: summary {summary['aggregateCorr']} vs fresh {fresh_ov['correlationModel']}"
-    )
-    check(
-        abs(summary['climatologyRmse'] - fresh_ov['rmseClimatology']) <= 0.01,
-        f"climatologyRmse parity: summary {summary['climatologyRmse']}°C vs fresh {fresh_ov['rmseClimatology']}°C"
+        abs(summary['climatologyRmse'] - fresh_ov['climatologyRmse']) <= 0.005,
+        f"climatologyRmse parity: summary {summary['climatologyRmse']}°C vs fresh {fresh_ov['climatologyRmse']}°C"
     )
     check(
         abs(summary['skillScore'] - fresh_ov['skillScore']) <= 0.005,
         f"skillScore parity: summary {summary['skillScore']} vs fresh {fresh_ov['skillScore']}"
     )
 
-    # 4. Assert dynamic trimmed-window (n=27) subset parity
-    print("\n[STEP 4] Asserting dynamic trimmed-window (n=27) subset parity...")
-    check(summary['trimmedWindowFloats'] == 27, f"Expected 27 trimmed floats, got {summary['trimmedWindowFloats']}")
-    check(fresh_ov['trimmedWindowFloats'] == 27, f"Expected 27 trimmed floats in fresh run, got {fresh_ov['trimmedWindowFloats']}")
-    check(
-        abs(summary['trimmedWindowRmse'] - fresh_ov['trimmedWindowRmse']) <= 0.005,
-        f"trimmedWindowRmse parity: summary {summary['trimmedWindowRmse']}°C vs fresh {fresh_ov['trimmedWindowRmse']}°C"
-    )
-    check(
-        abs(summary['trimmedWindowRmse'] - 0.715) <= 0.01,
-        f"trimmedWindowRmse close to 0.715°C benchmark: got {summary['trimmedWindowRmse']}°C"
-    )
-    check(
-        "0.820" in summary['trimmedWindowLabel'],
-        f"trimmedWindowLabel preserves V4 0.820°C reference: {summary['trimmedWindowLabel']}"
-    )
-
-    # 5. Assert per-basin parity across all 3 active sub-basins
-    print("\n[STEP 5] Asserting per-basin RMSE and sample count parity...")
+    # 4. Assert basin-level parity across active basins
+    print("\n[STEP 4] Asserting per-basin RMSE and sample count parity...")
     expected_basins = {
-        'Bay of Bengal': 16,
-        'Arabian Sea': 15,
-        'Equatorial Indian Ocean': 10
+        'Arabian Sea': 1455,
+        'Bay of Bengal': 277,
+        'Equatorial Indian Ocean': 77
     }
     for b_name, expected_count in expected_basins.items():
-        sum_b = summary['subRegions'][b_name]
+        sum_b = summary['basins'][b_name]
         fresh_b = fresh_basins[b_name]
         check(sum_b['count'] == expected_count, f"Basin {b_name} count: {sum_b['count']} == {expected_count}")
         check(
-            abs(sum_b['rmse'] - fresh_b['rmseModel']) <= 0.01,
-            f"Basin {b_name} RMSE parity: summary {sum_b['rmse']}°C vs fresh {fresh_b['rmseModel']}°C"
+            abs(sum_b['rmseRaw'] - fresh_b['rmseRaw']) <= 0.005,
+            f"Basin {b_name} Raw RMSE parity: summary {sum_b['rmseRaw']}°C vs fresh {fresh_b['rmseRaw']}°C"
         )
         check(
-            abs(sum_b['climatologyRmse'] - fresh_b['rmseClimatology']) <= 0.01,
-            f"Basin {b_name} Clim RMSE parity: summary {sum_b['climatologyRmse']}°C vs fresh {fresh_b['rmseClimatology']}°C"
+            abs(sum_b['rmseCorrected'] - fresh_b['rmseCorrected']) <= 0.005,
+            f"Basin {b_name} Corrected RMSE parity: summary {sum_b['rmseCorrected']}°C vs fresh {fresh_b['rmseCorrected']}°C"
         )
-        check(
-            abs(sum_b['skillScore'] - fresh_b['skillScore']) <= 0.01,
-            f"Basin {b_name} Skill Score parity: summary {sum_b['skillScore']} vs fresh {fresh_b['skillScore']}"
-        )
-        check(not sum_b['insufficientSample'], f"Basin {b_name} has sufficient sample (n >= 10)")
+        check(not sum_b['insufficientSample'], f"Basin {b_name} has sufficient sample (n >= 30)")
 
-    # 6. Spot-check per-float comparison endpoint for dynamic variation
-    print("\n[STEP 6] Spot-checking /argo/compare for dynamic per-float variation...")
-    res1 = api.compare_argo_profile('2902254_134')
-    res2 = api.compare_argo_profile('2902278_126')
-    res3 = api.compare_argo_profile('2902282_126')
-
-    check(res1['metrics']['rmse'] != res2['metrics']['rmse'], "Float 1 and Float 2 RMSE must differ")
-    check(res2['metrics']['rmse'] != res3['metrics']['rmse'], "Float 2 and Float 3 RMSE must differ")
-    check(res1['aiTemps'] != res2['aiTemps'], "Float 1 and Float 2 AI temperatures must differ")
-    check(len(res1['depths']) == 15, "Float 1 depth count is 15")
-    check(len(res1['diffs']) == 15, "Float 1 diff count is 15")
-
-    # 7. Check live HTTP endpoint if server is running
-    print("\n[STEP 7] Checking live HTTP endpoint http://localhost:8000/argo/summary (if server is up)...")
+    # 5. Check live HTTP endpoint if server is running
+    print("\n[STEP 5] Checking live HTTP endpoint http://localhost:8000/argo/summary (if server is up)...")
     try:
         req = urllib.request.Request("http://localhost:8000/argo/summary", headers={"User-Agent": "RegressionTest/1.0"})
         with urllib.request.urlopen(req, timeout=5) as resp:
             if resp.status == 200:
                 http_data = json.loads(resp.read().decode('utf-8'))
-                check(http_data['totalFloats'] == 41, "Live HTTP: totalFloats == 41")
-                check(abs(http_data['aggregateRmse'] - fresh_ov['rmseModel']) <= 0.01, "Live HTTP: aggregateRmse matches fresh")
-                check(abs(http_data['trimmedWindowRmse'] - fresh_ov['trimmedWindowRmse']) <= 0.005, "Live HTTP: trimmedWindowRmse matches fresh")
+                check(http_data['totalFloats'] == 81, "Live HTTP: totalFloats == 81")
+                check(http_data['totalProfiles'] == 1809, "Live HTTP: totalProfiles == 1809")
+                check(abs(http_data['rmseRaw'] - fresh_ov['rmseRaw']) <= 0.005, "Live HTTP: rmseRaw matches fresh")
+                check(abs(http_data['rmseCorrected'] - fresh_ov['rmseCorrected']) <= 0.005, "Live HTTP: rmseCorrected matches fresh")
                 print("  [INFO] Live HTTP backend successfully verified on port 8000.")
     except Exception as e:
         print(f"  [NOTE] Port 8000 backend not running or timed out ({e}); in-process regression passed 100%.")

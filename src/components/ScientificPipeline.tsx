@@ -7,29 +7,29 @@ const PIPELINE_STAGES: PipelineStage[] = [
   { step: '03', title: 'CNN-LSTM CORE', subtitle: 'ENGINE', details: 'Spatio-Temporal Feature Learning', status: 'inferred' },
   { step: '04', title: '3D RECONSTRUCTION', subtitle: 'SYNTHESIS', details: '0 - 1000m Stratified Profiles', status: 'inferred' },
   { step: '05', title: 'ARGO VALIDATION', subtitle: 'BENCHMARK', details: 'Independent In-Situ Matchup', status: 'validated' },
-  { step: '06', title: 'OCEAN INTELLIGENCE', subtitle: 'OUTPUT', details: 'OHC₃₀₀, D20, MLD, SVP Feeds', status: 'active' },
+  { step: '06', title: 'OCEAN INTELLIGENCE', subtitle: 'OUTPUT', details: 'OHC₃₀₀, D20, MLD, Thermal Feeds', status: 'active' },
 ];
 
 const VALIDATION_METRICS: ValidationMetric[] = [
   {
     label: 'ROOT MEAN SQUARE ERROR',
-    value: '0.75',
+    value: '1.00',
     unit: '°C',
-    description: 'Overall benchmark error against 41 blind independent Argo floats across 615 depth points.',
+    description: 'Raw RMSE across 1,809 profiles and 24,185 depth points (0.90°C with depth correction vs GLORYS 0.95°C).',
     isPlaceholder: false,
   },
   {
     label: 'CLIMATOLOGY SKILL SCORE',
-    value: '+20.0',
+    value: '+41.4',
     unit: '%',
-    description: 'Empirical skill improvement over monthly climatology baseline (RMSE 0.75°C vs 0.84°C).',
+    description: 'Raw skill improvement over 14-year climatology baseline (+52.6% with Argo depth correction).',
     isPlaceholder: false,
   },
   {
     label: 'CORRELATION COEFFICIENT',
-    value: '0.962',
+    value: '0.988',
     unit: '',
-    description: 'High Pearson correlation against independent in-situ Argo profiling float observations.',
+    description: 'Pearson profile correlation across 24,185 in-situ Argo matchup observations.',
     isPlaceholder: false,
   },
 ];

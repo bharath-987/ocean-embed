@@ -46,6 +46,13 @@ PRODUCTS_DIR = UNPACKED_DIR / "products"
 EMBEDDINGS_DIR = UNPACKED_DIR / "embeddings"
 CORRECTION_FILE = V6_DIR / "correction_v6_satswap_anom_14yr.json"
 
+# Guarantee unpacked assets exist idempotently before ServingData loads them
+try:
+    from fetch_data import ensure_v6_unpacked
+    ensure_v6_unpacked(str(V6_DIR))
+except ImportError:
+    pass
+
 # Initialize singleton ServingData instance
 serving_data = serving.ServingData(
     field_dir=FIELD_DIR,

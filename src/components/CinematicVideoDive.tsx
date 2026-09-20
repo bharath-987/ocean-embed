@@ -806,7 +806,7 @@ export const CinematicVideoDive: React.FC<CinematicVideoDiveProps> = ({
             </h2>
 
             <p className="relative text-base sm:text-lg text-[#cbd5e1] font-light max-w-2xl leading-relaxed drop-shadow-[0_2px_10px_rgba(0,0,0,0.9)]">
-              The global Argo array is the finest in-situ profiling network ever deployed — but each float covers ~300km of open ocean and resurfaces only once every 10 days. During that window a monsoon eddy can form, intensify, and shed subsurface heat entirely unobserved. Kyogre was built to fill exactly this gap — and validated against every one of the 41 independent Argo floats operating across the North Indian Ocean.
+              The global Argo array is the finest in-situ profiling network ever deployed — but each float covers ~300km of open ocean and resurfaces only once every 10 days. During that window a monsoon eddy can form, intensify, and shed subsurface heat entirely unobserved. Kyogre was built to fill exactly this gap — and validated against 81 independent Argo floats (1,809 profiles) operating across the North Indian Ocean.
             </p>
           </div>
 
@@ -822,9 +822,9 @@ export const CinematicVideoDive: React.FC<CinematicVideoDiveProps> = ({
               <p className="text-xs text-[#94a9be] font-light">Descent to 1000m parking depth and ascent — missing cyclones and eddies in between.</p>
             </div>
             <div className="space-y-1">
-              <div className="text-3xl sm:text-4xl font-['Space_Grotesk'] font-light text-[#dbfcff] font-mono">41</div>
+              <div className="text-3xl sm:text-4xl font-['Space_Grotesk'] font-light text-[#dbfcff] font-mono">81</div>
               <div className="text-xs font-mono text-[#00f0ff] tracking-wider uppercase">Floats Validated Against</div>
-              <p className="text-xs text-[#94a9be] font-light">Independent in-situ Argo profiles used for blind validation — 615 depth observation points.</p>
+              <p className="text-xs text-[#94a9be] font-light">Independent in-situ Argo floats (1,809 profiles) used for validation — 24,185 depth observation points.</p>
             </div>
           </div>
         </div>
@@ -929,7 +929,7 @@ export const CinematicVideoDive: React.FC<CinematicVideoDiveProps> = ({
           </div>
 
           <div className="relative text-xs font-mono text-[#00dbe9] tracking-wide max-w-2xl border-l-2 border-[#00f0ff]/60 pl-4 py-1.5 bg-black/60 backdrop-blur-sm rounded-r">
-            65,967 parameters. Validated against 41 independent Argo floats (615 depth observation points): RMSE 0.75°C — +20.0% skill improvement over monthly climatology.
+            65,967 parameters. Validated against 81 independent Argo floats (1,809 profiles, 24,185 depth points): RMSE 1.00°C raw (0.90°C corrected vs GLORYS 0.95°C) — +41.4% raw skill (+52.6% corrected) over climatology.
           </div>
         </div>
 
@@ -952,7 +952,7 @@ export const CinematicVideoDive: React.FC<CinematicVideoDiveProps> = ({
           </h2>
 
           <p className="relative text-base sm:text-lg text-[#cbd5e1] font-light max-w-2xl leading-relaxed drop-shadow-[0_2px_20px_rgba(0,0,0,0.8)]">
-            Kyogre reconstructs full volumetric thermal strata across 15 standard depths from 0m down to 1000m. Thermocline depth, mixed layer depth, ocean heat content, and acoustic sound velocity profiles — previously requiring ship-deployed CTD sensors — become computable anywhere in the North Indian Ocean on demand.
+            Kyogre reconstructs full volumetric thermal strata across 15 standard depths from 0m down to 1000m. Thermocline depth, mixed layer depth, ocean heat content, and D20 isotherm depth — previously requiring ship-deployed CTD sensors — become computable anywhere in the North Indian Ocean on demand.
           </p>
 
           <div className="relative flex flex-wrap gap-8 pt-4 text-xs font-mono text-[#94a9be] border-t border-white/15 max-w-xl">

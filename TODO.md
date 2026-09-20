@@ -4,6 +4,16 @@
 > **MANDATORY PROTOCOL**: This file **MUST** be updated after **EVERY SINGLE TASK** without exception or user reminder.
 > Record status, files changed, and verification evidence for every item.
 
+- [/] **Task: Pre-Internal Review Polish & Fixes (Ajay's Review of b5c431c — 8 Items)** `[In Progress]`
+  - [ ] **Item 1: Deploy will crash on clean clone (critical)**: Upload 3 npz files + bundle + bands, update `fetch_data.py`, add idempotent startup unpack step with clear error reporting, test clean clone end-to-end with 512MB memory ceiling check.
+  - [ ] **Item 2: Argo page shows two different models**: Recompute per-depth and per-basin metrics from `evaluation_results_v6_satswap_anom_14yr_argo_full.csv`, show raw & corrected, enforce 30+ profile basin cutoff, delete `compute_skill_score.py` & old JSON & hardcoded fallbacks in `argo.js`.
+  - [ ] **Item 3: Skill baseline silent hardcoded fallback prevention**: Create offline `backend/compute_argo_summary.py` generating committed `argo_summary_14yr.json`, make API read from it directly.
+  - [ ] **Item 4: Skill-score headline methodology correction**: Raw model skill (41.4% monthly, 39.7% daily) becomes primary headline; 52.6% becomes secondary labeled "with the Argo-fitted depth correction"; baseline label exact string; main RMSE card shows 1.00°C primary and 0.90°C corrected.
+  - [ ] **Item 5: Finish flag split everywhere**: Add independent `corrected` and `smoothed` flags to `/predict` and `/temperature-grid`; default `smoothed=false` everywhere (including `/argo/compare`).
+  - [ ] **Item 6: Run Ajay's own handoff check**: Execute `oceanembed/handoff_check.py` (3 checks) from Ajay's zip and paste full output.
+  - [ ] **Item 7: Numbers sweep across codebase**: Update `CinematicVideoDive.tsx`, `ScientificPipeline.tsx`, `PITCH.md`, `README.md`, etc., eliminating stale 0.75°C / +20% / 41 floats / 615 points figures with exact reference numbers.
+  - [ ] **Item 8: Remove sound-velocity card & naval sonar use case**: Delete from `explore.html` (lines ~188-204) and `app.js` (~line 2455+).
+
 - [x] **Task: Recompute Climatology RMSE & Skill Score on 1809 Dataset + Fix Stale 41-Profile Labels** `[Completed 2026-09-20 21:40]`
   - [x] **Part 1: Dynamic computation of climatology baseline & skill score**:
     - Replaced the hardcoded 1.28°C baseline in `compute_argo_summary` (`backend/api_server.py`) with dynamic extraction from the 14-year model bundle's 5-harmonic expansion coefficients (`target_coef`).

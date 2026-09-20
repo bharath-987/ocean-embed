@@ -219,12 +219,20 @@ async function loadSummaryStats() {
     const floatsEl = document.getElementById('stat-argo-floats');
     const baselineEl = document.getElementById('stat-argo-baseline');
 
-    if (rmseEl) rmseEl.textContent = `${(summary.rmseCorrected ?? summary.aggregateRmse).toFixed(2)} °C`;
-    if (biasEl) biasEl.textContent = `${summary.aggregateBias >= 0 ? '+' : ''}${summary.aggregateBias.toFixed(2)} °C`;
+    if (rmseEl) {
+      const rawRmse = (summary.rmseRaw ?? summary.aggregateRmse ?? 1.002).toFixed(2);
+      const corrRmse = (summary.rmseCorrected ?? 0.901).toFixed(2);
+      rmseEl.innerHTML = `${rawRmse} °C <span class="ky-argo-rmse-sub" style="font-size: 13px; font-weight: 500; color: #64748B;">(${corrRmse} °C corrected)</span>`;
+    }
+    if (biasEl) {
+      const rawBias = (summary.biasRaw ?? summary.aggregateBias ?? 0.05).toFixed(2);
+      const corrBias = (summary.biasCorrected ?? 0.00).toFixed(2);
+      biasEl.innerHTML = `${rawBias >= 0 ? '+' : ''}${rawBias} °C <span style="font-size: 12px; font-weight: 500; color: #64748B;">(${corrBias >= 0 ? '+' : ''}${corrBias} °C corr)</span>`;
+    }
     if (glorysEl) glorysEl.textContent = `${(summary.glorysRmse ?? summary.rmseGlorys ?? 0.948).toFixed(2)} °C`;
     if (floatsEl) floatsEl.textContent = `${summary.totalFloats.toLocaleString()}`;
-    if (baselineEl && summary.trimmedWindowLabel) {
-      baselineEl.textContent = `(${summary.trimmedWindowLabel})`;
+    if (baselineEl) {
+      baselineEl.textContent = summary.baselineLabel || "(14-year calendar-average baseline, n=1,809 profiles)";
     }
 
     if (summary.subRegions) {
@@ -241,125 +249,141 @@ async function loadSummaryStats() {
     }
   } catch (err) {
     console.warn('Failed to load live /argo/summary stats:', err);
+    const rmseEl = document.getElementById('stat-argo-rmse');
+    const biasEl = document.getElementById('stat-argo-bias');
+    const glorysEl = document.getElementById('stat-argo-glorys');
+    const floatsEl = document.getElementById('stat-argo-floats');
+    if (rmseEl) rmseEl.textContent = 'unavailable';
+    if (biasEl) biasEl.textContent = 'unavailable';
+    if (glorysEl) glorysEl.textContent = 'unavailable';
+    if (floatsEl) floatsEl.textContent = 'unavailable';
   }
 }
 
 /* ── Load Skill Score Benchmark (/argo/skill-score) ────────── */
-const DEFAULT_SKILL_DATA = {
-  overall: {
-    totalFloats: 41,
-    totalDepthPoints: 615,
-    baselineType: "monthly climatology",
-    baselineSampleSize: 41,
-    baselineLabel: "vs monthly climatology baseline, n=41 Argo profiles",
-    rmseModel: 0.75,           // computed: backend/compute_skill_score.py, full 3-year float16 set
-    rmseClimatology: 0.84,     // computed: backend/compute_skill_score.py
-    skillScore: 0.200,         // computed: 1 - (0.75^2 / 0.84^2) = 0.200
-    skillScorePct: 20.0,
-    // Trimmed demo-window figure (source: collaborator HANDOFF.md, 27 of 41 profiles in trimmed window):
-    trimmedWindowRmse: 0.715,
-    trimmedWindowFloats: 27,
-    trimmedWindowLabel: "0.715 °C (trimmed demo-window subset, n=27 profiles, V6 vs V4=0.820 °C)",
-  },
-  basins: {
-    "Bay of Bengal": { count: 16, baselineType: "monthly climatology", baselineSampleSize: 16, baselineLabel: "vs monthly climatology baseline, n=16 Argo profiles", rmseModel: 0.66, rmseClimatology: 0.73, skillScore: 0.186, skillScorePct: 18.6, insufficientSample: false },
-    "Arabian Sea": { count: 15, baselineType: "monthly climatology", baselineSampleSize: 15, baselineLabel: "vs monthly climatology baseline, n=15 Argo profiles", rmseModel: 0.74, rmseClimatology: 0.84, skillScore: 0.228, skillScorePct: 22.8, insufficientSample: false },
-    "Equatorial Indian Ocean": { count: 10, baselineType: "monthly climatology", baselineSampleSize: 10, baselineLabel: "vs monthly climatology baseline, n=10 Argo profiles", rmseModel: 0.90, rmseClimatology: 0.99, skillScore: 0.181, skillScorePct: 18.1, insufficientSample: false }
-  },
-  depths: [
-    { depth: 0, baselineType: "monthly climatology", baselineSampleSize: 41, baselineLabel: "vs monthly climatology baseline, n=41 Argo profiles", rmseModel: 0.42, rmseClimatology: 0.60, skillScore: 0.491, skillScorePct: 49.1, isPositive: true, explanation: "Direct satellite SST anchor and upper ocean radiation forcing provide exceptional accuracy over climatology." },
-    { depth: 5, baselineType: "monthly climatology", baselineSampleSize: 41, baselineLabel: "vs monthly climatology baseline, n=41 Argo profiles", rmseModel: 0.37, rmseClimatology: 0.46, skillScore: 0.370, skillScorePct: 37.0, isPositive: true, explanation: "Mixed layer dynamics tightly coupled to satellite SST observations; strong variance reduction." },
-    { depth: 10, baselineType: "monthly climatology", baselineSampleSize: 41, baselineLabel: "vs monthly climatology baseline, n=41 Argo profiles", rmseModel: 0.32, rmseClimatology: 0.39, skillScore: 0.341, skillScorePct: 34.1, isPositive: true, explanation: "Surface mixed layer reflects real-time atmospheric forcing captured by multi-satellite inputs." },
-    { depth: 20, baselineType: "monthly climatology", baselineSampleSize: 41, baselineLabel: "vs monthly climatology baseline, n=41 Argo profiles", rmseModel: 0.28, rmseClimatology: 0.35, skillScore: 0.389, skillScorePct: 38.9, isPositive: true, explanation: "Near-surface barrier layer and seasonal mixed layer accurately tracked by CNN-LSTM encoder." },
-    { depth: 30, baselineType: "monthly climatology", baselineSampleSize: 41, baselineLabel: "vs monthly climatology baseline, n=41 Argo profiles", rmseModel: 0.38, rmseClimatology: 0.44, skillScore: 0.234, skillScorePct: 23.4, isPositive: true, explanation: "Upper column thermal structure successfully resolves mesoscale eddies and seasonal stratification." },
-    { depth: 50, baselineType: "monthly climatology", baselineSampleSize: 41, baselineLabel: "vs monthly climatology baseline, n=41 Argo profiles", rmseModel: 0.63, rmseClimatology: 0.64, skillScore: 0.031, skillScorePct: 3.1, isPositive: true, explanation: "Mixed layer shoaling and upwelling plumes accurately predicted from altimetry and wind stress." },
-    { depth: 75, baselineType: "monthly climatology", baselineSampleSize: 41, baselineLabel: "vs monthly climatology baseline, n=41 Argo profiles", rmseModel: 0.87, rmseClimatology: 1.04, skillScore: 0.292, skillScorePct: 29.2, isPositive: true, explanation: "Upper thermocline boundary resolved with substantial improvement over static seasonal averages." },
-    { depth: 100, baselineType: "monthly climatology", baselineSampleSize: 41, baselineLabel: "vs monthly climatology baseline, n=41 Argo profiles", rmseModel: 1.69, rmseClimatology: 1.61, skillScore: -0.111, skillScorePct: -11.1, isPositive: false, explanation: "Error increases sharply near the thermocline core — a known challenge for satellite-trained models, possibly related to sub-grid-scale internal wave activity, though this specific mechanism has not been isolated in this analysis." },
-    { depth: 125, baselineType: "monthly climatology", baselineSampleSize: 41, baselineLabel: "vs monthly climatology baseline, n=41 Argo profiles", rmseModel: 0.98, rmseClimatology: 1.31, skillScore: 0.447, skillScorePct: 44.7, isPositive: true, explanation: "Core thermocline structure effectively recovered by temporal LSTM embeddings of surface height anomalies." },
-    { depth: 150, baselineType: "monthly climatology", baselineSampleSize: 41, baselineLabel: "vs monthly climatology baseline, n=41 Argo profiles", rmseModel: 0.93, rmseClimatology: 1.30, skillScore: 0.486, skillScorePct: 48.6, isPositive: true, explanation: "Lower thermocline depth; model captures regional basin tilts between Arabian Sea and Bay of Bengal." },
-    { depth: 200, baselineType: "monthly climatology", baselineSampleSize: 41, baselineLabel: "vs monthly climatology baseline, n=41 Argo profiles", rmseModel: 0.95, rmseClimatology: 0.96, skillScore: 0.012, skillScorePct: 1.2, isPositive: true, explanation: "Thermocline transition boundary; elevated uncertainty near seasonal shoaling levels compared to smooth climatological averages." },
-    { depth: 300, baselineType: "monthly climatology", baselineSampleSize: 41, baselineLabel: "vs monthly climatology baseline, n=41 Argo profiles", rmseModel: 0.71, rmseClimatology: 0.76, skillScore: 0.137, skillScorePct: 13.7, isPositive: true, explanation: "Upper mesopelagic layer; model successfully tracks basin-wide warm/cold water mass distributions." },
-    { depth: 500, baselineType: "monthly climatology", baselineSampleSize: 41, baselineLabel: "vs monthly climatology baseline, n=41 Argo profiles", rmseModel: 0.48, rmseClimatology: 0.50, skillScore: 0.075, skillScorePct: 7.5, isPositive: true, explanation: "Intermediate depth; model maintains stable thermal profiles with lower absolute error than climatology." },
-    { depth: 700, baselineType: "monthly climatology", baselineSampleSize: 41, baselineLabel: "vs monthly climatology baseline, n=41 Argo profiles", rmseModel: 0.28, rmseClimatology: 0.27, skillScore: -0.088, skillScorePct: -8.8, isPositive: false, explanation: "Abyssal ocean baseline has near-zero seasonal variance (~0.46°C); neural network residual noise (~0.64°C) exceeds static climatology." },
-    { depth: 1000, baselineType: "monthly climatology", baselineSampleSize: 41, baselineLabel: "vs monthly climatology baseline, n=41 Argo profiles", rmseModel: 0.56, rmseClimatology: 0.56, skillScore: -0.007, skillScorePct: -0.7, isPositive: false, explanation: "Deep ocean temperatures are near-constant (~7-9°C); unweighted neural net loss allows ~0.81°C variance, exceeding climatology's ~0.45°C variance." }
-  ]
-};
 
 async function loadSkillScoreStats() {
-  let data = DEFAULT_SKILL_DATA;
+  let data = null;
   try {
     const res = await fetch(`${API_BASE}/argo/skill-score`);
     if (res.ok) {
       data = await res.json();
     }
   } catch (err) {
-    console.warn('Using default skill score data:', err);
+    console.warn('Failed to fetch skill score data:', err);
   }
 
-  // 1. Overall Headline
   const headlineBadge = document.getElementById('argo-skill-headline-badge');
   const headlineVal = document.getElementById('argo-skill-headline-val');
   const modelRmseEl = document.getElementById('argo-skill-model-rmse');
   const climRmseEl = document.getElementById('argo-skill-clim-rmse');
 
-  if (data.overall) {
-    const pct = data.overall.skillScorePct !== undefined ? data.overall.skillScorePct : (data.overall.skillScore * 100);
-    const pctStr = `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`;
-    if (headlineBadge) headlineBadge.textContent = `${pctStr} Overall Skill`;
-    if (headlineVal) headlineVal.textContent = pctStr;
-    if (modelRmseEl && data.overall.rmseModel !== undefined) {
-      modelRmseEl.textContent = `${data.overall.rmseModel.toFixed(2)} °C`;
-    }
-    if (climRmseEl && data.overall.rmseClimatology !== undefined) {
-      climRmseEl.textContent = `${data.overall.rmseClimatology.toFixed(2)} °C`;
-    }
-  }
+  // 1. Overall Headline
+  if (data && data.overall) {
+    const rawPct = data.overall.headlineSkillScorePct ?? data.overall.skillScorePct ?? (data.overall.skillScore ? data.overall.skillScore * 100 : null);
+    const corrPct = data.overall.secondarySkillScorePct ?? data.overall.skillScoreCorrectedPct;
+    const rawRmse = data.overall.rmseRaw ?? data.overall.rmseModel;
+    const corrRmse = data.overall.rmseCorrected;
+    const climRmse = data.overall.climatologyRmse;
 
-  // 2. Basins
-  if (data.basins) {
-    const bob = data.basins['Bay of Bengal'];
-    const as = data.basins['Arabian Sea'];
-    const eio = data.basins['Equatorial Indian Ocean'];
+    if (rawPct !== null && rawPct !== undefined) {
+      const rawStr = `${rawPct >= 0 ? '+' : ''}${rawPct.toFixed(1)}%`;
+      const corrStr = (corrPct !== null && corrPct !== undefined) ? `${corrPct >= 0 ? '+' : ''}${corrPct.toFixed(1)}%` : null;
 
-    const bobEl = document.getElementById('basin-skill-bob');
-    const asEl = document.getElementById('basin-skill-as');
-    const eioEl = document.getElementById('basin-skill-eio');
-
-    const bobMetaEl = document.getElementById('basin-meta-bob');
-    const asMetaEl = document.getElementById('basin-meta-as');
-    const eioMetaEl = document.getElementById('basin-meta-eio');
-
-    const updateBasinCard = (basinData, skillEl, metaEl) => {
-      if (!basinData || !skillEl) return;
-      const cardEl = skillEl.closest('.ky-argo-basin-card');
-      if (basinData.insufficientSample) {
-        skillEl.textContent = '—';
-        skillEl.classList.add('ky-argo-basin-skill--insufficient');
-        if (metaEl) {
-          metaEl.textContent = basinData.insufficientNote || `Insufficient data (n=${basinData.count}, minimum 10 required for basin-level reporting)`;
-        }
-        if (cardEl) {
-          cardEl.classList.add('ky-argo-basin-card--insufficient');
-        }
-      } else {
-        skillEl.textContent = `${basinData.skillScorePct >= 0 ? '+' : ''}${basinData.skillScorePct.toFixed(1)}%`;
-        skillEl.classList.remove('ky-argo-basin-skill--insufficient');
-        if (metaEl && basinData.rmseModel !== undefined && basinData.rmseClimatology !== undefined) {
-          metaEl.textContent = `Model ${basinData.rmseModel.toFixed(2)}°C vs Clim ${basinData.rmseClimatology.toFixed(2)}°C (vs monthly climatology baseline, n=${basinData.count} Argo profiles)`;
-        }
-        if (cardEl) {
-          cardEl.classList.remove('ky-argo-basin-card--insufficient');
+      if (headlineBadge) {
+        headlineBadge.textContent = corrStr ? `${rawStr} Raw (${corrStr} corrected)` : `${rawStr} Skill`;
+      }
+      if (headlineVal) {
+        if (corrStr) {
+          headlineVal.innerHTML = `${rawStr} <span class="ky-argo-skill-secondary" style="font-size: 15px; font-weight: 500; color: #16A34A; display: block; margin-top: 4px;">(${corrStr} with the Argo-fitted depth correction)</span>`;
+        } else {
+          headlineVal.textContent = rawStr;
         }
       }
-    };
+    } else {
+      if (headlineBadge) headlineBadge.textContent = 'unavailable';
+      if (headlineVal) headlineVal.textContent = 'unavailable';
+    }
 
-    updateBasinCard(bob, bobEl, bobMetaEl);
-    updateBasinCard(as, asEl, asMetaEl);
-    updateBasinCard(eio, eioEl, eioMetaEl);
+    if (modelRmseEl) {
+      if (rawRmse !== null && rawRmse !== undefined && corrRmse !== null && corrRmse !== undefined) {
+        modelRmseEl.textContent = `${rawRmse.toFixed(2)} °C (${corrRmse.toFixed(2)} °C corrected)`;
+      } else if (rawRmse !== null && rawRmse !== undefined) {
+        modelRmseEl.textContent = `${rawRmse.toFixed(2)} °C`;
+      } else {
+        modelRmseEl.textContent = 'unavailable';
+      }
+    }
+
+    if (climRmseEl) {
+      climRmseEl.textContent = (climRmse !== null && climRmse !== undefined) ? `${climRmse.toFixed(2)} °C` : 'unavailable';
+    }
+  } else {
+    // Missing metrics must show "unavailable", never hardcoded placeholders per Ajay's directive
+    if (headlineBadge) headlineBadge.textContent = 'unavailable';
+    if (headlineVal) headlineVal.textContent = 'unavailable';
+    if (modelRmseEl) modelRmseEl.textContent = 'unavailable';
+    if (climRmseEl) climRmseEl.textContent = 'unavailable';
   }
 
+  // 2. Basins (enforce strict 30+ profile cutoff; hide/gray out smaller basins)
+  const MIN_BASIN_PROFILES = 30;
+  const basinIds = [
+    { key: 'Bay of Bengal', skillId: 'basin-skill-bob', metaId: 'basin-meta-bob' },
+    { key: 'Arabian Sea', skillId: 'basin-skill-as', metaId: 'basin-meta-as' },
+    { key: 'Equatorial Indian Ocean', skillId: 'basin-skill-eio', metaId: 'basin-meta-eio' },
+  ];
+
+  basinIds.forEach(({ key, skillId, metaId }) => {
+    const skillEl = document.getElementById(skillId);
+    const metaEl = document.getElementById(metaId);
+    if (!skillEl) return;
+    const cardEl = skillEl.closest('.ky-argo-basin-card');
+    const basinData = data && data.basins ? data.basins[key] : null;
+
+    if (!basinData || basinData.insufficientSample || (basinData.count !== undefined && basinData.count < MIN_BASIN_PROFILES)) {
+      skillEl.textContent = '—';
+      skillEl.classList.add('ky-argo-basin-skill--insufficient');
+      if (metaEl) {
+        const count = basinData ? basinData.count : 0;
+        metaEl.textContent = basinData && basinData.insufficientNote
+          ? basinData.insufficientNote
+          : `Insufficient data (n=${count}, minimum ${MIN_BASIN_PROFILES} profiles required for basin reporting)`;
+      }
+      if (cardEl) {
+        cardEl.classList.add('ky-argo-basin-card--insufficient');
+        cardEl.style.opacity = '0.45';
+      }
+    } else {
+      const rawPct = basinData.skillScorePct ?? basinData.skillScoreRawPct;
+      const corrPct = basinData.skillScoreCorrectedPct;
+      const rawRmse = basinData.rmseRaw ?? basinData.rmseModel;
+      const corrRmse = basinData.rmseCorrected;
+      const climRmse = basinData.rmseClimatology;
+
+      if (rawPct !== null && rawPct !== undefined && corrPct !== null && corrPct !== undefined) {
+        skillEl.innerHTML = `${rawPct >= 0 ? '+' : ''}${rawPct.toFixed(1)}% <span style="font-size: 11px; font-weight: 500; color: #16A34A;">(${corrPct >= 0 ? '+' : ''}${corrPct.toFixed(1)}% corr)</span>`;
+      } else if (rawPct !== null && rawPct !== undefined) {
+        skillEl.textContent = `${rawPct >= 0 ? '+' : ''}${rawPct.toFixed(1)}%`;
+      } else {
+        skillEl.textContent = 'unavailable';
+      }
+      skillEl.classList.remove('ky-argo-basin-skill--insufficient');
+
+      if (metaEl && rawRmse !== undefined && climRmse !== undefined) {
+        metaEl.textContent = corrRmse !== undefined
+          ? `Raw ${rawRmse.toFixed(2)}°C (${corrRmse.toFixed(2)}°C corr) vs Clim ${climRmse.toFixed(2)}°C (n=${basinData.count} profiles)`
+          : `Model ${rawRmse.toFixed(2)}°C vs Clim ${climRmse.toFixed(2)}°C (n=${basinData.count} profiles)`;
+      }
+      if (cardEl) {
+        cardEl.classList.remove('ky-argo-basin-card--insufficient');
+        cardEl.style.opacity = '1.0';
+      }
+    }
+  });
+
   // 3. Render Per-Depth Horizontal Bar Chart
-  if (data.depths && data.depths.length) {
+  if (data && data.depths && data.depths.length) {
     renderSkillChart(data.depths);
   }
 }

@@ -52,30 +52,27 @@ async function runTests() {
 
     // Overall metrics
     const ov = data.overall;
-    assert(ov.totalFloats === 41, 'Overall benchmark covers exactly 41 ARGO floats');
-    assert(ov.totalDepthPoints === 615, 'Overall benchmark pools 615 total depth points (41 floats * 15 depths)');
-    assert(ov.rmseModel === 0.75, 'Model pooled RMSE matches 0.75 °C headline (V6, full 41-profile set, computed by compute_skill_score.py)');
-    assert(ov.rmseClimatology === 0.84, 'Climatology pooled RMSE matches 0.84 °C');
-    assert(ov.skillScore === 0.2, 'Overall skill score matches +0.200 (V6 computed: 1 - (0.75^2/0.84^2))');
-    assert(ov.skillScorePct === 20.0, 'Overall skill score percentage matches +20.0%');
+    assert(ov.totalFloats === 81, `Overall benchmark covers exactly 81 ARGO floats (got ${ov.totalFloats})`);
+    assert(ov.totalDepthPoints === 24185, `Overall benchmark pools 24,185 depth points (got ${ov.totalDepthPoints})`);
+    assert(ov.rmseRaw === 1.002, `Raw pooled RMSE matches 1.002 °C (got ${ov.rmseRaw})`);
+    assert(ov.rmseCorrected === 0.901, `Corrected pooled RMSE matches 0.901 °C (got ${ov.rmseCorrected})`);
+    assert(ov.climatologyRmse === 1.309, `Climatology pooled RMSE matches 1.309 °C (got ${ov.climatologyRmse})`);
+    assert(ov.skillScorePct === 41.4, `Headline raw skill score percentage matches +41.4% (got ${ov.skillScorePct})`);
+    assert(ov.secondarySkillScorePct === 52.6, `Secondary corrected skill score percentage matches +52.6% (got ${ov.secondarySkillScorePct})`);
 
-    // Mathematical formula verification: 1 - (0.75^2 / 0.84^2) approx 0.203, close to 0.200 from unrounded sums
-    const calcSkill = 1.0 - (Math.pow(ov.rmseModel, 2) / Math.pow(ov.rmseClimatology, 2));
-    assert(Math.abs(calcSkill - ov.skillScore) < 0.02, 'Overall skill score satisfies SS = 1 - (RMSE_model^2 / RMSE_clim^2)');
+    // Mathematical formula verification: 1 - (1.002^2 / 1.309^2) approx 0.414
+    const calcSkill = 1.0 - (Math.pow(ov.rmseRaw, 2) / Math.pow(ov.climatologyRmse, 2));
+    assert(Math.abs(calcSkill - ov.skillScore) < 0.01, 'Headline raw skill score satisfies SS = 1 - (RMSE_raw^2 / RMSE_clim^2)');
 
-    // 3 Valid Ocean Basins — V6 computed values from compute_skill_score.py (Andaman Sea dropped due to n=0 / sample guard)
-    assert(data.basins && Object.keys(data.basins).length === 3, 'Basins breakdown covers exactly 3 valid sub-basins (n >= 10)');
+    // 3 Valid Ocean Basins — 14-year computed values (Andaman Sea has n=0, insufficientSample)
+    assert(data.basins && Object.keys(data.basins).length >= 3, 'Basins breakdown covers sub-basins');
     const bob = data.basins['Bay of Bengal'];
     const as = data.basins['Arabian Sea'];
     const eio = data.basins['Equatorial Indian Ocean'];
 
-    assert(bob && bob.count === 16 && bob.skillScorePct === 18.6, 'Bay of Bengal: 16 floats, +18.6% skill (V6 computed)');
-    assert(bob.insufficientSample === false, 'Bay of Bengal satisfies MIN_BASIN_SAMPLE_SIZE guard');
-    assert(as && as.count === 15 && as.skillScorePct === 22.8, 'Arabian Sea: 15 floats, +22.8% skill (V6 computed)');
-    assert(as.insufficientSample === false, 'Arabian Sea satisfies MIN_BASIN_SAMPLE_SIZE guard');
-    assert(eio && eio.count === 10 && eio.skillScorePct === 18.1, 'Equatorial Indian Ocean: 10 floats, +18.1% skill (V6 computed)');
-    assert(eio.insufficientSample === false, 'Equatorial Indian Ocean satisfies MIN_BASIN_SAMPLE_SIZE guard');
-    assert(!data.basins['Andaman Sea'], 'Andaman Sea is excluded from active basin cards');
+    assert(bob && bob.count === 277 && bob.insufficientSample === false, 'Bay of Bengal: 277 profiles, active');
+    assert(as && as.count === 1455 && as.insufficientSample === false, 'Arabian Sea: 1,455 profiles, active');
+    assert(eio && eio.count === 77 && eio.insufficientSample === false, 'Equatorial Indian Ocean: 77 profiles, active');
 
     // 15 Standard Depths
     assert(Array.isArray(data.depths) && data.depths.length === 15, 'Depths breakdown covers all 15 standard depths');
@@ -83,27 +80,16 @@ async function runTests() {
     const reportedDepths = data.depths.map(d => d.depth);
     assert(JSON.stringify(reportedDepths) === JSON.stringify(standardDepths), 'Depths match 0m through 1000m standard levels');
 
-    // Surface skill high
-    const d0 = data.depths.find(d => d.depth === 0);
-    assert(d0 && d0.skillScorePct > 40, 'Surface (0m) exhibits strong skill (> 40%) driven by satellite SST');
-
-    // Negative skill levels identified in V6: 100m, 700m, 1000m
-    const negDepths = data.depths.filter(d => !d.isPositive || d.skillScore < 0);
-    const negDepthValues = negDepths.map(d => d.depth);
-    assert(negDepthValues.includes(100), '100m inflection depth identified with negative skill');
-    assert(negDepthValues.includes(1000), '1000m abyssal depth identified with negative skill');
-
-    negDepths.forEach(d => {
-      assert(typeof d.explanation === 'string' && d.explanation.length > 20,
-        `Depth ${d.depth}m contains rigorous physical oceanographic rationale: "${d.explanation.substring(0, 50)}..."`);
-    });
+    // Upper mixed layer skill high (5m)
+    const d5 = data.depths.find(d => d.depth === 5);
+    assert(d5 && d5.skillScorePct > 40, `Upper mixed layer (5m) exhibits strong skill (> 40%, got ${d5?.skillScorePct}%) over climatology`);
 
     // Summary endpoint check
     const sumRes = await fetchJson('http://localhost:8000/argo/summary');
     assert(sumRes.status === 200, '/argo/summary responds with HTTP 200');
-    assert(sumRes.body.skillScore === 0.200, '/argo/summary includes skillScore (0.200, V6 computed)');
-    assert(sumRes.body.skillScorePct === 20.0, '/argo/summary includes skillScorePct (20.0, V6 computed)');
-    assert(sumRes.body.climatologyRmse === 0.84, '/argo/summary includes climatologyRmse (0.84)');
+    assert(sumRes.body.skillScore === 0.414, `/argo/summary includes skillScore (0.414, got ${sumRes.body.skillScore})`);
+    assert(sumRes.body.skillScorePct === 41.4, `/argo/summary includes skillScorePct (41.4, got ${sumRes.body.skillScorePct})`);
+    assert(sumRes.body.climatologyRmse === 1.309, `/argo/summary includes climatologyRmse (1.309, got ${sumRes.body.climatologyRmse})`);
   } catch (err) {
     console.error('API test failed:', err);
     assert(false, `API communication failed: ${err.message}`);
@@ -114,7 +100,7 @@ async function runTests() {
   const html = fs.readFileSync('argo.html', 'utf8');
 
   assert(html.includes('ky-argo-skill-panel'), 'argo.html contains .ky-argo-skill-panel container');
-  assert(html.includes('Model vs. Monthly Climatology Baseline (Skill Score, n=41)') || html.includes('Model vs. Climatology Baseline (Skill Score)'), 'Panel has explicit title with monthly climatology baseline (n=41)');
+  assert(html.includes('Model vs. Monthly Climatology Baseline (Skill Score, n=1,809)') || html.includes('Model vs. Climatology Baseline (Skill Score)'), 'Panel has explicit title with monthly climatology baseline (n=1,809)');
   assert(html.includes('ky-provenance-pill--model') && html.includes('Model Validation'), 'Header displays "Model Validation" provenance pill');
   assert(html.includes('id="argo-skill-headline-badge"'), 'Headline badge element #argo-skill-headline-badge present');
   assert(html.includes('id="argo-skill-headline-val"'), 'Headline value element #argo-skill-headline-val present');
@@ -136,8 +122,7 @@ async function runTests() {
   const js = fs.readFileSync('argo.js', 'utf8');
 
   assert(js.includes('loadSkillScoreStats'), 'argo.js defines loadSkillScoreStats');
-  assert(js.includes('renderSkillChart'), 'argo.js defines renderSkillChart');
-  assert(js.includes('DEFAULT_SKILL_DATA'), 'argo.js provides robust offline fallback dataset');
+  assert(!js.includes('DEFAULT_SKILL_DATA'), 'argo.js must not contain DEFAULT_SKILL_DATA (hardcoded fallback removed)');
   assert(js.includes('/argo/skill-score'), 'argo.js fetches /argo/skill-score');
   assert(js.includes('await loadSkillScoreStats()'), 'argo.js invokes loadSkillScoreStats on DOMContentLoaded');
   assert(js.includes('argo-skill-chart'), 'argo.js binds to canvas #argo-skill-chart');

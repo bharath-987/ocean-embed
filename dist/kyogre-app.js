@@ -662,8 +662,8 @@ var KyogreApp = (() => {
         style: { opacity: 0, pointerEvents: "none" }
       },
       /* @__PURE__ */ import_react2.default.createElement("div", { className: "absolute inset-[-40px] pointer-events-none bg-[radial-gradient(ellipse_at_center,rgba(2,6,13,0.72)_0%,rgba(2,6,13,0.40)_55%,transparent_80%)]" }),
-      /* @__PURE__ */ import_react2.default.createElement("div", { className: "space-y-4" }, /* @__PURE__ */ import_react2.default.createElement("div", { className: "relative font-mono text-xs tracking-widest text-[#00f0ff] flex items-center gap-2" }, /* @__PURE__ */ import_react2.default.createElement("span", { className: "w-1.5 h-1.5 rounded-full bg-[#00f0ff]" }), /* @__PURE__ */ import_react2.default.createElement("span", null, "100 METERS // THERMOCLINE BOUNDARY")), /* @__PURE__ */ import_react2.default.createElement("h2", { className: "relative text-3xl sm:text-5xl md:text-6xl font-['Space_Grotesk'] font-medium tracking-tight text-[#dbfcff] leading-tight drop-shadow-[0_2px_20px_rgba(0,0,0,0.9)]" }, "ARGO FLOATS PROFILE IT DIRECTLY.", /* @__PURE__ */ import_react2.default.createElement("br", null), /* @__PURE__ */ import_react2.default.createElement("span", { className: "text-[#94a9be] font-light" }, "THERE AREN'T NEARLY ENOUGH.")), /* @__PURE__ */ import_react2.default.createElement("p", { className: "relative text-base sm:text-lg text-[#cbd5e1] font-light max-w-2xl leading-relaxed drop-shadow-[0_2px_10px_rgba(0,0,0,0.9)]" }, "The global Argo array is the finest in-situ profiling network ever deployed \u2014 but each float covers ~300km of open ocean and resurfaces only once every 10 days. During that window a monsoon eddy can form, intensify, and shed subsurface heat entirely unobserved. Kyogre was built to fill exactly this gap \u2014 and validated against every one of the 41 independent Argo floats operating across the North Indian Ocean.")),
-      /* @__PURE__ */ import_react2.default.createElement("div", { className: "relative grid grid-cols-1 sm:grid-cols-3 gap-8 pt-4 border-t border-white/15 max-w-3xl" }, /* @__PURE__ */ import_react2.default.createElement("div", { className: "space-y-1" }, /* @__PURE__ */ import_react2.default.createElement("div", { className: "text-3xl sm:text-4xl font-['Space_Grotesk'] font-light text-[#dbfcff] font-mono" }, "~300 km"), /* @__PURE__ */ import_react2.default.createElement("div", { className: "text-xs font-mono text-[#00f0ff] tracking-wider uppercase" }, "Average Float Spacing"), /* @__PURE__ */ import_react2.default.createElement("p", { className: "text-xs text-[#94a9be] font-light" }, "Lateral distance between profiling floats across the Indian Ocean.")), /* @__PURE__ */ import_react2.default.createElement("div", { className: "space-y-1" }, /* @__PURE__ */ import_react2.default.createElement("div", { className: "text-3xl sm:text-4xl font-['Space_Grotesk'] font-light text-[#dbfcff] font-mono" }, "10 Days"), /* @__PURE__ */ import_react2.default.createElement("div", { className: "text-xs font-mono text-[#00f0ff] tracking-wider uppercase" }, "Resurface Cycle"), /* @__PURE__ */ import_react2.default.createElement("p", { className: "text-xs text-[#94a9be] font-light" }, "Descent to 1000m parking depth and ascent \u2014 missing cyclones and eddies in between.")), /* @__PURE__ */ import_react2.default.createElement("div", { className: "space-y-1" }, /* @__PURE__ */ import_react2.default.createElement("div", { className: "text-3xl sm:text-4xl font-['Space_Grotesk'] font-light text-[#dbfcff] font-mono" }, "41"), /* @__PURE__ */ import_react2.default.createElement("div", { className: "text-xs font-mono text-[#00f0ff] tracking-wider uppercase" }, "Floats Validated Against"), /* @__PURE__ */ import_react2.default.createElement("p", { className: "text-xs text-[#94a9be] font-light" }, "Independent in-situ Argo profiles used for blind validation \u2014 615 depth observation points.")))
+      /* @__PURE__ */ import_react2.default.createElement("div", { className: "space-y-4" }, /* @__PURE__ */ import_react2.default.createElement("div", { className: "relative font-mono text-xs tracking-widest text-[#00f0ff] flex items-center gap-2" }, /* @__PURE__ */ import_react2.default.createElement("span", { className: "w-1.5 h-1.5 rounded-full bg-[#00f0ff]" }), /* @__PURE__ */ import_react2.default.createElement("span", null, "100 METERS // THERMOCLINE BOUNDARY")), /* @__PURE__ */ import_react2.default.createElement("h2", { className: "relative text-3xl sm:text-5xl md:text-6xl font-['Space_Grotesk'] font-medium tracking-tight text-[#dbfcff] leading-tight drop-shadow-[0_2px_20px_rgba(0,0,0,0.9)]" }, "ARGO FLOATS PROFILE IT DIRECTLY.", /* @__PURE__ */ import_react2.default.createElement("br", null), /* @__PURE__ */ import_react2.default.createElement("span", { className: "text-[#94a9be] font-light" }, "THERE AREN'T NEARLY ENOUGH.")), /* @__PURE__ */ import_react2.default.createElement("p", { className: "relative text-base sm:text-lg text-[#cbd5e1] font-light max-w-2xl leading-relaxed drop-shadow-[0_2px_10px_rgba(0,0,0,0.9)]" }, "The global Argo array is the finest in-situ profiling network ever deployed \u2014 but each float covers ~300km of open ocean and resurfaces only once every 10 days. During that window a monsoon eddy can form, intensify, and shed subsurface heat entirely unobserved. Kyogre was built to fill exactly this gap \u2014 and validated against 81 independent Argo floats (1,809 profiles) operating across the North Indian Ocean.")),
+      /* @__PURE__ */ import_react2.default.createElement("div", { className: "relative grid grid-cols-1 sm:grid-cols-3 gap-8 pt-4 border-t border-white/15 max-w-3xl" }, /* @__PURE__ */ import_react2.default.createElement("div", { className: "space-y-1" }, /* @__PURE__ */ import_react2.default.createElement("div", { className: "text-3xl sm:text-4xl font-['Space_Grotesk'] font-light text-[#dbfcff] font-mono" }, "~300 km"), /* @__PURE__ */ import_react2.default.createElement("div", { className: "text-xs font-mono text-[#00f0ff] tracking-wider uppercase" }, "Average Float Spacing"), /* @__PURE__ */ import_react2.default.createElement("p", { className: "text-xs text-[#94a9be] font-light" }, "Lateral distance between profiling floats across the Indian Ocean.")), /* @__PURE__ */ import_react2.default.createElement("div", { className: "space-y-1" }, /* @__PURE__ */ import_react2.default.createElement("div", { className: "text-3xl sm:text-4xl font-['Space_Grotesk'] font-light text-[#dbfcff] font-mono" }, "10 Days"), /* @__PURE__ */ import_react2.default.createElement("div", { className: "text-xs font-mono text-[#00f0ff] tracking-wider uppercase" }, "Resurface Cycle"), /* @__PURE__ */ import_react2.default.createElement("p", { className: "text-xs text-[#94a9be] font-light" }, "Descent to 1000m parking depth and ascent \u2014 missing cyclones and eddies in between.")), /* @__PURE__ */ import_react2.default.createElement("div", { className: "space-y-1" }, /* @__PURE__ */ import_react2.default.createElement("div", { className: "text-3xl sm:text-4xl font-['Space_Grotesk'] font-light text-[#dbfcff] font-mono" }, "81"), /* @__PURE__ */ import_react2.default.createElement("div", { className: "text-xs font-mono text-[#00f0ff] tracking-wider uppercase" }, "Floats Validated Against"), /* @__PURE__ */ import_react2.default.createElement("p", { className: "text-xs text-[#94a9be] font-light" }, "Independent in-situ Argo floats (1,809 profiles) used for validation \u2014 24,185 depth observation points.")))
     ), /* @__PURE__ */ import_react2.default.createElement(
       "div",
       {
@@ -706,7 +706,7 @@ var KyogreApp = (() => {
         /* @__PURE__ */ import_react2.default.createElement("span", { className: "text-[#00dbe9] font-bold mr-2" }, inp.symbol),
         /* @__PURE__ */ import_react2.default.createElement("span", null, inp.name)
       )))),
-      /* @__PURE__ */ import_react2.default.createElement("div", { className: "relative text-xs font-mono text-[#00dbe9] tracking-wide max-w-2xl border-l-2 border-[#00f0ff]/60 pl-4 py-1.5 bg-black/60 backdrop-blur-sm rounded-r" }, "65,967 parameters. Validated against 41 independent Argo floats (615 depth observation points): RMSE 0.75\xB0C \u2014 +20.0% skill improvement over monthly climatology.")
+      /* @__PURE__ */ import_react2.default.createElement("div", { className: "relative text-xs font-mono text-[#00dbe9] tracking-wide max-w-2xl border-l-2 border-[#00f0ff]/60 pl-4 py-1.5 bg-black/60 backdrop-blur-sm rounded-r" }, "65,967 parameters. Validated against 81 independent Argo floats (1,809 profiles, 24,185 depth points): RMSE 1.00\xB0C raw (0.90\xB0C corrected vs GLORYS 0.95\xB0C) \u2014 +41.4% raw skill (+52.6% corrected) over climatology.")
     ), /* @__PURE__ */ import_react2.default.createElement(
       "div",
       {
@@ -717,7 +717,7 @@ var KyogreApp = (() => {
       /* @__PURE__ */ import_react2.default.createElement("div", { className: "absolute inset-[-40px] pointer-events-none bg-[radial-gradient(ellipse_at_center,rgba(2,6,13,0.72)_0%,rgba(2,6,13,0.40)_55%,transparent_80%)]" }),
       /* @__PURE__ */ import_react2.default.createElement("div", { className: "relative font-mono text-xs tracking-widest text-[#00f0ff] flex items-center gap-2" }, /* @__PURE__ */ import_react2.default.createElement("span", { className: "w-1.5 h-1.5 rounded-full bg-[#00f0ff] animate-ping" }), /* @__PURE__ */ import_react2.default.createElement("span", null, "1000 METERS // BATHYPELAGIC REALM")),
       /* @__PURE__ */ import_react2.default.createElement("h2", { className: "relative text-3xl sm:text-5xl md:text-6xl font-['Space_Grotesk'] font-bold tracking-tight text-[#dbfcff] leading-tight drop-shadow-[0_0_40px_rgba(0,240,255,0.4)]" }, "FROM SURFACE SIGNALS", /* @__PURE__ */ import_react2.default.createElement("br", null), /* @__PURE__ */ import_react2.default.createElement("span", { className: "text-[#00dbe9] font-light" }, "TO SUBSURFACE INTELLIGENCE.")),
-      /* @__PURE__ */ import_react2.default.createElement("p", { className: "relative text-base sm:text-lg text-[#cbd5e1] font-light max-w-2xl leading-relaxed drop-shadow-[0_2px_20px_rgba(0,0,0,0.8)]" }, "Kyogre reconstructs full volumetric thermal strata across 15 standard depths from 0m down to 1000m. Thermocline depth, mixed layer depth, ocean heat content, and acoustic sound velocity profiles \u2014 previously requiring ship-deployed CTD sensors \u2014 become computable anywhere in the North Indian Ocean on demand."),
+      /* @__PURE__ */ import_react2.default.createElement("p", { className: "relative text-base sm:text-lg text-[#cbd5e1] font-light max-w-2xl leading-relaxed drop-shadow-[0_2px_20px_rgba(0,0,0,0.8)]" }, "Kyogre reconstructs full volumetric thermal strata across 15 standard depths from 0m down to 1000m. Thermocline depth, mixed layer depth, ocean heat content, and D20 isotherm depth \u2014 previously requiring ship-deployed CTD sensors \u2014 become computable anywhere in the North Indian Ocean on demand."),
       /* @__PURE__ */ import_react2.default.createElement("div", { className: "relative flex flex-wrap gap-8 pt-4 text-xs font-mono text-[#94a9be] border-t border-white/15 max-w-xl" }, /* @__PURE__ */ import_react2.default.createElement("div", null, /* @__PURE__ */ import_react2.default.createElement("span", { className: "text-[#dbfcff] font-bold" }, "GRID RESOLUTION:"), " 0.25\xB0 \xD7 0.25\xB0"), /* @__PURE__ */ import_react2.default.createElement("div", null, /* @__PURE__ */ import_react2.default.createElement("span", { className: "text-[#dbfcff] font-bold" }, "VERTICAL LEVELS:"), " 15 Standard Depths"), /* @__PURE__ */ import_react2.default.createElement("div", null, /* @__PURE__ */ import_react2.default.createElement("span", { className: "text-[#dbfcff] font-bold" }, "INFERENCE:"), " < 1.5ms (cached)"))
     )), /* @__PURE__ */ import_react2.default.createElement("div", { className: "sr-only hidden", "aria-hidden": "true" }, /* @__PURE__ */ import_react2.default.createElement("span", null, "WE CAN SEE THE SURFACE. BUT NOT EVERYTHING BENEATH IT."), /* @__PURE__ */ import_react2.default.createElement("span", null, "THE OCEAN IS VOLUMETRIC. OUR OBSERVATIONS ARE NOT."), /* @__PURE__ */ import_react2.default.createElement("span", null, "BETWEEN THE OBSERVATIONS LIES THE UNKNOWN."), /* @__PURE__ */ import_react2.default.createElement("span", null, "HOW DO WE RECONSTRUCT WHAT WE CANNOT DIRECTLY OBSERVE?"), /* @__PURE__ */ import_react2.default.createElement("span", { className: "bg-[#02060d]/80 backdrop-blur-xl" }, "p <= 0.08")));
   };
@@ -883,28 +883,28 @@ var KyogreApp = (() => {
     { step: "03", title: "CNN-LSTM CORE", subtitle: "ENGINE", details: "Spatio-Temporal Feature Learning", status: "inferred" },
     { step: "04", title: "3D RECONSTRUCTION", subtitle: "SYNTHESIS", details: "0 - 1000m Stratified Profiles", status: "inferred" },
     { step: "05", title: "ARGO VALIDATION", subtitle: "BENCHMARK", details: "Independent In-Situ Matchup", status: "validated" },
-    { step: "06", title: "OCEAN INTELLIGENCE", subtitle: "OUTPUT", details: "OHC\u2083\u2080\u2080, D20, MLD, SVP Feeds", status: "active" }
+    { step: "06", title: "OCEAN INTELLIGENCE", subtitle: "OUTPUT", details: "OHC\u2083\u2080\u2080, D20, MLD, Thermal Feeds", status: "active" }
   ];
   var VALIDATION_METRICS = [
     {
       label: "ROOT MEAN SQUARE ERROR",
-      value: "0.75",
+      value: "1.00",
       unit: "\xB0C",
-      description: "Overall benchmark error against 41 blind independent Argo floats across 615 depth points.",
+      description: "Raw RMSE across 1,809 profiles and 24,185 depth points (0.90\xB0C with depth correction vs GLORYS 0.95\xB0C).",
       isPlaceholder: false
     },
     {
       label: "CLIMATOLOGY SKILL SCORE",
-      value: "+20.0",
+      value: "+41.4",
       unit: "%",
-      description: "Empirical skill improvement over monthly climatology baseline (RMSE 0.75\xB0C vs 0.84\xB0C).",
+      description: "Raw skill improvement over 14-year climatology baseline (+52.6% with Argo depth correction).",
       isPlaceholder: false
     },
     {
       label: "CORRELATION COEFFICIENT",
-      value: "0.962",
+      value: "0.988",
       unit: "",
-      description: "High Pearson correlation against independent in-situ Argo profiling float observations.",
+      description: "Pearson profile correlation across 24,185 in-situ Argo matchup observations.",
       isPlaceholder: false
     }
   ];
@@ -1068,11 +1068,11 @@ var KyogreApp = (() => {
       description: "Pelagic schools follow sharp thermal boundaries where nutrient upwelling concentrates biomass. Relying only on surface chlorophyll sends artisan fleets on 40-nautical-mile blind searches; subsurface thermocline depth pinpoints active feeding fronts directly."
     },
     {
-      id: "defense",
-      code: "03 // MARITIME DEFENSE & SONAR ACOUSTICS",
-      title: "Sound Velocity Profiles & Shadow Zones",
-      parameter: "Sonic Layer Depth & Acoustic Refraction",
-      description: "Sonar waves bend away from warmer layers, creating acoustic shadow zones where submarines disappear from active hull-mounted sonar. Without real-time vertical temperature profiles, naval acoustic propagation models calculate false detection ranges."
+      id: "robotics",
+      code: "03 // AUTONOMOUS UNDERWATER VEHICLES & GLIDERS",
+      title: "Density Stratification & Buoyancy Trim",
+      parameter: "Thermocline Gradient & Vertical Density Structure",
+      description: "Long-endurance ocean gliders and autonomous vehicles rely on variable buoyancy engines calibrated against ambient seawater density. Accurate subsurface temperature reconstruction prevents ballast exhaustion and optimizes dive glideslope efficiency across dynamic frontal zones."
     },
     {
       id: "assimilation",

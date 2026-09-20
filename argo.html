@@ -132,16 +132,16 @@
         <!-- 2. STAT CARDS ROW (4 Cards: icon + label + big number only) -->
         <div class="ky-argo-stat-grid">
           <!-- Card 1: Basin RMSE -->
-          <div class="ky-argo-mini-card" title="RMSE: 0.901 °C (vs monthly-climatology baseline (n=1,809 Argo profiles, 81 floats, June–Dec 2023))">
+          <div class="ky-argo-mini-card" title="RAW RMSE: 1.002 °C (0.901 °C corrected, vs 14-year climatology baseline n=1,809 profiles)">
             <div class="ky-argo-mini-card__icon ky-argo-mini-card__icon--blue">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                 <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
               </svg>
             </div>
             <div class="ky-argo-mini-card__body">
-              <span class="ky-argo-mini-card__label" title="RMSE: 0.901 °C (vs monthly-climatology baseline (n=1,809 Argo profiles, 81 floats, June–Dec 2023))">Basin RMSE</span>
-              <span class="ky-argo-mini-card__val" id="stat-argo-rmse">0.90 °C</span>
-              <span class="ky-argo-mini-card__baseline" id="stat-argo-baseline">(in-window benchmark, n=1,809 profiles)</span>
+              <span class="ky-argo-mini-card__label" title="RAW RMSE: 1.002 °C (0.901 °C corrected, vs 14-year climatology baseline n=1,809 profiles)">Basin RMSE</span>
+              <span class="ky-argo-mini-card__val" id="stat-argo-rmse">1.00 °C <span class="ky-argo-rmse-sub" style="font-size: 13px; font-weight: 500; color: #64748B;">(0.90 °C corrected)</span></span>
+              <span class="ky-argo-mini-card__baseline" id="stat-argo-baseline">14-year calendar-average baseline (the model's own target climatology), n=1,809, 81 floats, Jun-Dec 2023</span>
             </div>
           </div>
 
@@ -367,54 +367,54 @@
         <div class="ky-argo-panel ky-argo-skill-panel">
           <div class="ky-argo-panel-header ky-argo-skill-header">
             <div class="ky-argo-skill-title-wrap">
-              <h2 class="ky-argo-panel-title">Model vs. Monthly Climatology Baseline (Skill Score, n=41)</h2>
+              <h2 class="ky-argo-panel-title">Model vs. Monthly Climatology Baseline (Skill Score, n=1,809)</h2>
               <span class="ky-provenance-pill ky-provenance-pill--model">Model Validation</span>
             </div>
-            <div class="ky-argo-skill-badge" id="argo-skill-headline-badge">+20.0% Overall Skill</div>
+            <div class="ky-argo-skill-badge" id="argo-skill-headline-badge">+41.4% Raw (+52.6% corrected)</div>
           </div>
 
-          <!-- Empirical Argo Warm-Bias Post-Processing Benchmark (1,791 Unseen Argo Profiles) -->
+          <!-- Empirical Argo Warm-Bias Post-Processing Benchmark (1,809 Profiles, Jun–Dec 2023) -->
           <div class="ky-argo-bias-benchmark" style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; padding: 16px 20px; margin-bottom: 20px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
               <div style="display: flex; align-items: center; gap: 10px;">
                 <span style="display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 6px; background: #EFF6FF; color: #1D4ED8; font-weight: 700; font-size: 14px;">✓</span>
-                <h3 style="margin: 0; font-size: 15px; font-weight: 600; color: #0F172A;">Argo Warm-Bias Correction Benchmark</h3>
-                <span class="ky-provenance-pill ky-provenance-pill--model" style="font-size: 11px;">Argo-bias-corrected (fit on 2021-23 Argo, scored on unseen 2023 profiles)</span>
+                <h3 style="margin: 0; font-size: 15px; font-weight: 600; color: #0F172A;">14-Year Model Argo Warm-Bias Correction Benchmark</h3>
+                <span class="ky-provenance-pill ky-provenance-pill--model" style="font-size: 11px;">Argo depth correction (fit on 14-yr target climatology, evaluated on 2023 window)</span>
               </div>
-              <span style="font-size: 12px; color: #64748B; font-weight: 500;">1,791 Unseen Profiles (Post-5 Jun 2023)</span>
+              <span style="font-size: 12px; color: #64748B; font-weight: 500;">1,809 Profiles · 81 Floats (Jun–Dec 2023)</span>
             </div>
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px;">
               <!-- Metric 1: Overall RMSE -->
               <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 8px; padding: 12px 14px;">
                 <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #64748B; margin-bottom: 4px;">Overall Profile RMSE</div>
                 <div style="display: flex; align-items: baseline; gap: 8px;">
-                  <span style="font-size: 20px; font-weight: 700; color: #16A34A;">1.07 °C</span>
-                  <span style="font-size: 13px; color: #94A3B8; text-decoration: line-through;">1.23 °C</span>
-                  <span style="font-size: 11px; font-weight: 600; color: #16A34A; background: #DCFCE7; padding: 2px 6px; border-radius: 4px;">−13.0% error</span>
+                  <span style="font-size: 20px; font-weight: 700; color: #16A34A;">0.90 °C</span>
+                  <span style="font-size: 13px; color: #94A3B8; text-decoration: line-through;">1.00 °C</span>
+                  <span style="font-size: 11px; font-weight: 600; color: #16A34A; background: #DCFCE7; padding: 2px 6px; border-radius: 4px;">−10.1% error</span>
                 </div>
-                <div style="font-size: 11px; color: #64748B; margin-top: 4px;">Uncorrected: 1.23 °C &rarr; Corrected: 1.07 °C (1,791 unseen Argo profiles)</div>
+                <div style="font-size: 11px; color: #64748B; margin-top: 4px;">Raw: 1.002 °C &rarr; Corrected: 0.901 °C (vs GLORYS 0.948 °C)</div>
               </div>
 
               <!-- Metric 2: 100m Core Bias Reduction -->
               <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 8px; padding: 12px 14px;">
-                <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #64748B; margin-bottom: 4px;">100m Thermocline Core Bias</div>
+                <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #64748B; margin-bottom: 4px;">100m Thermocline Core RMSE</div>
                 <div style="display: flex; align-items: baseline; gap: 8px;">
-                  <span style="font-size: 20px; font-weight: 700; color: #1D4ED8;">+0.36 °C</span>
-                  <span style="font-size: 13px; color: #EF4444; text-decoration: line-through;">+1.62 °C</span>
-                  <span style="font-size: 11px; font-weight: 600; color: #1D4ED8; background: #EFF6FF; padding: 2px 6px; border-radius: 4px;">−78% bias</span>
+                  <span style="font-size: 20px; font-weight: 700; color: #1D4ED8;">1.32 °C</span>
+                  <span style="font-size: 13px; color: #EF4444; text-decoration: line-through;">1.80 °C</span>
+                  <span style="font-size: 11px; font-weight: 600; color: #1D4ED8; background: #EFF6FF; padding: 2px 6px; border-radius: 4px;">−26.7% error</span>
                 </div>
-                <div style="font-size: 11px; color: #64748B; margin-top: 4px;">100m bias drops from +1.62 °C to +0.36 °C</div>
+                <div style="font-size: 11px; color: #64748B; margin-top: 4px;">100m RMSE drops from 1.80 °C to 1.32 °C</div>
               </div>
 
               <!-- Metric 3: 100m vs GLORYS Reanalysis -->
               <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 8px; padding: 12px 14px;">
                 <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #64748B; margin-bottom: 4px;">100m Error vs GLORYS Reanalysis</div>
                 <div style="display: flex; align-items: baseline; gap: 8px;">
-                  <span style="font-size: 20px; font-weight: 700; color: #059669;">1.60 °C</span>
+                  <span style="font-size: 20px; font-weight: 700; color: #059669;">1.32 °C</span>
                   <span style="font-size: 13px; color: #64748B;">vs GLORYS 1.68 °C</span>
                   <span style="font-size: 11px; font-weight: 600; color: #059669; background: #D1FAE5; padding: 2px 6px; border-radius: 4px;">Beats GLORYS</span>
                 </div>
-                <div style="font-size: 11px; color: #64748B; margin-top: 4px;">100m error (1.60 °C) beats GLORYS error (1.68 °C)</div>
+                <div style="font-size: 11px; color: #64748B; margin-top: 4px;">100m corrected error (1.32 °C) beats GLORYS (1.68 °C)</div>
               </div>
             </div>
           </div>
@@ -424,14 +424,15 @@
             <div class="ky-argo-skill-summary-col">
               <div class="ky-argo-skill-headline-card">
                 <div class="ky-argo-skill-headline-label">Pooled Basin Skill Score</div>
-                <div class="ky-argo-skill-headline-value" id="argo-skill-headline-val">+20.0%</div>
+                <div class="ky-argo-skill-headline-value" id="argo-skill-headline-val">+41.4% <span class="ky-argo-skill-secondary" style="font-size: 15px; font-weight: 500; color: #16A34A; display: block; margin-top: 4px;">(+52.6% with the Argo-fitted depth correction)</span></div>
                 <div class="ky-argo-skill-headline-sub">
-                  <span class="ky-argo-skill-sub-pair"><strong>AI Model RMSE:</strong> <span id="argo-skill-model-rmse">0.75 °C</span></span>
+                  <span class="ky-argo-skill-sub-pair"><strong>AI Model RMSE:</strong> <span id="argo-skill-model-rmse">1.00 °C (0.90 °C corrected)</span></span>
                   <span class="ky-argo-skill-sub-divider">•</span>
-                  <span class="ky-argo-skill-sub-pair"><strong>Climatology RMSE:</strong> <span id="argo-skill-clim-rmse">0.84 °C</span></span>
+                  <span class="ky-argo-skill-sub-pair"><strong>Climatology RMSE:</strong> <span id="argo-skill-clim-rmse">1.31 °C</span></span>
                 </div>
-                <p class="ky-argo-skill-caption">
-                  Skill Score SS = 1 − (RMSE_model² / RMSE_climatology²) evaluated across 615 pooled observation points (vs monthly climatology baseline, n=41 Argo profiles).
+                <p class="ky-argo-skill-caption" id="argo-skill-caption">
+                  14-year calendar-average baseline (the model's own target climatology), n=1,809, 81 floats, Jun-Dec 2023.
+                  Skill Score SS = 1 − (RMSE_model² / RMSE_climatology²) evaluated across 24,185 pooled depth observation points.
                   A score of <strong>0.0</strong> represents no improvement over seasonal historical averages; positive scores indicate real predictive skill from deep learning.
                 </p>
               </div>
@@ -440,18 +441,18 @@
               <div class="ky-argo-basin-grid">
                 <div class="ky-argo-basin-card">
                   <div class="ky-argo-basin-name">Bay of Bengal</div>
-                  <div class="ky-argo-basin-skill" id="basin-skill-bob">+18.6%</div>
-                  <div class="ky-argo-basin-meta" id="basin-meta-bob">Model 0.66°C vs Clim 0.73°C (vs monthly climatology baseline, n=16 Argo profiles)</div>
+                  <div class="ky-argo-basin-skill" id="basin-skill-bob">+45.2% <span style="font-size: 11px; font-weight: 500; color: #16A34A;">(+61.6% corr)</span></div>
+                  <div class="ky-argo-basin-meta" id="basin-meta-bob">Raw 0.87°C (0.73°C corr) vs Clim 1.18°C (n=277 profiles)</div>
                 </div>
                 <div class="ky-argo-basin-card">
                   <div class="ky-argo-basin-name">Arabian Sea</div>
-                  <div class="ky-argo-basin-skill" id="basin-skill-as">+22.8%</div>
-                  <div class="ky-argo-basin-meta" id="basin-meta-as">Model 0.74°C vs Clim 0.84°C (vs monthly climatology baseline, n=15 Argo profiles)</div>
+                  <div class="ky-argo-basin-skill" id="basin-skill-as">+38.3% <span style="font-size: 11px; font-weight: 500; color: #16A34A;">(+48.7% corr)</span></div>
+                  <div class="ky-argo-basin-meta" id="basin-meta-as">Raw 1.02°C (0.93°C corr) vs Clim 1.30°C (n=1,455 profiles)</div>
                 </div>
                 <div class="ky-argo-basin-card">
                   <div class="ky-argo-basin-name">Equatorial Indian Ocean</div>
-                  <div class="ky-argo-basin-skill" id="basin-skill-eio">+18.1%</div>
-                  <div class="ky-argo-basin-meta" id="basin-meta-eio">Model 0.90°C vs Clim 0.99°C (vs monthly climatology baseline, n=10 Argo profiles)</div>
+                  <div class="ky-argo-basin-skill" id="basin-skill-eio">+62.4% <span style="font-size: 11px; font-weight: 500; color: #16A34A;">(+73.3% corr)</span></div>
+                  <div class="ky-argo-basin-meta" id="basin-meta-eio">Raw 1.16°C (0.97°C corr) vs Clim 1.88°C (n=77 profiles)</div>
                 </div>
               </div>
             </div>

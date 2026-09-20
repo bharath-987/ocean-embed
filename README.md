@@ -24,17 +24,17 @@ bash start.sh
 See [SETUP.md](SETUP.md) for full environment setup, dependency installation, and troubleshooting.
 
 ## Overview
-This Space hosts the containerized FastAPI inference service powered by the Kyogre CNN-LSTM deep learning model (`model_v6_satswap_anom_best.pt`, 65,967 parameters). The service ingests a 27-channel spatiotemporal tensor across a 10-day lookback window—comprising 7 physical surface anomaly fields (SST anomaly, SSS anomaly, SSH anomaly, zonal and meridional current anomalies, and zonal and meridional wind anomalies; z-scored), 4 positional encodings (sine and cosine of latitude and longitude; z-scored over ocean cells), 2 temporal encodings (sine and cosine of day-of-year), and 14 DSTAG channels (raw SST minus target depth climatology for depths 5m–1,000m; z-scored)—to reconstruct 3D vertical temperature profiles down to 1,000 meters across 15 standard oceanographic depth levels, mixed layer depth (MLD), ocean heat content (OHC₃₀₀), thermocline depth, and acoustic sound velocity profiles.
+This Space hosts the containerized FastAPI inference service powered by the Kyogre CNN-LSTM deep learning model (`model_v6_satswap_anom_best.pt`, 65,967 parameters). The service ingests a 27-channel spatiotemporal tensor across a 10-day lookback window—comprising 7 physical surface anomaly fields (SST anomaly, SSS anomaly, SSH anomaly, zonal and meridional current anomalies, and zonal and meridional wind anomalies; z-scored), 4 positional encodings (sine and cosine of latitude and longitude; z-scored over ocean cells), 2 temporal encodings (sine and cosine of day-of-year), and 14 DSTAG channels (raw SST minus target depth climatology for depths 5m–1,000m; z-scored)—to reconstruct 3D vertical temperature profiles down to 1,000 meters across 15 standard oceanographic depth levels, mixed layer depth (MLD), ocean heat content (OHC₃₀₀), and D20 isotherm depth.
 
 ## Frontend Modules
 The project includes four interactive web dashboard modules:
 
 | Module | File | Description |
 |--------|------|-------------|
-| **Ocean Explorer** | `explore.html` | Main 2D map with subsurface temperature heatmap, TVD table/graph, and 4 stat cards (MLD, OHC₃₀₀, Sound Velocity Depth, D20 Isotherm). Gated: heatmap needs Date + Depth; TVD/stat cards need Location + Date. |
+| **Ocean Explorer** | `explore.html` | Main 2D map with subsurface temperature heatmap, TVD table/graph, and 3 stat cards (MLD, OHC₃₀₀, D20 Isotherm). Gated: heatmap needs Date + Depth; TVD/stat cards need Location + Date. |
 | **Fisheries Intelligence** | `fisheries.html` | Chlorophyll-a proxy raster, PFZ scoring overlay, fishing zone analysis table, and upwelling index for the North Indian Ocean. All values are estimated heuristics derived from surface anomaly fields. |
 | **Marine Ecology** | `marine-ecology.html` | Marine Heatwave (MHW) event detection, category classification (Moderate → Extreme), duration tracking, and peak intensity estimates for each grid cell. |
-| **ARGO Validation** | `argo.html` | Independent validation dashboard comparing Kyogre predictions against in-situ ARGO profiling float observations with RMSE, Bias, Pearson correlation, and basin-wide skill scores (vs monthly climatology baseline, n=41 Argo profiles). |
+| **ARGO Validation** | `argo.html` | Independent validation dashboard comparing Kyogre predictions against in-situ ARGO profiling float observations with RMSE, Bias, Pearson correlation, and basin-wide skill scores (81 floats, 1,809 profiles, 24,185 depth points; +41.4% raw skill, +52.6% corrected skill). |
 
 ## Space Configuration
 - **SDK**: Docker (`python:3.11-slim`)

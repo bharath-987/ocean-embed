@@ -31,7 +31,7 @@ Kyogre acts as a **virtual CTD sensor drop** anywhere in the North Indian Ocean.
 * **Specialized Operational Modules**:
   1. **Fisheries Mode**: Identifies Potential Fishing Zones (PFZs) by tracking thermocline shoaling, upwelling signatures, and biological primary production proxies where pelagic fish congregate.
   2. **Marine Ecology & Heatwave Mode**: Automatically detects, categorizes, and visualizes Marine Heatwaves (MHWs) using the standardized Hobday et al. (2016) framework to monitor thermal stress on coral reefs and pelagic ecosystems.
-  3. **ARGO Ground-Truth Validation**: Directly compares AI predictions against 41 independent, in-situ ARGO profiling floats, providing side-by-side vertical profile graphs, signed depth error distributions, and empirical skill score metrics (vs monthly climatology baseline, n=41 Argo profiles).
+  3. **ARGO Ground-Truth Validation**: Directly compares AI predictions against 81 independent, in-situ ARGO profiling floats (1,809 profiles), providing side-by-side vertical profile graphs, signed depth error distributions, and empirical skill score metrics.
 
 ---
 
@@ -50,23 +50,27 @@ Kyogre acts as a **virtual CTD sensor drop** anywhere in the North Indian Ocean.
 
 ### 4.2 Thermodynamically Consistent Post-Processing Pipeline
 * **Discrepancy-Tapered Surface Blending**: Dynamically blends satellite skin SST with bulk model predictions ($\alpha \in [0.30, 0.60]$) and diffuses 50% of the surface adjustment into the 5m layer to ensure continuity.
-* **PAVA Isotonic Regression Safety-Net**: Enforces thermodynamic non-increasing stability ($T(z_i) \ge T(z_{i+1})$) across the upper mixed layer ($\le 100\text{m}$) using the Pool Adjacent Violators Algorithm, while strictly leaving depths $> 100\text{m}$ unconstrained to preserve real physical subsurface thermal inversions (e.g., warm Red Sea Outflow Water). An opt-in raw output toggle (`?raw=true`) allows technical users to bypass this smoothing pass and inspect unsmoothed neural network output.
+* **PAVA Isotonic Regression Safety-Net**: Optional post-processing pass enforcing thermodynamic non-increasing stability across the upper mixed layer ($\le 100\text{m}$) using the Pool Adjacent Violators Algorithm, while strictly leaving depths $> 100\text{m}$ unconstrained. By default, raw predictions are served directly (`smoothed=false`).
 
 ### 4.3 Rigorous In-Situ ARGO Float Validation & Skill Score
-Validated against **41 independent in-situ ARGO profiling floats** (615 depth observation points) distributed across the Arabian Sea, Bay of Bengal, and Equatorial Indian Ocean:
-* **Overall Benchmark Skill Score**: **$+20.0\%$ improvement over monthly climatology** ($SS = 1 - \frac{\text{RMSE}_{\text{model}}^2}{\text{RMSE}_{\text{climatology}}^2}$, $\text{RMSE}_{\text{model}} = 0.75^\circ\text{C}$ vs. $\text{RMSE}_{\text{clim}} = 0.84^\circ\text{C}$, vs monthly climatology baseline, n=41 Argo profiles).
-* **Basin-Wide Performance** (vs monthly climatology baseline, sample size guard $n \ge 10$):
-  * **Arabian Sea**: **$+22.8\%$ Skill** ($\text{RMSE}_{\text{model}} = 0.74^\circ\text{C}$ vs. $\text{RMSE}_{\text{clim}} = 0.84^\circ\text{C}$, $n=15$ Argo profiles).
-  * **Bay of Bengal**: **$+18.6\%$ Skill** ($\text{RMSE}_{\text{model}} = 0.66^\circ\text{C}$ vs. $\text{RMSE}_{\text{clim}} = 0.73^\circ\text{C}$, $n=16$ Argo profiles).
-  * **Equatorial Indian Ocean**: **$+18.1\%$ Skill** ($\text{RMSE}_{\text{model}} = 0.90^\circ\text{C}$ vs. $\text{RMSE}_{\text{clim}} = 0.99^\circ\text{C}$, $n=10$ Argo profiles).
-* **Depth-Wise Accuracy** (vs monthly climatology baseline, n=41 Argo profiles):
-  * Surface (0–10m): $\text{RMSE} \approx 1.12^\circ\text{C}\text{–}1.16^\circ\text{C}$ (**$>71\%$ Skill**, vs monthly climatology baseline, n=41 Argo profiles).
-  * Intermediate & Deep Ocean (500–1000m): $\text{RMSE} \approx 0.61^\circ\text{C}\text{–}0.81^\circ\text{C}$ (vs monthly climatology baseline, n=41 Argo profiles).
+Validated against **81 independent in-situ ARGO profiling floats** (1,809 profiles, 24,185 depth observation points) distributed across the Arabian Sea, Bay of Bengal, and Equatorial Indian Ocean (served June–Dec 2023 evaluation window; 2,910 profiles across full evaluation):
+* **Overall Benchmark Skill Score**:
+  * **Raw Model Skill Score**: **$+41.4\%$ improvement over 14-year climatology baseline** ($SS = 1 - \frac{\text{RMSE}_{\text{raw}}^2}{\text{RMSE}_{\text{climatology}}^2}$, $\text{RMSE}_{\text{raw}} = 1.002^\circ\text{C}$ vs. $\text{RMSE}_{\text{clim}} = 1.309^\circ\text{C}$; $+39.7\%$ against daily harmonic baseline).
+  * **With Depth Correction**: **$+52.6\%$ Skill** ($\text{RMSE}_{\text{corrected}} = 0.901^\circ\text{C}$ vs $\text{GLORYS12V1} = 0.948^\circ\text{C}$, beating operational reanalysis).
+  * **Full Evaluation Dataset ($n=2,910$ profiles)**: $0.941^\circ\text{C}$ raw, $0.886^\circ\text{C}$ GLORYS, $0.836^\circ\text{C}$ corrected.
+* **Basin-Wide Performance** (served window, $\ge 30$ profile cutoff):
+  * **Arabian Sea** ($n=1,455$ profiles, 19,265 points): Raw RMSE $1.017^\circ\text{C}$, Corrected $0.927^\circ\text{C}$ vs. GLORYS $0.955^\circ\text{C}$ (**$+38.3\%$ raw skill**, **$+48.7\%$ corrected**).
+  * **Bay of Bengal** ($n=277$ profiles, 3,855 points): Raw RMSE $0.873^\circ\text{C}$, Corrected $0.731^\circ\text{C}$ vs. GLORYS $0.855^\circ\text{C}$ (**$+56.8\%$ raw skill**, **$+69.7\%$ corrected**).
+  * **Equatorial Indian Ocean** ($n=77$ profiles, 1,065 points): Raw RMSE $1.157^\circ\text{C}$, Corrected $1.018^\circ\text{C}$ vs. GLORYS $1.118^\circ\text{C}$ (**$+45.3\%$ raw skill**, **$+57.6\%$ corrected**).
+  * **Andaman Sea** ($n=0$ profiles in served window, grayed out with insufficient sample).
+* **Depth-Wise Accuracy**:
+  * Surface (0–10m): $\text{RMSE} \approx 0.72^\circ\text{C}\text{–}0.78^\circ\text{C}$ (**$>67\%$ Skill** over climatology).
+  * Thermocline (100m): Corrected RMSE $1.32^\circ\text{C}$ (vs. Climatology $2.09^\circ\text{C}$, $+59.7\%$ corrected skill).
+  * Deep Abyssal Ocean (1,000m): Corrected RMSE $0.25^\circ\text{C}$ (vs. GLORYS $0.27^\circ\text{C}$).
 
 ### 4.4 Real-Time Derived Oceanographic Indices
 * **Mixed Layer Depth (MLD)**: Computed via de Boyer Montégut (2004) criteria ($\Delta T = 0.2^\circ\text{C}$ threshold relative to 10m reference depth).
 * **Ocean Heat Content ($OHC_{300}$)**: Absolute thermal energy integration down to 300m ($OHC_{300} = \rho c_p \int_0^{300} T(z) dz \approx 1,800\text{–}2,600\text{ kJ/cm}^2$).
-* **Acoustic Shadow Depth / Sonic Layer Depth (SLD)**: Computed using the Mackenzie (1981) 9-term sound velocity equation to determine sound channel axis and surface duct boundaries.
 * **$D_{20}$ Isotherm Depth**: Precise linear interpolation of the $20^\circ\text{C}$ thermocline boundary layer.
 
 ---
@@ -76,7 +80,7 @@ Validated against **41 independent in-situ ARGO profiling floats** (615 depth ob
 | User Group | Operational Challenge | How Kyogre Solves It |
 | :--- | :--- | :--- |
 | **Commercial Tuna & Pelagic Fisheries** | High fuel expenditure searching for migratory pelagic schools in open seas. | Provides dynamic PFZ index maps, cluster centroid coordinates, and thermocline shoaling indicators to pinpoint feeding fronts. |
-| **Naval Operations & Sonar Acoustics** | Subsurface acoustic shadow zones hide underwater objects from hull-mounted active sonar. | Computes sound velocity profiles (SVP) and Sonic Layer Depth (SLD) to identify acoustic refraction channels. |
+| **Autonomous Marine Robotics & AUVs** | Subsurface density gradients affect buoyancy engines and acoustic telemetry links. | Provides high-resolution vertical temperature profiles to optimize glider flight paths, buoyancy trim, and subsea mission endurance. |
 | **Marine Ecologists & Coral Conservators** | Unmonitored thermal accumulation triggers sudden mass bleaching events. | Detects, alerts, and classifies Marine Heatwaves (Categories I–IV) under the Hobday (2016) methodology with duration tracking. |
 | **Meteorological & Oceanographic Centers** | Sparse buoy networks leave large observational gaps during cyclone intensification seasons. | Generates synthetic CTD profiles and $OHC_{300}$ estimates across the entire basin on demand. |
 
@@ -89,7 +93,7 @@ Validated against **41 independent in-situ ARGO profiling floats** (615 depth ob
   * `explore.html`: Interactive MapLibre dashboard with decoupled depth heatmaps, vector stream advection, and point TVD panel.
   * `fisheries.html`: Fisheries Mode with dynamic PFZ cluster identification, speech-bubble zone cards, and 3-column vertical profiles.
   * `marine-ecology.html`: Marine Heatwave monitoring dashboard with time-series envelope charts and category badges.
-  * `argo.html`: Empirical validation center with 41 real ARGO float trajectories, side-by-side profile and error charts, and skill benchmarks.
+  * `argo.html`: Empirical validation center with 81 real ARGO float trajectories (1,809 profiles), side-by-side profile and error charts, and skill benchmarks.
 * **Inference Speeds**:
   * Cold Start (CPU): $\sim 1.2\text{ seconds}$ per full basin grid ($101 \times 241$ cells across 15 depths).
   * Cached / Hot Inferences: **$< 1.5\text{ ms}$** execution time.
