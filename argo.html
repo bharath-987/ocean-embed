@@ -373,48 +373,63 @@
             <div class="ky-argo-skill-badge" id="argo-skill-headline-badge">+41.4% Raw (+52.6% corrected)</div>
           </div>
 
-          <!-- Empirical Argo Warm-Bias Post-Processing Benchmark (1,809 Profiles, Jun–Dec 2023) -->
+          <!-- Empirical Argo Warm-Bias Post-Processing Benchmark (1,809 Profiles Served Window & 2,910 Profiles Full 2023) -->
           <div class="ky-argo-bias-benchmark" style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; padding: 16px 20px; margin-bottom: 20px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
               <div style="display: flex; align-items: center; gap: 10px;">
                 <span style="display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 6px; background: #EFF6FF; color: #1D4ED8; font-weight: 700; font-size: 14px;">✓</span>
-                <h3 style="margin: 0; font-size: 15px; font-weight: 600; color: #0F172A;">14-Year Model Argo Warm-Bias Correction Benchmark</h3>
-                <span class="ky-provenance-pill ky-provenance-pill--model" style="font-size: 11px;">Argo depth correction (fit on 14-yr target climatology, evaluated on 2023 window)</span>
+                <h3 style="margin: 0; font-size: 15px; font-weight: 600; color: #0F172A;">14-Year Model Independent In-Situ ARGO Validation Benchmarks</h3>
               </div>
-              <span style="font-size: 12px; color: #64748B; font-weight: 500;">1,809 Profiles · 81 Floats (Jun–Dec 2023)</span>
+              <span class="ky-provenance-pill ky-provenance-pill--model" style="font-size: 11px;">Trained on 2010–2020 · Tested on 2023 · One Training Run · MLD is Experimental</span>
             </div>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px;">
-              <!-- Metric 1: Overall RMSE -->
-              <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 8px; padding: 12px 14px;">
-                <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #64748B; margin-bottom: 4px;">Overall Profile RMSE</div>
-                <div style="display: flex; align-items: baseline; gap: 8px;">
-                  <span style="font-size: 20px; font-weight: 700; color: #16A34A;">0.90 °C</span>
-                  <span style="font-size: 13px; color: #94A3B8; text-decoration: line-through;">1.00 °C</span>
-                  <span style="font-size: 11px; font-weight: 600; color: #16A34A; background: #DCFCE7; padding: 2px 6px; border-radius: 4px;">−10.1% error</span>
+
+            <!-- Two Comparison Cards: Served Window (1,809) vs Full Year 2023 (2,910) -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-bottom: 14px;">
+              <!-- Panel A: Served Window (June-December 2023) -->
+              <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 8px; padding: 14px 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px;">
+                  <span style="font-size: 12px; font-weight: 700; color: #1D4ED8; text-transform: uppercase; letter-spacing: 0.5px;">Served Model Window (Jun–Dec 2023)</span>
+                  <span style="font-size: 11px; color: #64748B; font-weight: 500;">1,809 Profiles · 81 Floats</span>
                 </div>
-                <div style="font-size: 11px; color: #64748B; margin-top: 4px;">Raw: 1.002 °C &rarr; Corrected: 0.901 °C (vs GLORYS 0.948 °C)</div>
+                <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px;">
+                  <span style="font-size: 20px; font-weight: 700; color: #0F172A;">1.002 °C</span>
+                  <span style="font-size: 13px; color: #16A34A; font-weight: 600;">&rarr; 0.901 °C</span>
+                  <span style="font-size: 11px; font-weight: 600; color: #16A34A; background: #DCFCE7; padding: 2px 6px; border-radius: 4px;">corrected</span>
+                  <span style="font-size: 12px; color: #64748B;">vs GLORYS 0.948 °C</span>
+                </div>
+                <div style="font-size: 11px; color: #64748B; line-height: 1.4;">
+                  <strong>Headline Skill Score:</strong> <span style="color: #1D4ED8; font-weight: 600;">+41.4% Raw</span> (+39.7% daily baseline) &middot; <span style="color: #16A34A; font-weight: 600;">+52.6%</span> with Argo-fitted depth correction.
+                </div>
               </div>
 
-              <!-- Metric 2: 100m Core Bias Reduction -->
-              <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 8px; padding: 12px 14px;">
-                <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #64748B; margin-bottom: 4px;">100m Thermocline Core RMSE</div>
-                <div style="display: flex; align-items: baseline; gap: 8px;">
-                  <span style="font-size: 20px; font-weight: 700; color: #1D4ED8;">1.32 °C</span>
-                  <span style="font-size: 13px; color: #EF4444; text-decoration: line-through;">1.80 °C</span>
-                  <span style="font-size: 11px; font-weight: 600; color: #1D4ED8; background: #EFF6FF; padding: 2px 6px; border-radius: 4px;">−26.7% error</span>
+              <!-- Panel B: Full Year 2023 Independent Test Set -->
+              <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 8px; padding: 14px 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px;">
+                  <span style="font-size: 12px; font-weight: 700; color: #0F172A; text-transform: uppercase; letter-spacing: 0.5px;">Full-Year 2023 Validation Set</span>
+                  <span style="font-size: 11px; color: #64748B; font-weight: 500;">2,910 Profiles · 92 Floats</span>
                 </div>
-                <div style="font-size: 11px; color: #64748B; margin-top: 4px;">100m RMSE drops from 1.80 °C to 1.32 °C</div>
+                <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px;">
+                  <span style="font-size: 20px; font-weight: 700; color: #0F172A;">0.941 °C</span>
+                  <span style="font-size: 12px; color: #64748B;">raw</span>
+                  <span style="font-size: 12px; color: #64748B;">vs</span>
+                  <span style="font-size: 15px; font-weight: 600; color: #475569;">0.886 °C</span>
+                  <span style="font-size: 12px; color: #64748B;">GLORYS</span>
+                  <span style="font-size: 13px; color: #16A34A; font-weight: 700;">&rarr; 0.836 °C</span>
+                  <span style="font-size: 11px; font-weight: 600; color: #16A34A; background: #DCFCE7; padding: 2px 6px; border-radius: 4px;" title="Fitted on Argo">fitted on Argo</span>
+                </div>
+                <div style="font-size: 11px; color: #64748B; line-height: 1.4;">
+                  Full 2023 independent out-of-sample benchmark across 38,769 depth points. Depth correction reduces raw error by 11.1%, beating operational reanalysis.
+                </div>
               </div>
+            </div>
 
-              <!-- Metric 3: 100m vs GLORYS Reanalysis -->
-              <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 8px; padding: 12px 14px;">
-                <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #64748B; margin-bottom: 4px;">100m Error vs GLORYS Reanalysis</div>
-                <div style="display: flex; align-items: baseline; gap: 8px;">
-                  <span style="font-size: 20px; font-weight: 700; color: #059669;">1.32 °C</span>
-                  <span style="font-size: 13px; color: #64748B;">vs GLORYS 1.68 °C</span>
-                  <span style="font-size: 11px; font-weight: 600; color: #059669; background: #D1FAE5; padding: 2px 6px; border-radius: 4px;">Beats GLORYS</span>
-                </div>
-                <div style="font-size: 11px; color: #64748B; margin-top: 4px;">100m corrected error (1.32 °C) beats GLORYS (1.68 °C)</div>
+            <!-- Weakest Layer & Calibrated Uncertainty Callouts -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px;">
+              <div style="background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 6px; padding: 10px 12px; font-size: 12px; color: #92400E;">
+                <strong>Layer Callout:</strong> 100m is the weakest layer: <strong>1.75 °C raw vs 1.63 °C reanalysis</strong> (1.29 °C with Argo depth correction). Sharp vertical thermocline stratification gradients create the largest challenge for surface-only neural inversion.
+              </div>
+              <div style="background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 6px; padding: 10px 12px; font-size: 12px; color: #166534;">
+                <strong>Calibrated Uncertainty:</strong> 90% error band held 89% coverage on 2023 test set; TCHP 90% band ±17.8 kJ/cm² held about 87% coverage (Trust Layer ready).
               </div>
             </div>
           </div>

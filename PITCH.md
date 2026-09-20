@@ -53,11 +53,18 @@ Kyogre acts as a **virtual CTD sensor drop** anywhere in the North Indian Ocean.
 * **PAVA Isotonic Regression Safety-Net**: Optional post-processing pass enforcing thermodynamic non-increasing stability across the upper mixed layer ($\le 100\text{m}$) using the Pool Adjacent Violators Algorithm, while strictly leaving depths $> 100\text{m}$ unconstrained. By default, raw predictions are served directly (`smoothed=false`).
 
 ### 4.3 Rigorous In-Situ ARGO Float Validation & Skill Score
-Validated against **81 independent in-situ ARGO profiling floats** (1,809 profiles, 24,185 depth observation points) distributed across the Arabian Sea, Bay of Bengal, and Equatorial Indian Ocean (served June–Dec 2023 evaluation window; 2,910 profiles across full evaluation):
+Validated against **81 independent in-situ ARGO profiling floats** (1,809 profiles, 24,185 depth observation points) distributed across the Arabian Sea, Bay of Bengal, and Equatorial Indian Ocean (served June–Dec 2023 evaluation window; 2,910 profiles from 92 floats across full-year 2023 evaluation):
 * **Overall Benchmark Skill Score**:
-  * **Raw Model Skill Score**: **$+41.4\%$ improvement over 14-year climatology baseline** ($SS = 1 - \frac{\text{RMSE}_{\text{raw}}^2}{\text{RMSE}_{\text{climatology}}^2}$, $\text{RMSE}_{\text{raw}} = 1.002^\circ\text{C}$ vs. $\text{RMSE}_{\text{clim}} = 1.309^\circ\text{C}$; $+39.7\%$ against daily harmonic baseline).
+  * **Raw Model Skill Score**: **$+41.4\%$ improvement over 14-year climatology baseline** ($SS = 1 - \frac{\text{RMSE}_{\text{raw}}^2}{\text{RMSE}_{\text{climatology}}^2}$, $\text{RMSE}_{\text{raw}} = 1.002^\circ\text{C}$ vs. $\text{RMSE}_{\text{clim}} = 1.309^\circ\text{C}$; $+39.7\%$ against daily harmonic baseline $1.290^\circ\text{C}$).
   * **With Depth Correction**: **$+52.6\%$ Skill** ($\text{RMSE}_{\text{corrected}} = 0.901^\circ\text{C}$ vs $\text{GLORYS12V1} = 0.948^\circ\text{C}$, beating operational reanalysis).
-  * **Full Evaluation Dataset ($n=2,910$ profiles)**: $0.941^\circ\text{C}$ raw, $0.886^\circ\text{C}$ GLORYS, $0.836^\circ\text{C}$ corrected.
+  * **Full-Year 2023 Independent Test Set ($n=2,910$ profiles, 92 floats, 38,769 depth points)**: **$0.941^\circ\text{C}$ raw** vs **$0.886^\circ\text{C}$ GLORYS reanalysis** vs **$0.836^\circ\text{C}$ corrected** ("fitted on Argo").
+* **Weakest Layer Callout (100m)**:
+  * **100m is the weakest layer**: **$1.75^\circ\text{C}$ raw** vs **$1.63^\circ\text{C}$ GLORYS reanalysis** ($1.29^\circ\text{C}$ corrected). The sharp thermocline density gradient presents the steepest challenge for surface-only neural inversion.
+* **Calibrated Uncertainty & Error Bands**:
+  * **90% Error Band**: Held **89% empirical coverage** on the 2023 test set.
+  * **TCHP 90% Band**: **$\pm 17.8\text{ kJ/cm}^2$**, held about **87% empirical coverage** (production-ready for operational Trust Layer).
+* **Core Methodological Disclosure**:
+  * *"Trained on 2010-2020, tested on 2023, one training run. MLD is experimental."*
 * **Basin-Wide Performance** (served window, $\ge 30$ profile cutoff):
   * **Arabian Sea** ($n=1,455$ profiles, 19,265 points): Raw RMSE $1.017^\circ\text{C}$, Corrected $0.927^\circ\text{C}$ vs. GLORYS $0.955^\circ\text{C}$ (**$+38.3\%$ raw skill**, **$+48.7\%$ corrected**).
   * **Bay of Bengal** ($n=277$ profiles, 3,855 points): Raw RMSE $0.873^\circ\text{C}$, Corrected $0.731^\circ\text{C}$ vs. GLORYS $0.855^\circ\text{C}$ (**$+56.8\%$ raw skill**, **$+69.7\%$ corrected**).

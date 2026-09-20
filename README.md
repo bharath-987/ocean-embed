@@ -34,7 +34,15 @@ The project includes four interactive web dashboard modules:
 | **Ocean Explorer** | `explore.html` | Main 2D map with subsurface temperature heatmap, TVD table/graph, and 3 stat cards (MLD, OHC₃₀₀, D20 Isotherm). Gated: heatmap needs Date + Depth; TVD/stat cards need Location + Date. |
 | **Fisheries Intelligence** | `fisheries.html` | Chlorophyll-a proxy raster, PFZ scoring overlay, fishing zone analysis table, and upwelling index for the North Indian Ocean. All values are estimated heuristics derived from surface anomaly fields. |
 | **Marine Ecology** | `marine-ecology.html` | Marine Heatwave (MHW) event detection, category classification (Moderate → Extreme), duration tracking, and peak intensity estimates for each grid cell. |
-| **ARGO Validation** | `argo.html` | Independent validation dashboard comparing Kyogre predictions against in-situ ARGO profiling float observations with RMSE, Bias, Pearson correlation, and basin-wide skill scores (81 floats, 1,809 profiles, 24,185 depth points; +41.4% raw skill, +52.6% corrected skill). |
+| **ARGO Validation** | `argo.html` | Independent validation dashboard comparing Kyogre predictions against in-situ ARGO profiling float observations. Served window: 81 floats, 1,809 profiles, 24,185 depth points (+41.4% raw skill, +39.7% daily baseline, +52.6% corrected skill). Full-year 2023 validation: 92 floats, 2,910 profiles (0.941°C raw vs 0.886°C GLORYS vs 0.836°C corrected). |
+
+## Validation & Methodological Disclosures
+- **Full-Year 2023 Benchmark**: 2,910 profiles from 92 floats in 2023 across 38,769 depth points — **0.941°C raw** vs **0.886°C GLORYS reanalysis** vs **0.836°C with depth correction** ("fitted on Argo").
+- **Served Model Window (Jun–Dec 2023)**: 1,809 profiles from 81 floats across 24,185 depth points — **1.002°C raw** vs **0.948°C GLORYS** vs **0.901°C corrected**.
+- **Skill Scores**: Raw model achieves **+41.4% skill** over 14-year monthly climatology baseline (1.309°C) and **+39.7% skill** over daily harmonic baseline (1.290°C); depth-corrected skill is **+52.6%**.
+- **100m Weakest Layer Callout**: 100m is the weakest layer: **1.75°C raw** vs **1.63°C reanalysis** (1.29°C corrected). Thermocline stratification gradients present the highest challenge for surface inversion.
+- **Calibrated Error Bands**: 90% error band held 89% coverage on 2023 test set; TCHP 90% band ±17.8 kJ/cm², held about 87% (ready for Trust Layer).
+- **Core Disclosure**: *"Trained on 2010-2020, tested on 2023, one training run. MLD is experimental."*
 
 ## Space Configuration
 - **SDK**: Docker (`python:3.11-slim`)
@@ -60,11 +68,11 @@ Optional Space Secrets:
 - `GET /temperature-grid` — 2D spatial temperature grid (101×241 cells) at requested depth and date. Supports `?raw=true` (or `smoothing=false`) for unsmoothed grid.
 - `GET /parameter-grid` — Surface parameter grids (`sst`, `ssh`, `sss`, `sla`, `current`, `wind`).
 - `GET /confidence-grid` — Spatial confidence/uncertainty grid at requested depth and date.
-- `GET /confidence-stats` — Basin-wide confidence statistics summary (vs monthly climatology baseline, n=41 Argo profiles).
+- `GET /confidence-stats` — Basin-wide confidence statistics summary.
 - `GET /argo/profiles` — Catalog of independent in-situ ARGO profiling float surfacings.
-- `GET /argo/compare` — Point-by-point validation metrics (RMSE, Bias, Pearson correlation) comparing AI predictions against in-situ ARGO observations (supports `?raw=true`).
-- `GET /argo/summary` — Aggregate basin-wide validation statistics (vs monthly climatology baseline, n=41 Argo profiles).
-- `GET /argo/skill-score` — Climatology-relative skill scores (SS > 0 = beats persistence/climatology, vs monthly climatology baseline, n=41 Argo profiles).
+- `GET /argo/compare` — Point-by-point validation metrics (RMSE, Bias, Pearson correlation) comparing AI predictions against in-situ ARGO observations (supports `?raw=true` and `?corrected=false`).
+- `GET /argo/summary` — Aggregate basin-wide validation statistics (served window and full-year 2023).
+- `GET /argo/skill-score` — Climatology-relative skill scores (SS > 0 = beats persistence/climatology, +41.4% raw, +39.7% daily, +52.6% corrected).
 - `GET /pfz-grid` — Potential Fishing Zone index grid derived from surface anomaly composites.
 - `POST /marine-heatwave` — Trigger marine heatwave event detection for a region and date range.
 - `GET /marine-heatwave` — Retrieve cached marine heatwave detection results.

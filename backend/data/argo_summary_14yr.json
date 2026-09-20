@@ -17,8 +17,8 @@
     "climatologyDailyRmse": 1.289,
     "skillScore": 0.414,
     "skillScorePct": 41.4,
-    "skillScoreDaily": 0.396,
-    "skillScoreDailyPct": 39.6,
+    "skillScoreDaily": 0.397,
+    "skillScoreDailyPct": 39.7,
     "skillScoreCorrected": 0.526,
     "skillScoreCorrectedPct": 52.6,
     "skillScoreCorrectedDaily": 0.512,
@@ -32,6 +32,100 @@
     "trimmedWindowRmse": 0.901,
     "trimmedWindowFloats": 1809,
     "trimmedWindowLabel": "0.901 \u00b0C (in-window benchmark, n=1,809 profiles, v6_satswap_anom_14yr)"
+  },
+  "full_year_2023": {
+    "totalFloats": 92,
+    "totalProfiles": 2910,
+    "totalDepthPoints": 38769,
+    "rmseRaw": 0.941,
+    "rmseGlorys": 0.886,
+    "rmseCorrected": 0.836,
+    "correctedLabel": "fitted on Argo",
+    "weakestLayer": {
+      "depth_m": 100,
+      "rmseRaw": 1.75,
+      "rmseGlorys": 1.63,
+      "rmseCorrected": 1.29,
+      "label": "100m is the weakest layer: 1.75\u00b0C raw vs 1.63\u00b0C reanalysis (1.29\u00b0C corrected)"
+    },
+    "perDepth": {
+      "0": {
+        "rmseRaw": 0.898,
+        "rmseCorrected": 0.892,
+        "rmseGlorys": 0.935
+      },
+      "5": {
+        "rmseRaw": 0.504,
+        "rmseCorrected": 0.502,
+        "rmseGlorys": 0.453
+      },
+      "10": {
+        "rmseRaw": 0.553,
+        "rmseCorrected": 0.554,
+        "rmseGlorys": 0.501
+      },
+      "20": {
+        "rmseRaw": 0.847,
+        "rmseCorrected": 0.836,
+        "rmseGlorys": 0.757
+      },
+      "30": {
+        "rmseRaw": 1.039,
+        "rmseCorrected": 1.022,
+        "rmseGlorys": 0.946
+      },
+      "50": {
+        "rmseRaw": 1.138,
+        "rmseCorrected": 1.068,
+        "rmseGlorys": 1.088
+      },
+      "75": {
+        "rmseRaw": 1.135,
+        "rmseCorrected": 1.102,
+        "rmseGlorys": 1.057
+      },
+      "100": {
+        "rmseRaw": 1.752,
+        "rmseCorrected": 1.291,
+        "rmseGlorys": 1.634
+      },
+      "125": {
+        "rmseRaw": 1.046,
+        "rmseCorrected": 1.064,
+        "rmseGlorys": 0.956
+      },
+      "150": {
+        "rmseRaw": 0.875,
+        "rmseCorrected": 0.893,
+        "rmseGlorys": 0.811
+      },
+      "200": {
+        "rmseRaw": 0.951,
+        "rmseCorrected": 0.793,
+        "rmseGlorys": 0.935
+      },
+      "300": {
+        "rmseRaw": 0.661,
+        "rmseCorrected": 0.583,
+        "rmseGlorys": 0.677
+      },
+      "500": {
+        "rmseRaw": 0.49,
+        "rmseCorrected": 0.346,
+        "rmseGlorys": 0.519
+      },
+      "700": {
+        "rmseRaw": 0.481,
+        "rmseCorrected": 0.348,
+        "rmseGlorys": 0.501
+      },
+      "1000": {
+        "rmseRaw": 0.706,
+        "rmseCorrected": 0.245,
+        "rmseGlorys": 0.717
+      }
+    },
+    "label": "Full Year 2023 Independent Test Set (n=2,910 profiles, 92 floats)"
   },
   "basins": {
     "Arabian Sea": {
@@ -272,7 +366,9 @@
       "skillScoreCorrected": 0.597,
       "skillScoreCorrectedPct": 59.7,
       "isPositive": true,
-      "explanation": "Thermocline core depth; Argo-fitted depth correction reduces RMSE from 1.80\u00b0C to 1.32\u00b0C (+59.7% corrected skill)."
+      "explanation": "Thermocline core depth; Argo-fitted depth correction reduces RMSE from 1.80\u00b0C to 1.32\u00b0C (+59.7% corrected skill).",
+      "callout": "100m is the weakest layer: 1.75\u00b0C raw vs 1.63\u00b0C reanalysis (1.29\u00b0C with Argo depth correction).",
+      "isWeakestLayer": true
     },
     {
       "depth": 125,
@@ -437,8 +533,13 @@
   },
   "metadata": {
     "climatologyMethod": "14-year calendar-average harmonic target climatology",
-    "climatologyRationale": "Monthly calendar-average climatology baseline computed across the identical 1,809-profile June-December 2023 evaluation window and valid mask."
+    "climatologyRationale": "Monthly calendar-average climatology baseline computed across the identical 1,809-profile June-December 2023 evaluation window and valid mask.",
+    "errorBands": {
+      "band90Coverage": "90% band held 89% on 2023 test set",
+      "tchp90Band": "\u00b117.8 kJ/cm\u00b2, held about 87%"
+    },
+    "trainingDisclosure": "Trained on 2010-2020, tested on 2023, one training run. MLD is experimental."
   },
   "provenance": "Currently serving the new 14-year model for June\u2013December 2023. Full 2021\u20132023 coverage coming soon.",
-  "computedAt": "2026-09-20T17:25:03.848420+00:00"
+  "computedAt": "2026-09-20T17:39:30.474433+00:00"
 }

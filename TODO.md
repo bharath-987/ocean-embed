@@ -4,6 +4,36 @@
 > **MANDATORY PROTOCOL**: This file **MUST** be updated after **EVERY SINGLE TASK** without exception or user reminder.
 > Record status, files changed, and verification evidence for every item.
 
+- [x] **Task: Address Two Gaps Before Internal Review (Ajay's Review & Numbers Sweep)** `[Completed 2026-09-20 23:12]`
+  - [x] **Gap 1: Handoff Check Script Provenance & Resolution**:
+    - Performed disk-wide inspection and inspected Ajay's source zip archive `C:/Users/Asus/Downloads/drive-download-20260919T184320Z-1-001.zip` (140,015,387 bytes).
+    - Verified via `zipfile.ZipFile.infolist()` that the archive contains strictly 5 model/data asset files:
+      1. `correction_v6_satswap_anom_14yr.json` (1,415 B)
+      2. `v6_satswap_anom_14yr.bundle.npz` (10,268,579 B)
+      3. `products_v6_satswap_anom_14yr_2023-06-01_2023-12-31.npz` (13,716,391 B)
+      4. `embeddings_v6_satswap_anom_14yr_2023-06-01_2023-12-31.npz` (76,636,282 B)
+      5. `field_v6_satswap_anom_14yr_2023-06-01_2023-12-31.npz` (39,400,611 B)
+    - Confirmed that no Python script (`handoff_check.py`) was ever provided in Ajay's zip download.
+    - Clarified that `backend/data/v6_satswap_anom_14yr/oceanembed/handoff_check.py` was authored in-repo as a 5-gate specification test. Transparently documented and communicated to Ajay.
+  - [x] **Gap 2: Full Numbers Sweep, Full-Year 2023 Benchmarks & Methodological Disclosures**:
+    - **Full-Year 2023 Independent Test Set**: Evaluated all 2,910 profiles from 92 unique floats across 38,769 depth points from `evaluation_results_v6_satswap_anom_14yr_argo_full.csv`:
+      - Raw Model RMSE: **0.941°C** (`0.9407°C`)
+      - GLORYS Reanalysis RMSE: **0.886°C** (`0.8864°C`)
+      - Argo Depth Corrected RMSE: **0.836°C** (`0.8364°C`, labeled "fitted on Argo")
+    - **100m Weakest Layer Callout**: Raw RMSE **1.75°C** (`1.7525°C`) vs GLORYS reanalysis **1.63°C** (`1.6336°C`) (and 1.29°C corrected). High stratification in thermocline core documented as the primary challenge for surface-only neural inversion.
+    - **Calibrated Error Bands**: Documented 90% error band held 89% coverage on 2023 test set; TCHP 90% band ±17.8 kJ/cm², held about 87% coverage.
+    - **Methodological Disclosure**: Added core disclosure across all documentation: *"Trained on 2010-2020, tested on 2023, one training run. MLD is experimental."*
+    - **Skill Scores**: Both monthly baseline (+41.4%) and daily baseline (+39.7%) formally integrated into JSON API and UI.
+    - Updated files: `backend/compute_argo_summary.py`, `backend/data/argo_summary_14yr.json`, `backend/api_server.py`, `argo.html`, `README.md`, and `PITCH.md`.
+  - [x] **Verification Matrix (100% Pass)**:
+    - `node test_stat_card_outputs.js`: **ALL PASS (100%)**
+    - `node test_d20_card.js`: **ALL PASS (100%)**
+    - `node test_argo_skill_score.js`: **54 / 54 PASSED (100%)**
+    - `node test_argo_page.js`: **149 / 149 PASSED (100%)**
+    - `python test_argo_summary_regression.py`: **23 / 23 PASSED (100%)**
+    - `python test_system.py`: **ALL RIGOROUS TESTS PASSED (100%)**
+    - `npm run build`: **PASS (`dist/kyogre-app.js` 92.5kb)**
+
 - [x] **Task: Pre-Internal Review Polish & Fixes (Ajay's Review of b5c431c — 8 Items)** `[Completed 2026-09-20 22:56]`
   - [x] **Item 1: Deploy will crash on clean clone (critical)**:
     - Uploaded all 5 required v6 assets to Hugging Face dataset `bharath-987/ocean-embed-data` with exact byte sizes documented:

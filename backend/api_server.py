@@ -1527,9 +1527,11 @@ def compute_argo_summary(force_refresh: bool = False) -> dict:
         overall = data.get("overall", {})
         res = dict(overall)
         res["overall"] = overall
+        res["full_year_2023"] = data.get("full_year_2023", {})
         res["basins"] = data.get("basins", {})
         res["depths"] = data.get("depths", [])
         res["subRegions"] = data.get("subRegions", {})
+        res["metadata"] = data.get("metadata", {})
         res["provenance"] = data.get("provenance", v6_adapter.PROVENANCE_NOTE)
         _argo_summary_cache = res
         return _argo_summary_cache
