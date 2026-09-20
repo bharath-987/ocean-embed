@@ -1591,9 +1591,93 @@ def get_marine_heatwave(
     return result
 
 
+@app.get("/regimes")
+def get_regimes(date: str = Query("2023-10-22")):
+    """
+    Returns 8 ocean regime clusters, cluster RGB map, regime colors, mean profiles,
+    and relative anomaly profiles (relative to domain mean profile across clusters).
+    Disclosure: colours are relative, not physical units.
+    """
+    import numpy as np
+    if not v6_adapter.is_date_in_window(date):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Date {date} is outside the active model window ({v6_adapter.WINDOW_START} to {v6_adapter.WINDOW_END}). {v6_adapter.PROVENANCE_NOTE}"
+        )
+    try:
+        data = v6_adapter.regimes(date)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    labels = data["labels"]  # (101, 241) int8 (-1 is land)
+    colors = data["colors"]  # (8, 3) uint8
+    profiles = data["profiles"]  # (8, 15) float32
+    depths = [int(d) for d in data["depths_m"]]
+
+    # Compute domain mean profile across clusters
+    mean_profile = np.mean(profiles, axis=0)  # (15,)
+    relative_profiles = profiles - mean_profile  # (8, 15)
+
+    hex_colors = [f"#{int(c[0]):02x}{int(c[1]):02x}{int(c[2]):02x}" for c in colors]
+
+    return {
+        "date": date,
+        "labels": labels.tolist(),
+        "colors": colors.tolist(),
+        "hexColors": hex_colors,
+        "profiles": [[round(float(v), 2) for v in p] for p in profiles],
+        "meanProfile": [round(float(v), 2) for v in mean_profile],
+        "relativeProfiles": [[round(float(v), 2) for v in p] for p in relative_profiles],
+        "depths": depths,
+        "lats": [round(float(lat), 2) for lat in v6_adapter.TARGET_LATS],
+        "lons": [round(float(lon), 2) for lon in v6_adapter.TARGET_LONS],
+        "disclaimer": "colours are relative, not physical units"
+    }
+
+
+@app.get("/products-grid")
+def get_products_grid(
+    name: str = Query(..., pattern="^(tchp|d26|d20|mld)$"),
+    date: str = Query("2023-10-22")
+):
+    """
+    Returns 2D (101, 241) spatial product grid for tchp, d26, d20, or mld.
+    Values outside ocean or undefined are returned as null.
+    """
+    import numpy as np
+    if not v6_adapter.is_date_in_window(date):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Date {date} is outside the active model window ({v6_adapter.WINDOW_START} to {v6_adapter.WINDOW_END}). {v6_adapter.PROVENANCE_NOTE}"
+        )
+    try:
+        grid = v6_adapter.product_map(name, date)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    valid_vals = grid[np.isfinite(grid)]
+    min_val = round(float(np.min(valid_vals)), 2) if len(valid_vals) > 0 else None
+    max_val = round(float(np.max(valid_vals)), 2) if len(valid_vals) > 0 else None
+
+    units = {"tchp": "kJ/cm²", "d26": "m", "d20": "m", "mld": "m"}
+    grid_clean = np.where(np.isfinite(grid), np.round(grid.astype(float), 2), None).tolist()
+
+    return {
+        "name": name,
+        "date": date,
+        "unit": units.get(name, ""),
+        "min": min_val,
+        "max": max_val,
+        "lats": [round(float(lat), 2) for lat in v6_adapter.TARGET_LATS],
+        "lons": [round(float(lon), 2) for lon in v6_adapter.TARGET_LONS],
+        "grid": grid_clean
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))
     uvicorn.run("api_server:app", host="0.0.0.0", port=port, reload=False)
+
 
 

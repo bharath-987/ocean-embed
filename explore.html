@@ -75,11 +75,16 @@
       </div>
     </header>
 
-    <!-- Model Window Banner (June–Dec 2023 Window) -->
+    <!-- Model Window Banner & Climate State Badge -->
     <div class="ky-model-window-banner" role="status" aria-live="polite">
-      <div class="ky-model-window-banner__inner">
-        <span class="ky-model-window-banner__badge">14-Year Model</span>
-        <span class="ky-model-window-banner__text">Currently serving the new 14-year model for June–December 2023. Full 2021–2023 coverage coming soon.</span>
+      <div class="ky-model-window-banner__inner" style="display: flex; justify-content: space-between; align-items: center; width: 100%; max-width: 1400px; margin: 0 auto; padding: 0 16px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="ky-model-window-banner__badge">14-Year Model</span>
+          <span class="ky-model-window-banner__text">Currently serving <code>model_v6_satswap_anom_14yr</code> for June–December 2023. Caveats: Trained 2010–2020, tested 2023 (one training run · MLD experimental).</span>
+        </div>
+        <div class="ky-climate-state-badge" id="ky-climate-state-badge" style="background: #EFF6FF; border: 1px solid #BFDBFE; color: #1E40AF; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 600;">
+          Climate State: <strong>El Niño, with a positive Indian Ocean Dipole from mid-year</strong>
+        </div>
       </div>
     </div>
 
@@ -119,7 +124,7 @@
                 <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>
               </svg>
             </span>
-            <span class="ky-nav-item__label">Marine Ecology &amp; Heatwave Mode</span>
+            <span class="ky-nav-item__label">Marine Ecology</span>
           </button>
 
           <button class="ky-nav-item" data-nav="argo" onclick="window.location.href='argo.html'">
@@ -130,7 +135,21 @@
                 <rect x="17" y="3" width="4" height="18" rx="1"/>
               </svg>
             </span>
-            <span class="ky-nav-item__label">ARGO Validation &amp; Compare</span>
+            <span class="ky-nav-item__label">Truth Check (Validation)</span>
+          </button>
+
+          <button class="ky-nav-item" data-nav="fingerprint" onclick="window.location.href='fingerprint.html'">
+            <span class="ky-nav-item__icon">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2a10 10 0 0 0-10 10c0 4.4 2.8 8.1 6.8 9.5"/>
+                <path d="M12 6a6 6 0 0 0-6 6c0 2.2 1.2 4.1 3 5.2"/>
+                <path d="M12 10a2 2 0 0 0-2 2c0 1.1.9 2 2 2"/>
+                <path d="M12 14c-1.1 0-2 .9-2 2 0 1.7 1.3 3 3 3s3-1.3 3-3"/>
+                <path d="M18 10a6 6 0 0 1 1.7 4.2c0 2.3-1.3 4.3-3.2 5.3"/>
+                <path d="M22 12a10 10 0 0 1-2.9 7.1"/>
+              </svg>
+            </span>
+            <span class="ky-nav-item__label">Fingerprint Atlas</span>
           </button>
         </nav>
 
@@ -306,6 +325,33 @@
                 </div>
               </div>
 
+              <!-- Storm Heat Replay Toolbar (Item 10) -->
+              <div class="ky-storm-replay-bar" id="ky-storm-replay-bar" style="background: #FFFFFF; border-top: 1px solid #E2E8F0; padding: 10px 16px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <span class="ky-storm-replay-badge" style="background: #FEF3C7; color: #92400E; border: 1px solid #FDE68A; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; letter-spacing: 0.5px;">STORM HEAT REPLAY</span>
+                    <span style="font-size: 12px; font-weight: 600; color: #0F172A;">TCHP Cyclone Season Replay (2023)</span>
+                  </div>
+                  <div class="ky-storm-jump-group" style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                    <span style="font-size: 11px; color: #64748B; font-weight: 600; text-transform: uppercase;">Jump to Storm:</span>
+                    <button type="button" class="ky-storm-btn" data-storm="Biparjoy" data-start="2023-06-06" data-end="2023-06-19" title="Arabian Sea (6–19 Jun)">Biparjoy (6–19 Jun)</button>
+                    <button type="button" class="ky-storm-btn" data-storm="Tej" data-start="2023-10-20" data-end="2023-10-24" title="Arabian Sea (20–24 Oct)">Tej (20–24 Oct)</button>
+                    <button type="button" class="ky-storm-btn" data-storm="Hamoon" data-start="2023-10-21" data-end="2023-10-26" title="Bay of Bengal (21–26 Oct)">Hamoon (21–26 Oct)</button>
+                    <button type="button" class="ky-storm-btn" data-storm="Midhili" data-start="2023-11-15" data-end="2023-11-18" title="Bay of Bengal (15–18 Nov)">Midhili (15–18 Nov)</button>
+                    <button type="button" class="ky-storm-btn" data-storm="Michaung" data-start="2023-12-01" data-end="2023-12-06" title="Bay of Bengal (1–6 Dec)">Michaung (1–6 Dec)</button>
+                  </div>
+                </div>
+                <div class="ky-storm-controls" style="display: flex; align-items: center; gap: 12px; margin-top: 8px;">
+                  <button type="button" id="btn-storm-play" class="ky-storm-play-btn" style="display: flex; align-items: center; gap: 6px; background: #1D4ED8; color: white; border: none; border-radius: 4px; padding: 4px 10px; font-size: 11px; font-weight: 600; cursor: pointer;">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                    <span id="storm-play-text">Play Replay</span>
+                  </button>
+                  <input type="range" id="storm-day-slider" min="0" max="13" value="0" style="flex: 1; accent-color: #1D4ED8; cursor: pointer;" />
+                  <span id="storm-date-readout" style="font-size: 12px; font-weight: 700; color: #1E293B; font-family: monospace;">2023-10-20</span>
+                  <span style="font-size: 11px; color: #94A3B8; font-style: italic;">(dates only — storm tracks not in dataset)</span>
+                </div>
+              </div>
+
               <!-- Hidden elements preserved for app.js functionality without inline controls -->
               <div style="display:none;">
                 <input type="range" id="date-slider" min="0" max="1094" value="547" />
@@ -425,6 +471,74 @@
                     <div class="ky-param-tile__name">Surface Winds</div>
                     <div class="ky-param-tile__sub">Winds</div>
                     <div class="ky-param-tile__val" id="param-wind-val">—</div>
+                  </div>
+                  <svg class="ky-param-tile__arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="9 18 15 12 9 6"/>
+                  </svg>
+                </button>
+
+                <!-- 7: D20 Isotherm Depth (Product Map) -->
+                <button class="ky-param-tile" data-param="d20" id="param-d20">
+                  <div class="ky-param-tile__icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
+                    </svg>
+                  </div>
+                  <div class="ky-param-tile__body">
+                    <div class="ky-param-tile__name">D20 Isotherm Depth</div>
+                    <div class="ky-param-tile__sub">Product Map · D20</div>
+                    <div class="ky-param-tile__val" id="param-d20-tile-val">—</div>
+                  </div>
+                  <svg class="ky-param-tile__arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="9 18 15 12 9 6"/>
+                  </svg>
+                </button>
+
+                <!-- 8: D26 Isotherm Depth (Product Map) -->
+                <button class="ky-param-tile" data-param="d26" id="param-d26">
+                  <div class="ky-param-tile__icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                    </svg>
+                  </div>
+                  <div class="ky-param-tile__body">
+                    <div class="ky-param-tile__name">D26 Isotherm Depth</div>
+                    <div class="ky-param-tile__sub">Product Map · D26</div>
+                    <div class="ky-param-tile__val" id="param-d26-tile-val">—</div>
+                  </div>
+                  <svg class="ky-param-tile__arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="9 18 15 12 9 6"/>
+                  </svg>
+                </button>
+
+                <!-- 9: TCHP Cyclone Heat (Product Map) -->
+                <button class="ky-param-tile" data-param="tchp" id="param-tchp">
+                  <div class="ky-param-tile__icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                    </svg>
+                  </div>
+                  <div class="ky-param-tile__body">
+                    <div class="ky-param-tile__name">Cyclone Heat (TCHP)</div>
+                    <div class="ky-param-tile__sub">Product Map · TCHP</div>
+                    <div class="ky-param-tile__val" id="param-tchp-tile-val">—</div>
+                  </div>
+                  <svg class="ky-param-tile__arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="9 18 15 12 9 6"/>
+                  </svg>
+                </button>
+
+                <!-- 10: Mixed Layer Depth (Product Map) -->
+                <button class="ky-param-tile" data-param="mld" id="param-mld">
+                  <div class="ky-param-tile__icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                    </svg>
+                  </div>
+                  <div class="ky-param-tile__body">
+                    <div class="ky-param-tile__name">Mixed Layer Depth</div>
+                    <div class="ky-param-tile__sub">Product Map · MLD</div>
+                    <div class="ky-param-tile__val" id="param-mld-tile-val">—</div>
                   </div>
                   <svg class="ky-param-tile__arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polyline points="9 18 15 12 9 6"/>

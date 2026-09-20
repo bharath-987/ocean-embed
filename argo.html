@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Kyogre — ARGO Validation &amp; Compare</title>
-  <meta name="description" content="Validate Kyogre deep learning ocean temperature predictions against real in-situ ARGO profiling floats in the North Indian Ocean." />
+  <title>Kyogre — Truth Check: Model vs Reanalysis vs Argo</title>
+  <meta name="description" content="Truth Check: Validate Kyogre deep learning ocean temperature predictions against GLORYS reanalysis and real in-situ ARGO profiling floats in the North Indian Ocean." />
 
   <!-- Deployment Config -->
   <script src="config.js"></script>
@@ -60,11 +60,16 @@
       </div>
     </header>
 
-    <!-- Model Window Banner (June–Dec 2023 Window) -->
+    <!-- Model Window Banner & Universal Provenance -->
     <div class="ky-model-window-banner" role="status" aria-live="polite">
-      <div class="ky-model-window-banner__inner">
-        <span class="ky-model-window-banner__badge">14-Year Model</span>
-        <span class="ky-model-window-banner__text">Currently serving the new 14-year model for June–December 2023. Full 2021–2023 coverage coming soon.</span>
+      <div class="ky-model-window-banner__inner" style="display: flex; justify-content: space-between; align-items: center; width: 100%; max-width: 1400px; margin: 0 auto; padding: 0 16px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="ky-model-window-banner__badge">14-Year Model</span>
+          <span class="ky-model-window-banner__text">Currently serving <code>model_v6_satswap_anom_14yr</code> for June–December 2023. Caveats: Trained 2010–2020, tested 2023 (one training run · MLD experimental).</span>
+        </div>
+        <div class="ky-climate-state-badge" id="ky-climate-state-badge" style="background: #EFF6FF; border: 1px solid #BFDBFE; color: #1E40AF; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 600;">
+          2023 Climate: El Niño, with a positive Indian Ocean Dipole from mid-year
+        </div>
       </div>
     </div>
 
@@ -115,7 +120,18 @@
                 <rect x="17" y="3" width="4" height="18" rx="1"/>
               </svg>
             </span>
-            <span class="ky-nav-item__label">ARGO Validation &amp; Compare</span>
+            <span class="ky-nav-item__label">Truth Check (Validation)</span>
+          </button>
+
+          <button class="ky-nav-item" data-nav="fingerprint" onclick="window.location.href='fingerprint.html'">
+            <span class="ky-nav-item__icon">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/>
+                <path d="M2 12h20"/>
+              </svg>
+            </span>
+            <span class="ky-nav-item__label">Fingerprint Atlas</span>
           </button>
         </nav>
 

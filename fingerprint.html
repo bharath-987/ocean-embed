@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kyogre — Fingerprint Atlas</title>
+  <meta name="description" content="Latent Spatiotemporal Ocean Regimes and Fingerprint Atlas of the North Indian Ocean from CNN-LSTM Embeddings." />
+
+  <!-- Deployment Config -->
+  <script src="config.js"></script>
+
+  <!-- MapLibre GL -->
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    .ky-atlas-container {
+      display: grid;
+      grid-template-columns: 1fr 440px;
+      gap: 16px;
+      height: calc(100vh - 128px);
+      padding: 16px 24px;
+      overflow: hidden;
+      background: #F8FAFC;
+    }
+    @media (max-width: 1024px) {
+      .ky-atlas-container {
+        grid-template-columns: 1fr;
+        height: auto;
+        overflow: auto;
+      }
+    }
+    .ky-atlas-map-card {
+      position: relative;
+      background: #FFFFFF;
+      border: 1px solid #E2E8F0;
+      border-radius: 10px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .ky-atlas-map-header {
+      padding: 12px 16px;
+      background: #FFFFFF;
+      border-bottom: 1px solid #E2E8F0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 10;
+    }
+    .ky-atlas-map-view {
+      flex: 1;
+      width: 100%;
+      position: relative;
+      background: #0B192C;
+    }
+    #atlas-map {
+      width: 100%;
+      height: 100%;
+    }
+    .ky-atlas-controls-bar {
+      position: absolute;
+      top: 14px;
+      left: 14px;
+      z-index: 20;
+      display: flex;
+      gap: 8px;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(8px);
+      padding: 6px 12px;
+      border-radius: 8px;
+      border: 1px solid #CBD5E1;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      font-size: 13px;
+      font-weight: 500;
+      align-items: center;
+    }
+    .ky-atlas-legend-overlay {
+      position: absolute;
+      bottom: 20px;
+      left: 14px;
+      z-index: 20;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(8px);
+      padding: 12px 14px;
+      border-radius: 8px;
+      border: 1px solid #CBD5E1;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      max-width: 320px;
+    }
+    .ky-atlas-legend-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: #0F172A;
+      margin-bottom: 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .ky-atlas-chips {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+    }
+    .ky-atlas-chip {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      padding: 4px 6px;
+      border-radius: 4px;
+      background: #F1F5F9;
+      border: 1px solid #E2E8F0;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.15s ease;
+    }
+    .ky-atlas-chip:hover {
+      background: #E2E8F0;
+    }
+    .ky-atlas-chip--active {
+      border-color: #1D4ED8;
+      background: #EFF6FF;
+      font-weight: 600;
+    }
+    .ky-atlas-chip-color {
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+    .ky-atlas-side-panel {
+      background: #FFFFFF;
+      border: 1px solid #E2E8F0;
+      border-radius: 10px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      overflow: hidden;
+    }
+    .ky-atlas-side-header {
+      padding: 14px 18px;
+      border-bottom: 1px solid #E2E8F0;
+      background: #FFFFFF;
+    }
+    .ky-atlas-side-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #0F172A;
+      margin-bottom: 2px;
+    }
+    .ky-atlas-side-sub {
+      font-size: 12px;
+      color: #64748B;
+      line-height: 1.4;
+    }
+    .ky-atlas-chart-wrap {
+      flex: 1;
+      padding: 16px;
+      position: relative;
+      min-height: 320px;
+    }
+    .ky-atlas-table-wrap {
+      padding: 12px 16px;
+      border-top: 1px solid #E2E8F0;
+      background: #F8FAFC;
+      max-height: 220px;
+      overflow-y: auto;
+    }
+    .ky-atlas-regime-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .ky-atlas-regime-row:hover {
+      background: #EFF6FF;
+    }
+    .ky-atlas-regime-row--active {
+      background: #DBEAFE;
+      font-weight: 600;
+    }
+    .ky-provenance-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #EFF6FF;
+      color: #1E40AF;
+      border: 1px solid #BFDBFE;
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body class="kyogre-page">
+
+  <div class="ky-app">
+
+    <!-- Universal Kyogre Header -->
+    <header class="ky-header">
+      <div class="ky-header__brand" onclick="window.location.href='explore.html'" style="cursor: pointer;" title="Back to Dashboard">
+        <div class="ky-header__brand-title">Kyogre</div>
+      </div>
+
+      <div class="ky-header__search" style="display: flex; align-items: center; justify-content: center;">
+        <span class="ky-provenance-tag">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+          </svg>
+          Model: <code>model_v6_satswap_anom_14yr</code> · Test Window: Jun–Dec 2023 · Caveats: Trained 2010–2020, tested 2023 (MLD experimental)
+        </span>
+      </div>
+
+      <!-- Right controls: Date picker & Live indicator -->
+      <div class="ky-header__right">
+        <div class="ky-date-picker-wrap">
+          <button class="ky-date-btn" id="ky-date-btn" aria-label="Selected date" type="button">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/>
+              <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+            <span id="date-display-header">2023-10-22</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6,9 12,15 18,9"/>
+            </svg>
+          </button>
+          <input type="date" id="native-date-picker" min="2023-06-01" max="2023-12-31" value="2023-10-22" class="ky-hidden-date-input" aria-label="Choose date" />
+        </div>
+
+        <div class="ky-live-indicator">
+          <span class="ky-live-dot ky-live-dot--reanalysis"></span>
+          <div class="ky-live-text">
+            <div class="ky-live-title">Historical Reanalysis</div>
+            <div class="ky-live-sub">Reconstructed Data</div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Disclosures & Caveat Banner (Colours are relative, not physical units) -->
+    <div class="ky-model-window-banner" role="status" aria-live="polite" style="background: #FEF3C7; border-bottom: 1px solid #FDE68A;">
+      <div class="ky-model-window-banner__inner" style="color: #92400E; font-size: 12px; display: flex; align-items: center; justify-content: space-between; width: 100%; max-width: 1400px; margin: 0 auto; padding: 0 16px;">
+        <div>
+          <strong>Fingerprint Atlas Notice:</strong> <em>colours are relative, not physical units</em>. Latent 16-D representations partition the North Indian Ocean into 8 unsupervised thermal regimes.
+        </div>
+        <div style="font-weight: 600; color: #B45309;">
+          Single Training Run · Out-of-sample 2023
+        </div>
+      </div>
+    </div>
+
+    <!-- Body — Sidebar + Main Content -->
+    <div class="ky-body">
+
+      <!-- Universal Sidebar -->
+      <aside class="ky-sidebar">
+        <nav class="ky-sidebar__nav">
+
+          <button class="ky-nav-item" data-nav="dashboard" onclick="window.location.href='explore.html'">
+            <span class="ky-nav-item__icon">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+              </svg>
+            </span>
+            <span class="ky-nav-item__label">Dashboard</span>
+          </button>
+
+          <button class="ky-nav-item" data-nav="fisheries" onclick="window.location.href='fisheries.html'">
+            <span class="ky-nav-item__icon">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M2 16s1-5 8-5 8 5 8 5-2 2-8 2-8-2-8-2z"/>
+                <path d="M18 11c1-2 3-4 3-4s-1 2-1 4 1 4 1 4-2-2-3-4z"/>
+                <circle cx="8" cy="11" r="1.2" fill="currentColor"/>
+              </svg>
+            </span>
+            <span class="ky-nav-item__label">Fisheries Mode</span>
+          </button>
+
+          <button class="ky-nav-item" data-nav="ecology" onclick="window.location.href='marine-ecology.html'">
+            <span class="ky-nav-item__icon">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z"/>
+                <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>
+              </svg>
+            </span>
+            <span class="ky-nav-item__label">Marine Ecology</span>
+          </button>
+
+          <button class="ky-nav-item" data-nav="argo" onclick="window.location.href='argo.html'">
+            <span class="ky-nav-item__icon">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="3" y="12" width="4" height="9" rx="1"/>
+                <rect x="10" y="7" width="4" height="14" rx="1"/>
+                <rect x="17" y="3" width="4" height="18" rx="1"/>
+              </svg>
+            </span>
+            <span class="ky-nav-item__label">Truth Check (Validation)</span>
+          </button>
+
+          <button class="ky-nav-item ky-nav-item--active" data-nav="fingerprint">
+            <span class="ky-nav-item__icon">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2a10 10 0 0 0-10 10c0 4.4 2.8 8.1 6.8 9.5"/>
+                <path d="M12 6a6 6 0 0 0-6 6c0 2.2 1.2 4.1 3 5.2"/>
+                <path d="M12 10a2 2 0 0 0-2 2c0 1.1.9 2 2 2"/>
+                <path d="M12 14c-1.1 0-2 .9-2 2 0 1.7 1.3 3 3 3s3-1.3 3-3"/>
+                <path d="M18 10a6 6 0 0 1 1.7 4.2c0 2.3-1.3 4.3-3.2 5.3"/>
+                <path d="M22 12a10 10 0 0 1-2.9 7.1"/>
+              </svg>
+            </span>
+            <span class="ky-nav-item__label">Fingerprint Atlas</span>
+          </button>
+        </nav>
+
+        <div class="ky-sidebar__footer">
+          <p class="ky-sidebar__note"><em>Unsupervised spatiotemporal ocean regimes.</em></p>
+          <p class="ky-sidebar__copy">© 2025 Kyogre. All rights reserved.</p>
+        </div>
+      </aside>
+
+      <!-- Main Layout -->
+      <main class="ky-main" style="padding: 0; background: #F8FAFC;">
+
+        <div class="ky-atlas-container">
+
+          <!-- Left: Map View -->
+          <div class="ky-atlas-map-card">
+            <div class="ky-atlas-map-header">
+              <div>
+                <h2 style="font-size: 15px; font-weight: 700; color: #0F172A; margin: 0;">Latent Ocean Regimes Map</h2>
+                <div style="font-size: 11px; color: #64748B;">Spatial segmentation of the North Indian Ocean into 8 distinct water mass regimes</div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <label style="font-size: 12px; font-weight: 600; color: #334155; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                  <input type="checkbox" id="toggle-sla" style="cursor: pointer;" />
+                  <span>Sea-Level Overlay</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="ky-atlas-map-view">
+              <div id="atlas-map"></div>
+
+              <!-- Overlay Disclaimer & Floating Legend -->
+              <div class="ky-atlas-legend-overlay">
+                <div class="ky-atlas-legend-title">
+                  <span>Ocean Regimes</span>
+                  <span style="font-size: 10px; font-weight: 500; color: #64748B;">colours are relative, not physical units</span>
+                </div>
+                <div class="ky-atlas-chips" id="regime-chips-container">
+                  <!-- Dynamically populated 8 regime chips -->
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: Profile Relative to Average -->
+          <div class="ky-atlas-side-panel">
+            <div class="ky-atlas-side-header">
+              <div class="ky-atlas-side-title">Regime Profile vs Domain Average</div>
+              <div class="ky-atlas-side-sub">Vertical thermal anomaly ($\Delta T = T_{\text{regime}} - T_{\text{average}}$) across 15 standard depths down to 1,000 meters.</div>
+            </div>
+
+            <div class="ky-atlas-chart-wrap">
+              <canvas id="regime-profile-chart"></canvas>
+            </div>
+
+            <div class="ky-atlas-table-wrap">
+              <div style="font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">
+                Regime Signatures ($\Delta T$ at 100m Thermocline Core)
+              </div>
+              <div id="regime-table-body">
+                <!-- Dynamically populated rows -->
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </main>
+
+    </div>
+
+  </div>
+
+  <script src="fingerprint.js"></script>
+</body>
+</html>
