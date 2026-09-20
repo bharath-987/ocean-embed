@@ -378,9 +378,22 @@ def ensure_data_ready(dest_dir: str = DATA_DIR) -> bool:
 
 
 if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="Fetch OceanEmbed dataset files")
+    parser.add_argument("--v6-only", action="store_true", help="Only download 14-year v6 model assets")
+    parser.add_argument("--float16-only", action="store_true", help="Only download float16 dataset files")
+    parser.add_argument("--force", action="store_true", help="Force re-download even if files exist")
+    args = parser.parse_args()
+
     try:
-        fetch_all_data()
-        fetch_v6_data()
+        if args.v6_only:
+            fetch_v6_data(force=args.force)
+        elif args.float16_only:
+            fetch_all_data(force=args.force)
+        else:
+            # Prioritize v6 model assets so the active model is unpacked and ready immediately
+            fetch_v6_data(force=args.force)
+            fetch_all_data(force=args.force)
     except Exception as e:
         print(f"Dataset fetch terminated with error: {e}", file=sys.stderr, flush=True)
         sys.exit(1)
