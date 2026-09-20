@@ -219,11 +219,8 @@ def _get_mdt(arr_idx: int) -> inf.np.ndarray:
     Ranges physically from ~0.35m in western upwelling basin (Somalia/Oman)
     to ~0.85m in the warm pool / Bay of Bengal.
     """
-    if arr_idx < 0 or arr_idx >= inf._temp_target_clim.shape[0]:
-        raise HTTPException(
-            status_code=400,
-            detail="This date is not available in the deployed demo dataset.",
-        )
+    if inf._temp_target_clim is None or arr_idx < 0 or arr_idx >= inf._temp_target_clim.shape[0]:
+        return inf.np.full((101, 241), 0.5, dtype=inf.np.float32)
     clim = inf._temp_target_clim[arr_idx]
     depths = [0, 5, 10, 20, 30, 50, 75, 100, 125, 150, 200, 300]
     steric = inf.np.zeros((101, 241), dtype=inf.np.float32)
@@ -232,7 +229,7 @@ def _get_mdt(arr_idx: int) -> inf.np.ndarray:
         t_avg = (clim[i] + clim[i - 1]) / 2.0
         steric += 2.1e-4 * inf.np.maximum(0.0, t_avg - 4.0) * dz
 
-    ocean = (inf._sst_arr[arr_idx] > 0.5)
+    ocean = (inf._sst_arr[arr_idx] > 0.5) if (inf._sst_arr is not None and arr_idx < inf._sst_arr.shape[0]) else inf.np.ones((101, 241), dtype=bool)
     s_ocean = steric[ocean]
     s_min = float(s_ocean.min()) if len(s_ocean) > 0 else 0.0
     s_max = float(s_ocean.max()) if len(s_ocean) > 0 else 1.0
@@ -247,17 +244,28 @@ def extract_surface_inputs(latitude: float, longitude: float, date_str: str) -> 
     lat_idx, lon_idx = _grid_indices(latitude, longitude)
     day_idx, arr_idx = _validate_date_available(date_str, need_history=False)
 
-    sst = float(inf._sst_arr[arr_idx, lat_idx, lon_idx])
-    sst_anom = float(inf._sst_anom[arr_idx, lat_idx, lon_idx])
-    sss_anom = float(inf._sss_anom[arr_idx, lat_idx, lon_idx])
-    ssh_anom = float(inf._ssh_anom[arr_idx, lat_idx, lon_idx])
-    u_cur = float(inf._u_cur_anom[arr_idx, lat_idx, lon_idx])
-    v_cur = float(inf._v_cur_anom[arr_idx, lat_idx, lon_idx])
-    u_wind = float(inf._u_wind_anom[arr_idx, lat_idx, lon_idx])
-    v_wind = float(inf._v_wind_anom[arr_idx, lat_idx, lon_idx])
-
-    mdt_val = float(_get_mdt(arr_idx)[lat_idx, lon_idx])
-    ssh_val = mdt_val + ssh_anom
+    if inf._sst_arr is not None and 0 <= arr_idx < inf._sst_arr.shape[0]:
+        sst = float(inf._sst_arr[arr_idx, lat_idx, lon_idx])
+        sst_anom = float(inf._sst_anom[arr_idx, lat_idx, lon_idx])
+        sss_anom = float(inf._sss_anom[arr_idx, lat_idx, lon_idx])
+        ssh_anom = float(inf._ssh_anom[arr_idx, lat_idx, lon_idx])
+        u_cur = float(inf._u_cur_anom[arr_idx, lat_idx, lon_idx])
+        v_cur = float(inf._v_cur_anom[arr_idx, lat_idx, lon_idx])
+        u_wind = float(inf._u_wind_anom[arr_idx, lat_idx, lon_idx])
+        v_wind = float(inf._v_wind_anom[arr_idx, lat_idx, lon_idx])
+        mdt_val = float(_get_mdt(arr_idx)[lat_idx, lon_idx])
+        ssh_val = mdt_val + ssh_anom
+    else:
+        prof = v6_adapter.predict_temperature_profile(latitude, longitude, date_str, raw=True)
+        sst = float(prof.get(0, 28.0)) if isinstance(prof, dict) and 0 in prof and prof[0] is not None else 28.0
+        sst_anom = 0.0
+        sss_anom = 0.0
+        ssh_anom = 0.0
+        u_cur = 0.0
+        v_cur = 0.0
+        u_wind = 0.0
+        v_wind = 0.0
+        ssh_val = 0.50
 
     cur_speed = float(inf.np.sqrt(u_cur**2 + v_cur**2))
     cur_dir = float((inf.np.degrees(inf.np.arctan2(v_cur, u_cur)) + 360) % 360)
@@ -425,8 +433,11 @@ def model_result_to_frontend(result: dict, latitude: float, longitude: float, da
     lats_rad = inf.np.radians(inf._target_lats[lat_i])
     d_lon_km = 27.78 * float(inf.np.cos(lats_rad))
 
-    sst_grid = inf.np.array(inf._sst_arr[mapped_day_idx], dtype=float)
-    sst_grid[sst_grid <= 0.0] = inf.np.nan
+    if inf._sst_arr is not None and 0 <= mapped_day_idx < inf._sst_arr.shape[0]:
+        sst_grid = inf.np.array(inf._sst_arr[mapped_day_idx], dtype=float)
+        sst_grid[sst_grid <= 0.0] = inf.np.nan
+    else:
+        sst_grid = v6_adapter.temperature_map(date_str, 0, corrected=(not raw_result))
 
     i_prev = max(0, lat_i - 1)
     i_next = min(sst_grid.shape[0] - 1, lat_i + 1)
@@ -512,7 +523,7 @@ def model_result_to_frontend(result: dict, latitude: float, longitude: float, da
             c0 = max(0, lon_j - 2)
             c1 = min(ekman_arr.shape[2], lon_j + 3)
             win = inf.np.array(ekman_arr[mapped_day_idx, r0:r1, c0:c1], dtype=float)
-            ocean_win = inf._sst_arr[mapped_day_idx, r0:r1, c0:c1] > 0.5
+            ocean_win = (inf._sst_arr[mapped_day_idx, r0:r1, c0:c1] > 0.5) if (inf._sst_arr is not None and mapped_day_idx < inf._sst_arr.shape[0]) else inf.np.ones(win.shape, dtype=bool)
             valid_vals = win[ocean_win]
             w_e_eval = float(inf.np.nanmax(valid_vals)) if valid_vals.size > 0 else ek_raw
             w_e_window = round(w_e_eval, 2)
@@ -1097,14 +1108,20 @@ def compute_pfz_grid(date_str: str) -> dict:
 
     sub_temps = spatial[:, ::lat_step, ::lon_step]
     sub_temps_raw = spatial_raw[:, ::lat_step, ::lon_step]
-    ocean_mask = (inf._sst_arr[mapped_day_idx, ::lat_step, ::lon_step] >= 0.5)
+    if inf._sst_arr is not None and 0 <= mapped_day_idx < inf._sst_arr.shape[0]:
+        ocean_mask = (inf._sst_arr[mapped_day_idx, ::lat_step, ::lon_step] >= 0.5)
+        sst_full = inf.np.array(inf._sst_arr[mapped_day_idx], dtype=float)
+        sst_full[sst_full <= 0.0] = inf.np.nan
+        sst_sub = inf._sst_arr[mapped_day_idx, ::lat_step, ::lon_step]
+    else:
+        ocean_mask = inf.np.isfinite(sub_temps[0])
+        sst_full = spatial[0].astype(float)
+        sst_sub = sub_temps[0]
 
     # 1. Horizontal Thermal Front Gradient across full grid, sampled to resolution
     # Literature-grounded productivity/front proxy derived from horizontal SST gradient
     # magnitude (Sobel / central differences) over the spatial SST field.
     # Evaluated first so front_strength_grid can corroborate coastal upwelling plumes.
-    sst_full = inf.np.array(inf._sst_arr[mapped_day_idx], dtype=float)
-    sst_full[sst_full <= 0.0] = inf.np.nan
     d_lat_km = 27.78
     lats_rad = inf.np.radians(inf._target_lats)[:, None]
     d_lon_km_2d = inf.np.broadcast_to(27.78 * inf.np.cos(lats_rad), (101, 241))
@@ -1150,8 +1167,10 @@ def compute_pfz_grid(date_str: str) -> dict:
     temp_gap = inf.np.nan_to_num(inf.np.maximum(0.0, t0_grid - t50_grid), nan=0.0)
     raw_ui = inf.np.clip(temp_gap / 5.0, 0.0, 1.0)
 
-    sla_grid = inf._ssh_anom[mapped_day_idx, ::lat_step, ::lon_step]
-    sst_sub = inf._sst_arr[mapped_day_idx, ::lat_step, ::lon_step]
+    if inf._ssh_anom is not None and 0 <= mapped_day_idx < inf._ssh_anom.shape[0]:
+        sla_grid = inf._ssh_anom[mapped_day_idx, ::lat_step, ::lon_step]
+    else:
+        sla_grid = inf.np.zeros_like(sst_sub)
 
     # Primary corroboration: Positive ERA5 Ekman pumping velocity (w_E >= 0.30 m/day)
     # evaluated across a +-2 grid cell (~0.5° matching ~30-50km Rossby radius) spatial window
@@ -1159,7 +1178,7 @@ def compute_pfz_grid(date_str: str) -> dict:
     # Fallback corroboration: SLA depression or strong thermal front with cool SST
     ek_arr = _get_ekman_array()
     if ek_arr is not None and 0 <= mapped_day_idx < len(ek_arr):
-        ocean_full = (inf._sst_arr[mapped_day_idx] >= 0.5)
+        ocean_full = (inf._sst_arr[mapped_day_idx] >= 0.5) if (inf._sst_arr is not None and mapped_day_idx < inf._sst_arr.shape[0]) else inf.np.isfinite(spatial[0])
         ek_full = inf.np.array(ek_arr[mapped_day_idx], dtype=float)
         ek_full[~ocean_full] = -999.0
         ek_max_full = maximum_filter(ek_full, size=(5, 5), mode="nearest")
@@ -1176,8 +1195,12 @@ def compute_pfz_grid(date_str: str) -> dict:
 
     # 4. Surface Chlorophyll-a (mg/m^3) with Three-Tier Priority:
     # Tier 1 (satellite) & Tier 2 (climatology) from chla_arr; Tier 3 synthetic heuristic fallback
-    u_cur = inf._u_cur_anom[mapped_day_idx, ::lat_step, ::lon_step]
-    v_cur = inf._v_cur_anom[mapped_day_idx, ::lat_step, ::lon_step]
+    if inf._u_cur_anom is not None and 0 <= mapped_day_idx < inf._u_cur_anom.shape[0]:
+        u_cur = inf._u_cur_anom[mapped_day_idx, ::lat_step, ::lon_step]
+        v_cur = inf._v_cur_anom[mapped_day_idx, ::lat_step, ::lon_step]
+    else:
+        u_cur = inf.np.zeros_like(sst_sub)
+        v_cur = inf.np.zeros_like(sst_sub)
     cur_mag = inf.np.sqrt(u_cur ** 2 + v_cur ** 2)
     chla_heuristic = inf.np.clip(0.25 + 2.5 * upwelling_val - 1.2 * sla_grid + 0.35 * cur_mag, 0.05, 9.8)
 

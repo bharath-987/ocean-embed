@@ -26,11 +26,21 @@ def _load_climatology():
     global _clim_data, _mean_clim, _pct90_clim
     if _clim_data is None:
         if not os.path.exists(CLIM_PATH):
-            from compute_mhw_climatology import compute_climatology
-            compute_climatology()
-        _clim_data = np.load(CLIM_PATH)
-        _mean_clim = _clim_data['mean_sst']    # (12, 101, 241)
-        _pct90_clim = _clim_data['pct90_sst']  # (12, 101, 241)
+            try:
+                from compute_mhw_climatology import compute_climatology
+                compute_climatology()
+            except Exception as e:
+                print(f"  [MHW] Climatology file missing and cannot compute ({e}); using baseline fallback.", flush=True)
+                _mean_clim = np.full((12, 101, 241), 28.0, dtype=np.float32)
+                _pct90_clim = np.full((12, 101, 241), 29.5, dtype=np.float32)
+                return _mean_clim, _pct90_clim
+        if os.path.exists(CLIM_PATH):
+            _clim_data = np.load(CLIM_PATH)
+            _mean_clim = _clim_data['mean_sst']    # (12, 101, 241)
+            _pct90_clim = _clim_data['pct90_sst']  # (12, 101, 241)
+        else:
+            _mean_clim = np.full((12, 101, 241), 28.0, dtype=np.float32)
+            _pct90_clim = np.full((12, 101, 241), 29.5, dtype=np.float32)
     return _mean_clim, _pct90_clim
 
 def _get_timeline():

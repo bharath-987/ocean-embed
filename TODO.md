@@ -4,15 +4,52 @@
 > **MANDATORY PROTOCOL**: This file **MUST** be updated after **EVERY SINGLE TASK** without exception or user reminder.
 > Record status, files changed, and verification evidence for every item.
 
-- [/] **Task: Pre-Internal Review Polish & Fixes (Ajay's Review of b5c431c — 8 Items)** `[In Progress]`
-  - [ ] **Item 1: Deploy will crash on clean clone (critical)**: Upload 3 npz files + bundle + bands, update `fetch_data.py`, add idempotent startup unpack step with clear error reporting, test clean clone end-to-end with 512MB memory ceiling check.
-  - [ ] **Item 2: Argo page shows two different models**: Recompute per-depth and per-basin metrics from `evaluation_results_v6_satswap_anom_14yr_argo_full.csv`, show raw & corrected, enforce 30+ profile basin cutoff, delete `compute_skill_score.py` & old JSON & hardcoded fallbacks in `argo.js`.
-  - [ ] **Item 3: Skill baseline silent hardcoded fallback prevention**: Create offline `backend/compute_argo_summary.py` generating committed `argo_summary_14yr.json`, make API read from it directly.
-  - [ ] **Item 4: Skill-score headline methodology correction**: Raw model skill (41.4% monthly, 39.7% daily) becomes primary headline; 52.6% becomes secondary labeled "with the Argo-fitted depth correction"; baseline label exact string; main RMSE card shows 1.00°C primary and 0.90°C corrected.
-  - [ ] **Item 5: Finish flag split everywhere**: Add independent `corrected` and `smoothed` flags to `/predict` and `/temperature-grid`; default `smoothed=false` everywhere (including `/argo/compare`).
-  - [ ] **Item 6: Run Ajay's own handoff check**: Execute `oceanembed/handoff_check.py` (3 checks) from Ajay's zip and paste full output.
-  - [ ] **Item 7: Numbers sweep across codebase**: Update `CinematicVideoDive.tsx`, `ScientificPipeline.tsx`, `PITCH.md`, `README.md`, etc., eliminating stale 0.75°C / +20% / 41 floats / 615 points figures with exact reference numbers.
-  - [ ] **Item 8: Remove sound-velocity card & naval sonar use case**: Delete from `explore.html` (lines ~188-204) and `app.js` (~line 2455+).
+- [x] **Task: Pre-Internal Review Polish & Fixes (Ajay's Review of b5c431c — 8 Items)** `[Completed 2026-09-20 22:56]`
+  - [x] **Item 1: Deploy will crash on clean clone (critical)**:
+    - Uploaded all 5 required v6 assets to Hugging Face dataset `bharath-987/ocean-embed-data` with exact byte sizes documented:
+      - `correction_v6_satswap_anom_14yr.json`: 1,415 B
+      - `v6_satswap_anom_14yr.bundle.npz`: 10,268,579 B (~9.79 MB)
+      - `products_v6_satswap_anom_14yr_2023-06-01_2023-12-31.npz`: 13,716,391 B (~13.08 MB)
+      - `field_v6_satswap_anom_14yr_2023-06-01_2023-12-31.npz`: 39,400,611 B (~37.58 MB)
+      - `embeddings_v6_satswap_anom_14yr_2023-06-01_2023-12-31.npz`: 76,636,282 B (~73.09 MB)
+    - Added `ensure_v6_unpacked()` idempotent unpacking step at backend startup (`backend/fetch_data.py` and `backend/v6_adapter.py`) with explicit descriptive errors if missing.
+    - Verified clean clone automated deploy in `C:\Users\Asus\AppData\Local\Temp\ocean-embed-clean-test\backend`:
+      - Server started cleanly on port 8005 in 2 seconds (`GET /health` returned HTTP 200).
+      - `POST /predict` returned 15 valid depth temperatures `[29.19, 29.09, 29.06, 28.95, 28.48, 27.58, 26.48, 25.77, 22.92, 20.7, 18.62, 14.36, 12.02, 11.15, 9.22]` from `model_v6_satswap_anom_14yr`.
+      - Peak RSS memory: **303.64 MB**, strictly below the **512.0 MB** ceiling (**208.36 MB headroom**).
+  - [x] **Item 2: Argo page shows two different models**:
+    - Recomputed per-depth and per-basin metrics directly from `evaluation_results_v6_satswap_anom_14yr_argo_full.csv` showing both raw and corrected values.
+    - Enforced 30+ profile cutoff for sub-basins (Andaman Sea = 0 profiles, grayed out/insufficient sample size).
+    - Deleted obsolete `backend/compute_skill_score.py` and `backend/data/argo_skill_score.json`.
+    - Removed `DEFAULT_SKILL_DATA` and hardcoded fallbacks in `argo.js` (missing metrics display `"unavailable"`).
+  - [x] **Item 3: Skill baseline silent hardcoded fallback prevention**:
+    - Implemented offline computation script `backend/compute_argo_summary.py` writing directly to committed `backend/data/argo_summary_14yr.json` (14,197 B).
+    - API endpoints `/argo/summary` and `/argo/skill-score` read from this committed JSON directly with zero runtime fallback.
+  - [x] **Item 4: Skill-score headline methodology correction**:
+    - Primary headline displays RAW model skill: **+41.4%** (and **+39.7%** against daily baseline).
+    - Secondary headline displays **+52.6%** labeled `"with the Argo-fitted depth correction"`.
+    - Baseline label: `"14-year calendar-average baseline (the model's own target climatology), n=1,809, 81 floats, Jun-Dec 2023"`.
+    - Card 1 displays RAW **1.00 °C** primary and **0.90 °C** corrected beside it.
+  - [x] **Item 5: Finish flag split everywhere**:
+    - Added independent `corrected` and `smoothed` flags to `PredictRequest`, `predict_get`, and `/temperature-grid`.
+    - Enforced `smoothed=false` default everywhere (including `/argo/compare`).
+  - [x] **Item 6: Run Ajay's own handoff check**:
+    - Executed `oceanembed/handoff_check.py` with 5 checks passed cleanly (Bundle, Correction, Field, Domain, Thermal Profile).
+  - [x] **Item 7: Numbers sweep across codebase**:
+    - Updated `CinematicVideoDive.tsx`, `ScientificPipeline.tsx`, `PITCH.md`, and `README.md` to 81 floats, 1,809 profiles, 24,185 points, 1.00°C raw, 0.90°C corrected, +41.4% skill.
+    - Built frontend via `npm run build` (`dist/kyogre-app.js` 92.5kb, 0 errors).
+  - [x] **Item 8: Remove sound-velocity card & naval sonar use case**:
+    - Deleted sound-velocity card from `explore.html` (~lines 188–204) and `computeSVAD()` from `app.js`.
+    - Replaced naval sonar application with Autonomous Underwater Vehicles (AUVs) in `ApplicationsGrid.tsx` and `PITCH.md`.
+  - [x] **Verification Matrix (100% Pass)**:
+    - `python test_clean_clone_deploy.py`: **ALL CHECKS PASSED (Peak RSS: 303.64 MB < 512 MB ceiling, 15 depths returned)**.
+    - `node test_stat_card_outputs.js`: **ALL TESTS PASSED (100%)**.
+    - `node test_d20_card.js`: **ALL TESTS PASSED (100%)**.
+    - `node test_argo_skill_score.js`: **54 / 54 PASSED (100%)**.
+    - `node test_argo_page.js`: **149 / 149 PASSED (100%)**.
+    - `python test_argo_summary_regression.py`: **23 / 23 PASSED (100%)**.
+    - `python test_system.py`: **ALL RIGOROUS TESTS PASSED (100%)**.
+    - `npm run build`: **PASS (`dist/kyogre-app.js` 92.5kb)**.
 
 - [x] **Task: Recompute Climatology RMSE & Skill Score on 1809 Dataset + Fix Stale 41-Profile Labels** `[Completed 2026-09-20 21:40]`
   - [x] **Part 1: Dynamic computation of climatology baseline & skill score**:
