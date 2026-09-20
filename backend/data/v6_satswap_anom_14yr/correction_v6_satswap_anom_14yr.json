@@ -1,0 +1,63 @@
+{
+  "model": "v6_satswap_anom_14yr",
+  "kind": "argo_depth_bias",
+  "depths": [
+    0,
+    5,
+    10,
+    20,
+    30,
+    50,
+    75,
+    100,
+    125,
+    150,
+    200,
+    300,
+    500,
+    700,
+    1000
+  ],
+  "depth_bias": [
+    0.02692635000000004,
+    -0.01744583042817338,
+    0.015771893680046483,
+    0.11663548337507078,
+    0.1596015356406594,
+    0.4021499912839746,
+    0.23907495742912277,
+    1.0721684294626355,
+    -0.15642495499329417,
+    -0.3040292699009428,
+    0.39556679724652133,
+    -0.3581662854966356,
+    -0.39205418851996193,
+    0.31647621262450065,
+    0.6176321166061083
+  ],
+  "depth_bias_applies": "subtract from the temperature profile",
+  "mld": "compute from the RAW profile, not the corrected one",
+  "tchp": {
+    "rule": "corrected profile plus offset",
+    "offset": 2.468591230612218,
+    "rmse_band": 11.819038861200744,
+    "bias": -1.0612020896982433,
+    "how": "tchp(profile - depth_bias) + offset, floored at 0"
+  },
+  "fit": {
+    "fit_profiles": 4939,
+    "fit_floats": 96,
+    "fit_dates": "2021-01-01 .. 2022-12-31",
+    "scored_profiles": 2910,
+    "scored_from": "2023-01-01",
+    "scored_floats": 92,
+    "unseen_rmse_raw": 0.9407445978627282,
+    "unseen_rmse_corrected": 0.8364022974581719,
+    "gain": 0.10434230040455639,
+    "gain_ci95": [
+      0.0874394065957603,
+      0.12446152551500635
+    ],
+    "rule": "Phase C2 keep rule, fixed 2026-09-17"
+  }
+}

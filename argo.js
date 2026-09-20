@@ -205,11 +205,28 @@ async function loadSummaryStats() {
     const biasEl = document.getElementById('stat-argo-bias');
     const corrEl = document.getElementById('stat-argo-corr');
     const floatsEl = document.getElementById('stat-argo-floats');
+    const baselineEl = document.getElementById('stat-argo-baseline');
 
     if (rmseEl) rmseEl.textContent = `${summary.aggregateRmse.toFixed(2)} °C`;
-    if (biasEl) biasEl.textContent = `${summary.aggregateBias.toFixed(2)} °C`;
+    if (biasEl) biasEl.textContent = `${summary.aggregateBias >= 0 ? '+' : ''}${summary.aggregateBias.toFixed(2)} °C`;
     if (corrEl) corrEl.textContent = `${summary.aggregateCorr.toFixed(3)}`;
-    if (floatsEl) floatsEl.textContent = `${summary.totalFloats}`;
+    if (floatsEl) floatsEl.textContent = `${summary.totalFloats.toLocaleString()}`;
+    if (baselineEl && summary.trimmedWindowLabel) {
+      baselineEl.textContent = `(${summary.trimmedWindowLabel})`;
+    }
+
+    if (summary.subRegions) {
+      const filterBtns = document.querySelectorAll('.ky-argo-filter-btn');
+      filterBtns.forEach(btn => {
+        const r = btn.getAttribute('data-region');
+        if (r === 'all') {
+          btn.textContent = `All (${summary.totalFloats.toLocaleString()})`;
+        } else if (summary.subRegions[r] !== undefined) {
+          const shortName = r === 'Equatorial Indian Ocean' ? 'Equatorial' : r;
+          btn.textContent = `${shortName} (${summary.subRegions[r].toLocaleString()})`;
+        }
+      });
+    }
   } catch (err) {
     console.warn('Failed to load live /argo/summary stats:', err);
   }
@@ -857,11 +874,9 @@ function renderChart(depths, aiTemps, argoTemps) {
   const maxDepth = depths.length ? Math.max(...depths) : 1000;
 
   // Format {x, y} coordinate pairs: x = temperature (°C), y = depth (m)
-  const aiData = depths
-    .map((d, i) => (aiTemps[i] !== null && aiTemps[i] !== undefined && !isNaN(aiTemps[i])) ? { x: aiTemps[i], y: d } : null)
+  const aiData = depths.map((d, i) => (aiTemps[i] !== null && aiTemps[i] !== undefined && !isNaN(aiTemps[i])) ? { x: aiTemps[i], y: d } : null)
     .filter(Boolean);
-  const argoData = depths
-    .map((d, i) => (argoTemps[i] !== null && argoTemps[i] !== undefined && !isNaN(argoTemps[i])) ? { x: argoTemps[i], y: d } : null)
+  const argoData = depths.map((d, i) => (argoTemps[i] !== null && argoTemps[i] !== undefined && !isNaN(argoTemps[i])) ? { x: argoTemps[i], y: d } : null)
     .filter(Boolean);
 
   const isRaw = currentComparisonData && currentComparisonData.raw;

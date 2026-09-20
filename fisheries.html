@@ -62,7 +62,7 @@
               <polyline points="6,9 12,15 18,9"/>
             </svg>
           </button>
-          <input type="date" id="native-date-picker" min="2021-01-11" max="2023-12-31" value="" class="ky-hidden-date-input" aria-label="Choose date" />
+          <input type="date" id="native-date-picker" min="2023-06-01" max="2023-12-31" value="" class="ky-hidden-date-input" aria-label="Choose date" />
         </div>
 
         <div class="ky-live-indicator">
@@ -74,6 +74,14 @@
         </div>
       </div>
     </header>
+
+    <!-- Model Window Banner (June–Dec 2023 Window) -->
+    <div class="ky-model-window-banner" role="status" aria-live="polite">
+      <div class="ky-model-window-banner__inner">
+        <span class="ky-model-window-banner__badge">14-Year Model</span>
+        <span class="ky-model-window-banner__text">Currently serving the new 14-year model for June–December 2023. Full 2021–2023 coverage coming soon.</span>
+      </div>
+    </div>
 
     <!-- ============================================================
          BODY — Sidebar + Main Content
@@ -222,11 +230,12 @@
               <div class="ky-stat-card__label-row">
                 <span class="ky-stat-card__label">Surface Chlorophyll-a Proxy (mg/m³)</span>
                 <div class="ky-stat-card__pill-row">
-                  <span class="ky-provenance-pill ky-provenance-pill--heuristic">Estimated Heuristic</span>
+                  <span class="ky-provenance-pill ky-provenance-pill--heuristic" id="stat-nutrient-pill" title="Source of chlorophyll reading">Estimated Heuristic</span>
                 </div>
               </div>
               <div class="ky-stat-card__val-row">
                 <span class="ky-stat-card__val" id="stat-nutrient-val">—</span>
+                <span class="ky-stat-card__badge" id="stat-nutrient-badge" style="display:none;"></span>
               </div>
               <div class="ky-stat-card__note" id="stat-nutrient-note">Select a location and date</div>
             </div>

@@ -2115,10 +2115,524 @@ When the physical water column terminates at the seabed (shallow bathymetry), st
    - If surface temperature $< 26.0^\circ\text{C}$, returns $0.0\text{ kJ/cm}^2$ (genuinely no heat $> 26^\circ\text{C}$).
    - If surface temperature $\ge 26.0^\circ\text{C}$ but $D_{26}$ is unobserved due to seabed truncation, returning $0.0$ would falsely imply cold water. In this case, TCHP returns `None` (`null`).
 
-4. **Ocean Heat Content in Upper 300m ($OHC_{300}$)**:
-   - Defined as the heat content integrated down to $300\text{m}$.
-   - If the water column terminates before $300\text{m}$ (seafloor depth $< 300\text{m}$), $OHC_{300}$ cannot be meaningfully computed. Integrating only 10m or 20m of water produces misleadingly small numbers (e.g. $123\text{ kJ/cm}^2$ vs open ocean $\sim 2700\text{ kJ/cm}^2$).
-   - Returns `None` (`null`), displaying `—` with tooltip `"Water column is shallower than 300m (seafloor depth cutoff)"`.
+  - Returns `None` (`null`), displaying `—` with tooltip `"Water column is shallower than 300m (seafloor depth cutoff)"`.
 
+---
 
+## 26. Physical Oceanographic Hardening of Fisheries & PFZ Indices
+
+### 26.1 Problem Diagnosis: Shallow-Water Thermocline / `tc_factor` Trap
+In previous iterations, `thermocline_depth` ($Z_{\text{tc}}$) was computed by searching for the maximum vertical negative temperature gradient $-\Delta T/\Delta z$ across standard depths. In shallow shelf, delta, and strait environments where local bathymetry truncates the water column (<60m, e.g. Sundarbans Delta seafloor 20m, Gulf of Mannar seafloor 10m):
+- `tc_depth` mechanically fell back to the deepest valid depth interval midpoint (e.g. $15\text{ m}$ in Sundarbans, $7.5\text{ m}$ in Gulf of Mannar).
+- In the composite Potential Fishing Zone (PFZ) formulation, the thermocline shoaling factor was defined as:
+  $$\text{tc\_factor} = \text{clip}\left(\frac{120.0 - Z_{\text{tc}}}{80.0}, 0.0, 1.0\right)$$
+- For any shallow water column where $Z_{\text{tc}} \le 40\text{ m}$, $\text{tc\_factor}$ evaluated to $\text{clip}((120 - 15)/80, 0, 1) = 1.00$.
+- This injected a maximum upwelling shoaling boost of $0.35 \times 1.00 = 0.35$ year-round into shallow coastal cells regardless of whether a physical open-ocean thermocline was present, resulting in frozen, season-blind scores (e.g. Sundarbans Delta returning an identical $\text{PFZ} = 0.55$ in both July and January).
+
+### 26.2 Problem Diagnosis: Solar Skin Overheating vs. Dynamical Upwelling Conflation
+The upwelling index was originally defined purely thermally as:
+$$\text{UI} = \text{clip}\left(\frac{T(0) - T(50)}{5.0}, 0.0, 1.0\right)$$
+While effective in deep, open-ocean upwelling systems, this single-parameter formulation suffers severe failure in semi-enclosed shallow tropical seas during summer (e.g. Persian Gulf):
+- Intense summer solar insolation heats the upper 5–15m to $> 31.0^\circ\text{C}$, while water at 40–50m remains $\sim 21.4^\circ\text{C}$.
+- The resulting thermal difference $\Delta T = 9.62^\circ\text{C}$ saturated $\text{UI} = 1.00$, and combined with $\text{tc\_factor} = 1.00$ to produce a false hotspot score of $\text{PFZ} = 0.91$.
+- In physical reality, this is an intensely stratified solar heat-trap with high static stability, zero vertical upwelling divergence, and neutral/positive sea level anomaly ($\text{SLA} = -0.004\text{ m}$ to $+0.058\text{ m}$).
+
+### 26.3 Dynamical Corroboration Framework
+Physical oceanographic upwelling involves wind-driven surface divergence (Ekman transport) that draws dense, cold subsurface water upward, creating isopycnal shoaling and a depressed sea surface ($\text{SLA} \le -0.02\text{ m}$, typically $-0.05\text{ m}$ to $-0.20\text{ m}$).
+
+To separate genuine dynamic upwelling from solar skin stratification:
+1. **Primary Dynamic Divergence Signature**:
+   - When $\text{SLA} \le -0.02\text{ m}$, dynamic divergence is confirmed $\implies C_{\text{sla}} = 1.00$.
+2. **Western Arabian Sea Mesoscale Eddy Reconciliation**:
+   - Coastal upwelling along the Oman coast (Findlater Jet) produces an intense, cold surface plume ($T_0 \le 27.5^\circ\text{C}$, $\text{SST} \le 28.0^\circ\text{C}$) and powerful horizontal thermal fronts ($\text{front\_strength} \ge 0.80$).
+   - Because these coastal plumes frequently sit adjacent to energetic mesoscale anticyclonic eddy dipoles (Ras al Hadd / Great Whirl filaments) where local SLA is slightly elevated ($\text{SLA} = +0.063\text{ m}$), a strictly SLA-negative threshold would inadvertently suppress genuine upwelling.
+   - Therefore, strong thermal front convergence ($\ge 0.80$) coupled with cool surface waters ($\le 28.0^\circ\text{C}$) provides secondary dynamical confirmation $\implies C_{\text{sla}} = 1.00$.
+3. **Solar Stratification Damping**:
+   - When $\text{SLA} > -0.02\text{ m}$ and surface waters lack an upwelling cold-front signature ($\text{SST} > 28.0^\circ\text{C}$):
+     $$\text{penalty} = \max\left(\frac{\text{SLA} - (-0.02)}{0.06}, \; \frac{\text{SST} - 28.0}{3.0}\right)$$
+     $$C_{\text{sla}} = \max(0.15, \; 1.0 - 0.80 \times \text{clip}(\text{penalty}, 0.0, 1.0))$$
+     $$\text{UI} = \text{round}(\text{raw\_UI} \times C_{\text{sla}}, 2)$$
+
+### 26.4 Thermocline Detection Gate & Weight Redistribution
+A true oceanographic thermocline is declared detected (`tc_detected = True`) if:
+1. Water column depth $\ge 60.0\text{ m}$.
+2. Peak vertical gradient $\max(-\Delta T/\Delta z) \ge 0.03^\circ\text{C/m}$ ($0.3^\circ\text{C}$ drop per $10\text{m}$).
+3. Midpoint depth is strictly above the seabed ($Z_{\text{tc}} < \text{max\_seafloor}$).
+
+**Composite Weighting Scheme**:
+- **Deep Open Ocean (`tc_detected = True`)**:
+  $$\text{PFZ} = 0.35 \times \text{tc\_factor} + 0.35 \times \text{UI} + 0.15 \times \text{front} + 0.15 \times \min(1.0, \text{Chl}_0 / 3.0)$$
+- **Shallow Shelf / Unstratified (`tc_detected = False`)**:
+  $\text{tc\_factor}$ is excluded. The remaining signals are proportionally redistributed ($\sum = 0.65 \rightarrow 1.0$):
+  $$W_{\text{ui}} = \frac{0.35}{0.65} \approx 0.5385, \quad W_{\text{front}} = \frac{0.15}{0.65} \approx 0.2308, \quad W_{\text{chl}} = \frac{0.15}{0.65} \approx 0.2308$$
+  $$\text{PFZ} = W_{\text{ui}} \times \text{UI} + W_{\text{front}} \times \text{front} + W_{\text{chl}} \times \min(1.0, \text{Chl}_0 / 3.0)$$
+
+### 26.5 Empirical Validation Matrix Across 6 Regimes & Two Seasons
+
+| Region & Coordinate | Season & Date | Valid Column | Thermocline ($Z_{\text{tc}}$) | Upwelling Index (UI) | Front Strength | Surface Chl-a | PFZ Score | Status |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :--- | :--- |
+| **Central Arabian Sea**<br>($15.50^\circ\text{N}, 65.00^\circ\text{E}$) | July (Monsoon)<br>Jan (Winter) | $>1000\text{m}$<br>$>1000\text{m}$ | $112.5\text{m}$<br>$87.5\text{m}$ | $0.09$<br>$0.04$ | $0.07$<br>$0.47$ | $0.41\text{ mg/m}^3$<br>$0.35\text{ mg/m}^3$ | **`0.10`**<br>**`0.24`** | Oligotrophic open ocean; low in summer, winter front modest rise. |
+| **Persian Gulf**<br>($28.13^\circ\text{N}, 50.45^\circ\text{E}$) | July (Monsoon)<br>Jan (Winter) | $50\text{m}$<br>$50\text{m}$ | `None`<br>`None` | $0.15$<br>$0.02$ | $0.40$<br>$0.75$ | $0.96\text{ mg/m}^3$<br>$0.52\text{ mg/m}^3$ | **`0.25`**<br>**`0.22`** | Solar heat trap eliminated: summer UI dropped $1.00 \rightarrow 0.15$, PFZ dropped $0.91 \rightarrow 0.25$. |
+| **Sundarbans Delta**<br>($20.90^\circ\text{N}, 87.20^\circ\text{E}$) | July (Monsoon)<br>Jan (Winter) | $20\text{m}$<br>$20\text{m}$ | `None`<br>`None` | $0.01$<br>$0.02$ | $1.00$<br>$1.00$ | $0.61\text{ mg/m}^3$<br>$0.68\text{ mg/m}^3$ | **`0.28`**<br>**`0.29`** | Static peg broken: seasonal contrast active, false shoaling bonus removed. |
+| **Gulf of Mannar**<br>($9.57^\circ\text{N}, 79.48^\circ\text{E}$) | July (Monsoon)<br>Jan (Winter) | $10\text{m}$<br>$10\text{m}$ | `None`<br>`None` | $0.07$<br>$0.05$ | $0.56$<br>$0.52$ | $0.73\text{ mg/m}^3$<br>$0.70\text{ mg/m}^3$ | **`0.22`**<br>**`0.20`** | Shallow strait cutoff: scores properly reflect low/moderate coastal neritic regime. |
+| **Oman Upwelling Zone**<br>($18.00^\circ\text{N}, 57.50^\circ\text{E}$) | July (Monsoon)<br>Jan (Winter) | $>1000\text{m}$<br>$>1000\text{m}$ | $40.0\text{m}$<br>$87.5\text{m}$ | $0.58$<br>$0.04$ | $1.00$<br>$0.50$ | $1.57\text{ mg/m}^3$<br>$0.36\text{ mg/m}^3$ | **`0.78`**<br>**`0.25`** | Strong monsoon upwelling preserved in July; drops to low baseline in winter. |
+| **Malabar Coast Upwelling**<br>($10.00^\circ\text{N}, 75.50^\circ\text{E}$) | July (Monsoon)<br>Jan (Winter) | $>1000\text{m}$<br>$>1000\text{m}$ | $40.0\text{m}$<br>$137.5\text{m}$ | $0.57$<br>$0.04$ | $1.00$<br>$0.30$ | $1.72\text{ mg/m}^3$<br>$0.36\text{ mg/m}^3$ | **`0.79`**<br>**`0.10`** | High July upwelling preserved; intense negative SLA confirmed; drops to 0.10 in winter. |
+
+---
+
+## 27. External Datasets Pipeline: Satellite Chlorophyll-a & ERA5 Wind Stress
+
+### 27.1 Overview & Motivation
+To transition Fisheries Mode and the Potential Fishing Zone (PFZ) index from synthetic approximations toward observable satellite and reanalysis observations, two real external datasets are integrated into the pipeline:
+1. **NASA Ocean Color MODIS-Aqua Level-3 Mapped Chlorophyll-a**: Replaces heuristic SST-gradient chlorophyll proxy with direct ocean color observations.
+2. **ECMWF ERA5 Reanalysis 10m Wind Stress & Ekman Pumping**: Replaces vertical $\Delta T$ heuristic upwelling corrections with dynamical wind-driven Ekman transport and wind stress curl.
+
+### 27.2 Authentication & API Endpoints
+* **NASA Earthdata**:
+  - Endpoint: `https://urs.earthdata.nasa.gov` / `https://cmr.earthdata.nasa.gov` / `https://oceandata.sci.gsfc.nasa.gov`.
+  - Stored in `~/.netrc` and `~/_netrc` under machine `urs.earthdata.nasa.gov`.
+  - Python library: `earthaccess` (supports direct search, granule discovery, and streaming downloads).
+* **Copernicus Climate Data Store (CDS)**:
+  - Endpoint: `https://cds.climate.copernicus.eu/api`.
+  - Stored in `~/.cdsapirc`.
+  - Dataset: `reanalysis-era5-single-levels` (10m u- and v-wind components).
+  - Licence: Programmatically accepted `licence-to-use-copernicus-products` (rev 12) and `cc-by` (rev 1) via CADS API.
+
+### 27.3 Satellite Chlorophyll-a: Daily vs. 8-Day Composite Analysis
+In the tropical Northern Indian Ocean, optical ocean color sensors suffer severe cloud obscuration during the Southwest Monsoon (June–September):
+* **Daily 4km (`AQUA_MODIS.20220702.L3m.DAY.CHL.chlor_a.4km.nc`)**:
+  - Valid pixels in Indian Ocean domain: **0.71%**. Over 99% cloud obscured on peak monsoon dates.
+* **8-Day Composite (`AQUA_MODIS.20220626_20220703.L3m.8D.CHL.chlor_a.4km.nc`)**:
+  - Valid pixels in Indian Ocean domain: **10.46% of bounding box (~33% of ocean cells)**.
+* **Winter 8-Day Composite (`AQUA_MODIS.20220101_20220108.L3m.8D.CHL.chlor_a.4km.nc`)**:
+  - Valid pixels: **43.26% of bounding box (>90% of ocean cells)**.
+
+**Spatial Regridding**:
+- Target grid: $5.0^\circ\text{N}–30.0^\circ\text{N}$ (101 points), $45.0^\circ\text{E}–105.0^\circ\text{E}$ (241 points), step $0.25^\circ$.
+- Each $0.25^\circ \times 0.25^\circ$ cell bins approximately $6 \times 6 = 36$ 4km satellite pixels.
+- Regridding computes the log-normal geometric mean over all valid pixels in the box:
+  $$\overline{\text{Chl}} = 10^{\frac{1}{N} \sum_{k=1}^N \log_{10}(\text{Chl}_k)}$$
+
+### 27.4 ERA5 Wind Stress & Ekman Pumping Formulation
+* **10m Wind Speed**:
+  $$W = \sqrt{u_{10}^2 + v_{10}^2}$$
+* **Large & Pond (1981) Drag Coefficient**:
+  $$C_d = \begin{cases} 
+  1.2 \times 10^{-3}, & W \le 11.0\text{ m/s} \\ 
+  (0.49 + 0.065 W) \times 10^{-3}, & 11.0 < W \le 25.0\text{ m/s} 
+  \end{cases}$$
+* **Wind Stress Vector**:
+  $$\tau_x = \rho_{\text{air}} C_d W u_{10}, \quad \tau_y = \rho_{\text{air}} C_d W v_{10} \quad (\rho_{\text{air}} = 1.225\text{ kg/m}^3)$$
+  $$\tau = \sqrt{\tau_x^2 + \tau_y^2} = \rho_{\text{air}} C_d W^2$$
+* **Spherical Wind Stress Curl**:
+  $$(\nabla \times \boldsymbol{\tau})_z = \frac{1}{R \cos \phi} \left( \frac{\partial \tau_y}{\partial \lambda} - \frac{\partial (\tau_x \cos \phi)}{\partial \phi} \right)$$
+  where $R = 6.371 \times 10^6\text{ m}$, $\lambda$ is longitude in radians, and $\phi$ is latitude in radians.
+* **Ekman Pumping Velocity**:
+  $$w_E = \frac{(\nabla \times \boldsymbol{\tau})_z}{\rho_w f}$$
+  where $\rho_w = 1025.0\text{ kg/m}^3$, $f = 2 \Omega \sin \phi$ ($\Omega = 7.2921 \times 10^{-5}\text{ rad/s}$), with $|f| \ge f_{5^\circ} \approx 1.27 \times 10^{-5}\text{ s}^{-1}$ clamped near the equator.
+
+### 27.5 Physical Validation on 2022-07-02
+* **Oman Upwelling ($18.0^\circ\text{N}, 57.5^\circ\text{E}$)**: Findlater Jet winds ($12.7\text{ m/s}$, $\tau = 0.260\text{ N/m}^2$) generate intense upward Ekman pumping of **$+1.05\text{ m/day}$**, corroborating real coastal upwelling.
+* **Persian Gulf ($28.13^\circ\text{N}, 50.45^\circ\text{E}$)**: Winds are moderate ($6.7\text{ m/s}$, $\tau = 0.067\text{ N/m}^2$) with virtually zero Ekman pumping ($+0.07\text{ m/day}$), confirming that extreme vertical temperature differences here are purely solar skin stratification.
+
+### 27.6 Option A Architecture: 12-Month Climatology Fallback & Source Tracking
+To handle severe monsoon cloud gaps (>65% missing pixels in July/August) while maintaining continuous numerical coverage across all 1095 days (2021–2023), Option A is implemented:
+1. **12-Month Geometric Mean Climatology (`chla_monthly_clim.npy`, shape: 12, 101, 241, float16)**:
+   - For each calendar month $m \in [1, 12]$, all 8-day composite grids across 2021–2023 with midpoints in month $m$ are stacked.
+   - For each ocean cell $(i, j)$, the monthly climatological baseline is calculated as the geometric log-mean:
+     $$\text{Clim}_m(i, j) = 10^{\frac{1}{K} \sum_{k=1}^K \log_{10}(\text{Chl}_k(i, j))}$$
+   - Any residual persistent cloud holes in the monthly climatology are filled via spatial distance-weighted median of neighboring valid ocean cells ($1.25^\circ$ window).
+2. **Continuous Daily Arrays (1095 days matching `day_index_map.json`)**:
+   - `chla.npy` (`float16`, shape $1095 \times 101 \times 241$): Holds the real 8-day satellite composite value where non-cloud; falls back to that month's $\text{Clim}_m(i, j)$ where cloud-obscured.
+   - `chl_source.npy` (`int8`, shape $1095 \times 101 \times 241$):
+     - `1`: Real satellite observation (`"satellite"`)
+     - `0`: Monthly climatology fallback (`"climatology"`)
+     - `-1`: Land / masked
+
+### 27.7 Mandatory Source Disclosure Contract & UI Transparency
+Per operational directives, no synthetic or climatological data may masquerade as direct satellite observations:
+* **API Contract (`/predict`)**:
+  - `indices.chlorophyll_source`: `"satellite"` | `"climatology"` | `"heuristic"`
+  - `indices.chlorophyll_source_label`: `"Satellite (8-day composite)"` | `"Seasonal average (cloud-obscured)"` | `"Estimated Heuristic"`
+  - `indices.chlorophyll_satellite_val`: Raw float value from satellite array or `null`.
+* **API Contract (`/pfz-grid`)**:
+  - `chla_sources`: 2D grid ($26 \times 41$) matching `pfz_scores`, with `"satellite"`, `"climatology"`, or `null` (land).
+* **Frontend Disclosure (`fisheries.html` / `fisheries.js`)**:
+  - **PFZ Composite Index Card**: Retains `"ESTIMATED HEURISTIC"` pill with formula modal, preventing overclaiming of composite advisory.
+  - **Surface Chlorophyll Card**:
+    - Real satellite observation: Green badge `"Satellite (8-day composite)"` with pill `"Satellite"` and tooltip citing NASA MODIS-Aqua.
+    - Cloud-obscured fallback: Amber badge `"Seasonal average (cloud-obscured)"` with pill `"Climatology"` and note explaining the 2021–2023 monthly climatological fill.
+
+### 27.8 Empirical Seasonal Coverage Report & Validation Findings (2021–2023)
+The full 3-year ingestion (138 MODIS-Aqua 8-day composite periods spanning all 1,095 days across 11,726 active ocean grid cells) yielded the following empirical coverage metrics:
+
+* **Total Ocean Cell-Days Evaluated**: 12,839,970 cell-days
+* **Overall Direct Satellite Observations**: 8,782,313 (68.40%)
+* **Overall Climatology Fallbacks**: 4,057,657 (31.60%)
+
+#### Seasonal Breakdown:
+| Season | Months | Direct Satellite Obs (%) | Climatology Fallback (%) | Physical Marine Atmospheric Conditions |
+| :--- | :--- | :---: | :---: | :--- |
+| **Winter** | Dec, Jan, Feb | **91.2%** | **8.8%** | Clear skies, northeast monsoon winds, dry continental air mass |
+| **Spring Inter-monsoon** | Mar, Apr, May | **70.1%** | **29.9%** | Moderate convective cloud clusters developing over warm pool |
+| **Summer Monsoon** | Jun, Jul, Aug, Sep | **43.4%** | **56.6%** | Persistent monsoon cloud decks across Arabian Sea & Bay of Bengal |
+| **Autumn Inter-monsoon** | Oct, Nov | **82.2%** | **17.8%** | Retreating monsoon, cyclonic cloud bands interspersed with clear skies |
+
+#### Empirical Validation Matrix: Observed Satellite Chlorophyll vs. Legacy Model Proxy
+Evaluated across 5 oceanographic regimes during Summer Monsoon (`2022-07-02`) and Winter (`2022-01-15`):
+
+| Location & Regime | Coordinates | Date / Season | Observed Chlorophyll-a | Source | Legacy Model Proxy | Key Oceanographic Finding |
+| :--- | :---: | :--- | :---: | :---: | :---: | :--- |
+| **Central Arabian Sea** (Open Basin) | 15.5°N, 65.0°E | 2022-07-02 (Monsoon)<br>2022-01-15 (Winter) | **$1.55\text{ mg/m}^3$**<br>**$0.36\text{ mg/m}^3$** | Climatology<br>Satellite | $0.53\text{ mg/m}^3$<br>$0.33\text{ mg/m}^3$ | Winter shows near-perfect agreement ($0.36$ vs $0.33$). In peak monsoon, real biological bloom is 3x richer than proxy ($1.55$ vs $0.53$). |
+| **Oman Upwelling** (Findlater Jet) | 19.0°N, 58.0°E | 2022-07-02 (Monsoon)<br>2022-01-15 (Winter) | **$0.88\text{ mg/m}^3$**<br>**$0.96\text{ mg/m}^3$** | Climatology<br>Satellite | $1.44\text{ mg/m}^3$<br>$0.24\text{ mg/m}^3$ | Sustained high productivity offshore of the Arabian Peninsula across both seasons. |
+| **Malabar Coast** (Coastal Upwelling) | 10.0°N, 75.5°E | 2022-07-02 (Monsoon)<br>2022-01-15 (Winter) | **$3.67\text{ mg/m}^3$**<br>**$0.31\text{ mg/m}^3$** | Satellite<br>Satellite | $1.86\text{ mg/m}^3$<br>$0.37\text{ mg/m}^3$ | Winter is identical ($0.31$ vs $0.37$). Satellite captures immense coastal upwelling bloom ($3.67\text{ mg/m}^3$), nearly double the proxy. |
+| **Persian Gulf** (Semi-Enclosed Shelf) | 27.0°N, 51.0°E | 2022-07-02 (Monsoon)<br>2022-01-15 (Winter) | **$0.55\text{ mg/m}^3$**<br>**$0.70\text{ mg/m}^3$** | Satellite<br>Satellite | $0.65\text{ mg/m}^3$<br>$0.49\text{ mg/m}^3$ | Moderate baseline productivity ($0.55\text{–}0.70\text{ mg/m}^3$) consistently captured across seasons. |
+| **Sundarbans Delta** (River Plume Shelf) | 21.5°N, 88.5°E | 2022-07-02 (Monsoon)<br>2022-01-15 (Winter) | **$4.80\text{ mg/m}^3$**<br>**$3.76\text{ mg/m}^3$** | Climatology<br>Satellite | $0.19\text{ mg/m}^3$<br>$0.45\text{ mg/m}^3$ | Legacy proxy was blind to river discharge ($0.19\text{–}0.45$); satellite correctly measures massive estuarine nutrient loading ($3.76\text{–}4.80\text{ mg/m}^3$). |
+
+---
+
+## 34. Production Integration: Three-Tier Chlorophyll-a Priority & ERA5 Ekman Upwelling Corroboration
+
+### 34.1 Three-Tier Chlorophyll-a Architecture
+
+To prevent silent data degradation and eliminate synthetic heuristic values masquerading as real measurements, the fisheries pipeline enforces a strict three-tier cascade for surface chlorophyll-a ($[0.05, 9.8]\text{ mg/m}^3$):
+
+1. **Tier 1 — Direct Satellite Observation (`chl_source == 1`)**:
+   - Source: MODIS-Aqua Level-3 8-day composite binned to the 0.25° grid.
+   - UI Pill: `.ky-provenance-pill--satellite` (`#15803D` green text on `#F0FDF4` background).
+   - UI Label: `"Satellite (8-day composite)"`.
+   - Used whenever a non-cloud satellite pixel exists for that 8-day window.
+
+2. **Tier 2 — Monthly Climatology Fallback (`chl_source == 0`)**:
+   - Source: 12-month geometric mean climatology ($\text{Clim}_m(i, j)$) computed across all 2021–2023 8-day composites.
+   - UI Pill: `.ky-provenance-pill--climatology` (`#D97706` amber text on `#FEF3C7` background).
+   - UI Label: `"Seasonal average (cloud-obscured)"`.
+   - Used when monsoon or seasonal cloud cover obscures the satellite sensor.
+
+3. **Tier 3 — Synthetic Dynamical Heuristic Fallback (`chl_source < 0` or missing real data)**:
+   - Source: Legacy dynamical formula $\text{clip}(0.25 + 2.5 \cdot \text{UI} - 1.2 \cdot \text{SLA} + 0.35 \cdot |\vec{u}|, 0.05, 9.8)$.
+   - UI Pill: `.ky-provenance-pill--heuristic` (`#6B7280` slate text on `#F3F4F6` background).
+   - UI Label / Badge: `"Estimated — no satellite or climatology data"`.
+   - Mandatory provenance transparency: Never silently blended or presented as an observation.
+
+### 34.2 ERA5 Ekman Pumping Velocity ($w_E$) as Primary Upwelling Corroboration
+
+The original upwelling formulation used cyclonic Sea Level Anomaly ($\text{SLA} \le -0.02\text{ m}$) or thermal front strength ($\text{front} \ge 0.80 \land \text{SST} \le 28^\circ\text{C}$) as proxy corroboration to distinguish real wind-driven upwelling from solar surface heating.
+
+In the integrated pipeline, dynamical atmospheric forcing from ERA5 wind stress curl directly provides the primary physical corroboration:
+
+$$\text{Upwelling Confirmed} \iff w_E \ge 0.30\text{ m/day} \quad \left(\approx 3.47 \times 10^{-6}\text{ m/s}\right)$$
+
+Where $w_E$ is the vertical Ekman pumping velocity derived from spherical wind stress curl:
+$$w_E = \frac{1}{\rho_0} \left[ \nabla \times \left(\frac{\vec{\tau}}{f}\right) \right]_z = \frac{1}{\rho_0 f} \left( \frac{1}{R \cos\phi} \frac{\partial \tau_y}{\partial \lambda} - \frac{1}{R} \frac{\partial \tau_x}{\partial \phi} + \frac{\tau_x \tan\phi}{R} \right) - \frac{\beta}{\rho_0 f^2} \tau_x$$
+
+#### Physical Justification for the $0.30\text{ m/day}$ Threshold:
+- In classical tropical oceanography (e.g. Halpern, 2002; McCreary et al., 1993), background open-ocean Ekman velocities fluctuate within $\pm 0.05\text{ to } 0.15\text{ m/day}$.
+- Active coastal and open-ocean upwelling plumes (such as the Findlater Jet off Oman and the southwest monsoon coastal divergence off Malabar) exhibit sustained upward pumping velocities exceeding $0.30\text{ to } 2.50\text{ m/day}$.
+- A threshold of $w_E \ge 0.30\text{ m/day}$ cleanly separates dynamical wind-driven divergence from background turbulent noise and wind-stress curl fluctuations.
+- **Fallback Hierarchy**: If ERA5 Ekman data is unindexed or missing, the algorithm seamlessly falls back to the SLA depression ($\text{SLA} \le -0.02\text{ m}$) and SST thermal front criteria.
+
+---
+
+### 34.3 Comprehensive Benchmark Matrix: Original Benchmark Coordinates (12 Combinations)
+
+All 6 original benchmark coordinates evaluated under the live backend across the SW Monsoon (July 2, 2022) and Northeast Winter (January 15, 2022):
+
+| Location | Benchmark Coordinates | Season & Date | Thermocline | UI (Raw $\rightarrow$ Damped) | Ekman $w_E$ (m/day) | Chlorophyll-a | Chl Provenance | PFZ Score & Tier | Oceanographic Assessment |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Central Arabian Sea** | 15.50°N, 65.00°E | Monsoon (2022-07-02)<br>Winter (2022-01-15) | 112.5 m (Valid)<br>87.5 m (Valid) | $0.10 \rightarrow \mathbf{0.09}$<br>$0.09 \rightarrow \mathbf{0.04}$ | $-0.05$ (Downwelling)<br>$-0.43$ (Downwelling) | $1.55\text{ mg/m}^3$<br>$0.36\text{ mg/m}^3$ | Climatology<br>Satellite | $\mathbf{0.11}$ (Low)<br>$\mathbf{0.24}$ (Low) | Open ocean basin; deep thermocline and negative $w_E$ correctly suppress false PFZ alerts despite monsoon winds. |
+| **Persian Gulf** | 28.13°N, 50.45°E | Monsoon (2022-07-02)<br>Winter (2022-01-15) | None (Shelf <60m)<br>None (Shelf <60m) | $1.00 \rightarrow \mathbf{0.15}$<br>$0.09 \rightarrow \mathbf{0.09}$ | $+0.07$ (Sub-threshold)<br>$+0.49$ (Winter wind) | $0.38\text{ mg/m}^3$<br>$0.92\text{ mg/m}^3$ | Satellite<br>Satellite | $\mathbf{0.22}$ (Low)<br>$\mathbf{0.32}$ (Low) | **Solar heating trap eliminated**: Extreme $9.6^\circ\text{C}$ summer skin-to-50m gradient correctly damped by heat excess + positive SLA (+0.14m); PFZ drops from false 0.91 to 0.22. |
+| **Sundarbans Delta** | 20.90°N, 87.20°E | Monsoon (2022-07-02)<br>Winter (2022-01-15) | None (Shelf <60m)<br>None (Shelf <60m) | $0.02 \rightarrow \mathbf{0.01}$<br>$0.02 \rightarrow \mathbf{0.02}$ | $+0.20$ (Sub-threshold)<br>$-0.83$ (Downwelling) | $2.85\text{ mg/m}^3$<br>$1.59\text{ mg/m}^3$ | Satellite<br>Satellite | $\mathbf{0.47}$ (Moderate)<br>$\mathbf{0.39}$ (Low) | **Static 0.55 peg broken**: Responsive to real satellite estuarine chlorophyll ($2.85\text{ mg/m}^3$) without triggering false upwelling. |
+| **Gulf of Mannar** | 9.57°N, 79.48°E | Monsoon (2022-07-02)<br>Winter (2022-01-15) | None (Shelf <60m)<br>None (Shelf <60m) | $0.07 \rightarrow \mathbf{0.02}$<br>$0.05 \rightarrow \mathbf{0.05}$ | $+0.18$ (Sub-threshold)<br>$+0.76$ (NE Monsoon) | $1.83\text{ mg/m}^3$<br>$1.19\text{ mg/m}^3$ | Satellite<br>Satellite | $\mathbf{0.31}$ (Low)<br>$\mathbf{0.26}$ (Low) | Shallow reef shelf bathymetry accurately detected; chlorophyll dynamic between seasons ($1.83$ vs $1.19\text{ mg/m}^3$). |
+| **Oman Upwelling Zone** | 18.00°N, 57.50°E | Monsoon (2022-07-02)<br>Winter (2022-01-15) | 40.0 m (Shoaling)<br>87.5 m (Deep) | $0.58 \rightarrow \mathbf{0.58}$<br>$0.09 \rightarrow \mathbf{0.04}$ | $\mathbf{+1.04}$ (Strong Ekman)<br>$-0.03$ (Downwelling) | $0.88\text{ mg/m}^3$<br>$0.71\text{ mg/m}^3$ | Climatology<br>Satellite | $\mathbf{0.75}$ (**Elevated**)<br>$\mathbf{0.25}$ (Low) | **Genuine upwelling cleanly detected**: Intense monsoon Ekman pumping ($w_E = +1.04\text{ m/day}$) confirms upwelling; shallow thermocline (40m) drives PFZ to 0.75 (Elevated). Drops to 0.25 in winter. |
+| **Malabar Coast / SW India** | 10.00°N, 75.50°E | Monsoon (2022-07-02)<br>Winter (2022-01-15) | 40.0 m (Shoaling)<br>137.5 m (Deep) | $0.57 \rightarrow \mathbf{0.57}$<br>$0.10 \rightarrow \mathbf{0.04}$ | $+0.01$ (Coastal)<br>$-0.08$ (Downwelling) | $3.67\text{ mg/m}^3$<br>$0.31\text{ mg/m}^3$ | Satellite<br>Satellite | $\mathbf{0.85}$ (**High Elevated**)<br>$\mathbf{0.10}$ (Low) | **Classic SW monsoon bloom**: Satellite confirms heavy coastal chlorophyll bloom ($3.67\text{ mg/m}^3$); thermocline shoals to 40m; PFZ reaches 0.85 (High Elevated). Drops to 0.10 in quiescent winter. |
+
+---
+
+### 34.4 Malabar Coast Investigation: Ekman Curl Cancellation vs. Alongshore Coastal Divergence
+
+#### 34.4.1 Code-Path Execution Trace for Malabar ($10.00^\circ\text{N}, 75.50^\circ\text{E}$, 2022-07-02)
+1. **Ekman Array Lookup**:
+   - `ekman_arr` is loaded and valid. At $(10.0^\circ\text{N}, 75.5^\circ\text{E})$, `ek_raw = +0.0146\text{ m/day}` $\implies$ `w_e = 0.01`.
+   - `upwelling_confirmed = (w_e >= 0.30)` evaluates to `False`.
+   - `upw_corr_src` is assigned `"ekman"`.
+2. **Fallback Block**:
+   ```python
+   if upw_corr_src == "none":
+       if sla_val <= -0.02:
+           upwelling_confirmed = True
+   ```
+   Because `upw_corr_src == "ekman"`, this block is **strictly bypassed**. The SLA and front fallback **did NOT fire**.
+3. **Multiplier & Damping Branch**:
+   ```python
+   if upwelling_confirmed:
+       sla_mult = 1.0
+   else:
+       heat_excess = max(0.0, (sst_val - 28.0) / 3.0)
+       sla_penalty = max(0.0, min(1.0, (sla_val - (-0.02)) / 0.06))
+       sla_mult = max(0.15, 1.0 - max(sla_penalty, heat_excess) * 0.8)
+   ```
+   Because `upwelling_confirmed` was `False`, execution entered the `else:` branch.
+   - At Malabar: $\text{SST} = 27.22^\circ\text{C} \le 28.0^\circ\text{C} \implies \text{heat\_excess} = 0.0$.
+   - At Malabar: $\text{SLA} = -0.069\text{m} \le -0.02\text{m} \implies \text{sla\_penalty} = 0.0$.
+   - Penalty calculation: $\max(\text{sla\_penalty}, \text{heat\_excess}) = 0.0$.
+   - Resulting multiplier: $\text{sla\_mult} = \max(0.15, 1.0 - 0.0) = \mathbf{1.0}$.
+   - Final upwelling index: $\text{UI} = \text{round}(0.57 \times 1.0, 2) = \mathbf{0.57}$.
+
+**Finding**: `sla_mult = 1.0` was not generated by an Ekman confirmation, nor by an explicit fallback trigger. It occurred because the unconfirmed `else:` damping branch only penalizes solar overheating ($\text{SST} > 28^\circ\text{C}$) and anticyclonic sea-surface mounds ($\text{SLA} > -0.02\text{m}$). Since Malabar has cold surface water ($27.22^\circ\text{C}$) and a cyclonic depression ($-0.069\text{m}$), damping evaluated to zero.
+
+#### 34.4.2 Why Malabar's Ekman Pumping is Near-Zero at $75.50^\circ\text{E}$
+Transect analysis along $10.00^\circ\text{N}$ on 2022-07-02 reveals a localized numerical curl cancellation at $75.50^\circ\text{E}$:
+
+| Longitude | Coast Distance | SST (°C) | SLA (m) | $\tau_x$ (N/m²) | $\tau_y$ (N/m²) | $\frac{\partial \tau_y}{\partial \lambda}$ | $-\frac{\partial (\tau_x \cos\phi)}{\partial \phi}$ | Curl ($\text{s}^{-1}$) | $w_E$ (m/day) | Coastal Feature |
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
+| **76.00°E** | 25 km (Nearshore) | 27.19 | -0.105 | +0.0730 | -0.0627 | +1.0037 | +3.0668 | $+6.49 \times 10^{-7}$ | $\mathbf{+2.16}$ | Core Coastal Upwelling Jet |
+| **75.75°E** | 55 km (Inner Shelf)| 27.02 | -0.089 | +0.0748 | -0.0564 | -1.6471 | +2.4033 | $+1.21 \times 10^{-7}$ | $\mathbf{+0.40}$ | Upwelling Plume ($>0.30$) |
+| **75.50°E** | 80 km (Outer Shelf)| 27.22 | -0.069 | +0.0754 | -0.0484 | -1.5737 | +1.5971 | $\mathbf{+3.74 \times 10^{-9}}$ | $\mathbf{+0.01}$ | **Curl Zero-Crossing Node** |
+| **75.25°E** | 110 km (Slope) | 27.39 | -0.052 | +0.0706 | -0.0427 | -1.0002 | +0.7218 | $-4.44 \times 10^{-8}$ | $\mathbf{-0.15}$ | Transition Eddy Dipole |
+| **75.00°E** | 135 km (Offshore) | 27.52 | -0.042 | +0.0635 | -0.0396 | -0.4756 | +0.8316 | $+5.67 \times 10^{-8}$ | $\mathbf{+0.19}$ | Open Ocean |
+| **74.50°E** | 190 km (Offshore) | 27.80 | -0.044 | +0.0724 | -0.0388 | +0.3392 | +2.0520 | $+3.81 \times 10^{-7}$ | $\mathbf{+1.27}$ | Open Ocean Wind-Shear Plume |
+
+**Root Causes**:
+1. **Mathematical Cancellation at $75.50^\circ\text{E}$**:
+   - Westerly wind stress $\tau_x$ decreases northward across 10°N ($\tau_x = 0.0815$ at 9.75°N $\rightarrow$ $0.0674$ at 10.25°N), producing a cyclonic (upwelling-favorable) meridional curl of $+1.5971$.
+   - Alongshore equatorward wind stress $\tau_y$ strengthens towards the coast ($\tau_y = -0.0388$ at 74.5°E $\rightarrow$ $-0.0627$ at 76.0°E), producing an anticyclonic zonal gradient $\partial \tau_y / \partial \lambda$ of $-1.5737$.
+   - At $75.50^\circ\text{E}$, $(+1.5971) + (-1.5737) = +0.0234 \approx 0.00$. The two large derivatives cancel within 1.5%.
+2. **Spatial Trapping Scale ($R_d \approx 30\text{–}50\text{ km}$)**:
+   - The Rossby radius of deformation off Kerala is $\approx 30\text{–}50\text{ km}$ (1 to 2 ERA5 grid cells).
+   - $75.50^\circ\text{E}$ is $\approx 80\text{ km}$ offshore, sitting on the outer shelf boundary just beyond the trapped coastal core.
+   - At $75.75^\circ\text{E}$ and $76.00^\circ\text{E}$, $w_E$ is intensely positive ($+0.40\text{ to }+2.16\text{ m/day}$).
+3. **Dual Physical Drivers of Malabar Upwelling**:
+   - In coastal oceanography (Smith 1968, Shenoi et al. 2005), eastern boundary / West-coast Indian upwelling is primarily driven by **coastal boundary Ekman transport divergence** ($M_{Ex} = \tau_y / (\rho_0 f) \approx -2.15\text{ m}^2/\text{s}$ directed offshore), which forces coastal divergence independent of open-ocean wind stress curl.
+   - The upwelled water advects westward offshore across the shelf, creating the observed shoaled thermocline (40m), depressed SLA ($-6.9\text{ cm}$), cold SST ($27.22^\circ\text{C}$), and massive satellite chlorophyll bloom ($3.67\text{ mg/m}^3$) at $75.50^\circ\text{E}$.
+
+---
+
+### 34.5 Spatial Neighborhood Max Formulation & 12-Combination Verification
+
+To eliminate false-negative corroboration at grid-scale curl zero-crossings near coastlines, the Ekman corroboration check evaluates the maximum of $w_E$ across a spatial neighborhood matching the baroclinic Rossby radius of deformation ($R_d \approx 30\text{–}50\text{ km}$, $\pm 2$ grid cells / $\pm 0.5^\circ$):
+
+$$w_{E,\text{eval}} = \max_{\substack{|i - i_0| \le 2 \\ |j - j_0| \le 2 \\ \text{ocean}(i, j)}} w_E(i, j)$$
+
+$$\text{Upwelling Confirmed} \iff w_{E,\text{eval}} \ge 0.30\text{ m/day}$$
+
+- **Implementation**:
+  - `model_result_to_frontend`: Window slice over valid ocean cells within $\pm 2$ cells. Exposes point value `ekman_upwelling_val` ($w_E$) and window max `ekman_upwelling_window_max` ($w_{E,\text{eval}}$).
+  - `compute_pfz_grid`: 2D `scipy.ndimage.maximum_filter(ek_full, size=(5, 5))` before sampling to downsampled grid, preserving 100% numerical parity.
+  - Fallback: SLA depression ($\text{SLA} \le -0.02\text{m}$) and SST front strength ($\text{front} \ge 0.80 \land \text{SST} \le 28^\circ\text{C}$) retained when Ekman data is missing.
+
+#### Live 12-Combination Before & After Benchmark Matrix
+
+| Benchmark Location | Season & Date | Point $w_E$ (m/day) | Window $w_E$ (m/day) | Confirmed (Before $\rightarrow$ After) | UI (Before $\rightarrow$ After) | PFZ (Before $\rightarrow$ After) | Chlorophyll | Physical Validation |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
+| **Central Arabian Sea** | Monsoon (2022-07-02)<br>Winter (2022-01-15) | $-0.05$<br>$-0.43$ | $-0.03$<br>$+0.01$ | No $\rightarrow$ No<br>No $\rightarrow$ No | $0.09 \rightarrow \mathbf{0.09}$<br>$0.04 \rightarrow \mathbf{0.04}$ | $0.11 \rightarrow \mathbf{0.11}$<br>$0.24 \rightarrow \mathbf{0.24}$ | $1.55\text{ (Clim)}$<br>$0.36\text{ (Sat)}$ | Open ocean; downwelling winds correctly suppress false upwelling in both seasons. Zero drift. |
+| **Persian Gulf** | Monsoon (2022-07-02)<br>Winter (2022-01-15) | $+0.07$<br>$+0.49$ | $+0.29$<br>$+2.21$ | No $\rightarrow$ No<br>Yes $\rightarrow$ Yes | $0.15 \rightarrow \mathbf{0.15}$<br>$0.09 \rightarrow \mathbf{0.09}$ | $0.22 \rightarrow \mathbf{0.22}$<br>$0.32 \rightarrow \mathbf{0.32}$ | $0.38\text{ (Sat)}$<br>$0.92\text{ (Sat)}$ | **Solar trap strictly prevented**: Summer window $w_E = +0.29 < 0.30$; raw UI ($1.00$) correctly damped to $0.15$. Zero drift. |
+---
+
+## 35. Video-First & Video-Only Cinematic Ocean Dive Architecture
+
+### 35.1 Design Philosophy: The Video IS The Camera
+The Kyogre landing experience implements a single continuous, scroll-driven camera dive through the Indian Ocean water column (0m to 1000m) driven exclusively by **one real high-quality video**:
+- **Zero Image Compositing**: Completely eliminates multi-image crossfades, zoom between still photos, artificial canvas wave lines, and SVG gradient boundaries.
+- **Video-Only Execution**: The cinematic dive does not use still photos as fallbacks; the entire sequence is rendered via a single canonical HTML5 `<video>` element pinned at `100vw × 100vh` (`object-fit: cover`).
+- **Real Water Entry Footage**: The actual camera breaching the ocean surface tension and plunging into the water column is captured inside the video frames themselves.
+- **Scroll-Controlled Scrubbing**:
+  - The video is not autoplayed.
+  - The user's mouse wheel / trackpad controls the camera via Lenis smooth scrolling and GSAP ScrollTrigger:
+    $$\text{video.currentTime} = \text{progress} \times \text{video.duration}$$
+  - Implemented using hardware-accelerated seek queues (`fastSeek` with fallback to `currentTime`) with zero dropped frames and instantaneous response.
+  - Allows users to pause at any depth (e.g. 150m, 480m) to inspect the ocean without snapping or jumping.
+
+### 35.2 Canonical Asset Specifications
+- **Canonical Path**: `/public/media/kyogre-ocean-dive.mp4` (also served at `media/kyogre-ocean-dive.mp4`).
+- **Resolution**: 4K (3840×2160) preferred, 2560×1440 recommended, 1080p minimum.
+- **Cadence**: 24–30 fps, progressive scan.
+- **Encoding**: H.264 / AVC (All-I keyframes or frequent keyframes for sub-5ms seek latency).
+- **Narrative Strata**:
+  1. *0m (0–15%)*: High aerial drone over open Indian Ocean (sky, horizon, swell).
+  2. *0m–100m (15–30%)*: Approaching and breaking the real water surface; downward solar rays.
+  3. *100m–250m (30–45%)*: Shallow epipelagic water column with subtle distant pelagic silhouettes.
+  4. *250m–500m (45–60%)*: Mesopelagic twilight; red/yellow light absorbed, rays fading to zero.
+  5. *500m–750m (60–75%)*: Deep ocean navy blue; silence and vastness.
+  6. *750m–1000m (75–100%)*: Bathypelagic deep ocean; digital twin temperature mesh ($T(z)$ isotherms) emerges organically before transitioning to the National Oceanographic Console.
+
+---
+
+## 36. V6 SatSwap 14-Year Model (`v6_satswap_anom_14yr`) Architecture & Serving Engine
+
+### 36.1 Architectural Overview & Handoff Specifications
+The `v6_satswap_anom_14yr` model is a 14-year reanalysis deep learning checkpoint trained on multi-satellite surface observations with satellite parameter swapping and harmonic climatology normalization across the North Indian Ocean basin ($5^\circ\text{–}30^\circ\text{N}$, $45^\circ\text{–}105^\circ\text{E}$).
+
+- **Model Bundle**: `v6_satswap_anom_14yr.bundle.npz`
+  - Climatology Target Coefficients: `target_coef (5, 15, 101, 241)` (5 annual harmonic components across 15 standard depths).
+  - Neural Network: CNN-LSTM encoder-decoder taking 10-day lookback windows of multi-modal surface satellite anomalies.
+- **Depth Bias Correction**: `correction_v6_satswap_anom_14yr.json`
+  - 15 empirical Argo bias terms subtracted from raw predictions:
+    $$T_{\text{corr}}(z) = T_{\text{raw}}(z) - \text{bias}(z)$$
+  - Terms by depth:
+    - $0\text{m}: +0.0104^\circ\text{C}$
+    - $5\text{m}: -0.0264^\circ\text{C}$
+    - $10\text{m}: +0.0097^\circ\text{C}$
+    - $20\text{m}: +0.1062^\circ\text{C}$
+    - $30\text{m}: +0.1557^\circ\text{C}$
+    - $50\text{m}: +0.4045^\circ\text{C}$
+    - $75\text{m}: +0.2372^\circ\text{C}$
+    - $100\text{m}: +1.0722^\circ\text{C}$
+    - $125\text{m}: -0.1593^\circ\text{C}$
+    - $150\text{m}: -0.3015^\circ\text{C}$
+    - $200\text{m}: +0.3957^\circ\text{C}$
+    - $300\text{m}: -0.3592^\circ\text{C}$
+    - $500\text{m}: -0.3921^\circ\text{C}$
+    - $700\text{m}: +0.3235^\circ\text{C}$
+    - $1000\text{m}: +0.6226^\circ\text{C}$
+
+### 36.2 Unpacked Data Architecture (`backend/data/v6_satswap_anom_14yr/unpacked/`)
+To deliver sub-millisecond serving performance without decompressing massive multi-gigabyte `.npz` files per request, the precomputed fields are unpacked into memory-mapped NumPy structures via `serving.py`:
+- `field/`: `arr.npy` (214 days × 15 depths × 10,817 ocean wet cells, float16), `wet_idx.npy` (10,817 wet coordinate indices), `meta.json`.
+- `products/`: `arr.npy` (214 days × 4 products: `d20`, `d26`, `tchp`, `mld` × 10,817 wet cells, float16), `meta.json`.
+- `embeddings/`: `arr.npy` (214 days × 16 latent dimensions × 10,817 wet cells, float16), `meta.json`.
+
+### 36.3 Active Window & Strict No-Fallback Protocol
+- **Temporal Window**: `2023-06-01` to `2023-12-31` (214 days, Day 881 to Day 1094).
+- **Strict No-Fallback Policy**:
+  - Out-of-window dates reject cleanly with HTTP 400 and clear provenance notes.
+  - Old and new model weights/constants are never mixed.
+  - Explore, Fisheries, and Argo pages display the unified model window banner:
+    > *"Currently serving the new 14-year model for June–December 2023. Full 2021–2023 coverage coming soon."*
+
+### 36.4 Operational Oceanographic Rules
+1. **MLD Labeled Experimental**:
+   - Mixed Layer Depth is explicitly badged as "Experimental" across Explore stat cards and API metadata.
+2. **Updated TCHP Physical Band**:
+   - Tropical Cyclone Heat Potential (TCHP) incorporates the recalibrated offset of $2.47\,\text{kJ/cm}^2$ and confidence band of $\pm 11.8\,\text{kJ/cm}^2$ (updated from old $3.9$ and $\pm 15.7\,\text{kJ/cm}^2$).
+3. **Raw Profile Default & Smoothing Toggle**:
+   - Non-monotonic raw temperature profiles are served by default per collaborator guidelines, preserving natural inversion layers.
+   - Forced-monotonic smoothing (PAVA) is available via client and API toggle (`raw=False` / `smoothing=True`).
+4. **SST Blending Parity**:
+   - Satellite SST blending ($0\text{m}$ anchored, $+50\%$ delta at $5\text{m}$) is applied identically to point profiles and 2D spatial grid slices, guaranteeing $0.00^\circ\text{C}$ cross-endpoint parity.
+
+### 36.5 Argo In-Window Benchmark (`backend/data/argo_profiles_2023.json`)
+The validation suite evaluates all 1,809 in-window Argo profiles from `evaluation_results_v6_satswap_anom_14yr_argo_full.csv`:
+- Total Depth Comparisons: 24,252 points.
+- Basin Aggregate RMSE: $1.15^\circ\text{C}$ (vs Climatology $1.28^\circ\text{C}$).
+- Mean Thermal Bias: $+0.04^\circ\text{C}$.
+- Profile Coherence / Correlation: $0.987$.
+- Skill Score: $+19.2\%$.
+- Subregion Distribution:
+  - Arabian Sea: 1,455 profiles
+  - Bay of Bengal: 277 profiles
+  - Equatorial Indian Ocean: 77 profiles
+
+---
+
+## 37. Unified Continuous Master Cinematic Timeline Architecture
+
+### 37.1 The Unified Narrative Problem & Architectural Resolution
+Previously, the 23-second ocean video functioned as an intro video: the user scrolled through the video playback, after which the video effectively ended, leaving an empty/dark area before separate webpage content appeared.
+
+The unified architecture merges the entire narrative, depth descent, scientific storytelling, and video into **one continuous, pinned master scroll timeline** (`#cinematic-track`, $1000\text{vh}$). The 4K ocean video (`/public/media/kyogre-ocean-dive.mp4`) acts as the persistent background environment behind all narrative phases, eliminating disjointed cuts or premature black sections.
+
+### 37.2 Decoupled Progress Mapping: Video Descent vs. Master Timeline
+To ensure the physical camera descent occupies the early/middle journey while allowing the scientific reconstruction and deep-sea storytelling to flourish over the abyss, video playback and page progress are decoupled:
+
+1. **Normalized Master Progress**:
+   $$p \in [0.0, 1.0]$$
+   driven by a master GSAP `ScrollTrigger` with `scrub: 1.2` synchronized with Lenis inertia damping.
+2. **Video Playback Decoupling**:
+   $$\text{video.currentTime} = \begin{cases} 
+   \left(\frac{p}{0.62}\right) \times (\text{duration} - 0.05) & \text{for } p \le 0.62 \\
+   \text{duration} - 0.05 & \text{for } p > 0.62 \text{ (held on 1000m final deep-ocean frame)}
+   \end{cases}$$
+   - When $p \in [0.00, 0.62]$, the camera physically descends: Air $\to$ Water Surface Entry $\to$ Shallow Sunlight/Fish $\to$ Deepening Blue $\to$ Bathypelagic Abyss.
+   - When $p \in [0.62, 1.00]$, the video **holds frozen on its final frame** (very dark rich blue ocean, no fish, minimal particles). The camera has arrived at $1000\text{m}$.
+   - The final deep-ocean video frame serves as the physical substrate upon which the scientific reconstruction materializes.
+3. **Continuous Depth Indicator HUD**:
+   $$\text{currentDepth} = \begin{cases}
+   0\text{m (AIR)} & \text{for } p \le 0.12 \\
+   \min\left(1000, \text{round}\left(\frac{p - 0.12}{0.88 - 0.12} \times 1000\right)\right) & \text{for } p > 0.12
+   \end{cases}$$
+   The depth HUD tracks across the entire timeline, smoothly fading at $p \ge 0.96$ as the visitor transitions into the product console.
+
+### 37.3 Calibrated 8-Phase Cinematic Sequence
+| Phase | Progress ($p$) | Depth | Visual Video State | Narrative & Overlays |
+|---|---|---|---|---|
+| **Phase 0: Hero** | $0.00 - 0.12$ | AIR / 0m | Open ocean aerial flight | `KYOGRE`, `Seeing Beneath the Surface`, `EXPLORE KYOGRE`, `VIEW PROTOTYPE`, `SCROLL TO DESCEND` |
+| **Phase 1: Descent** | $0.10 - 0.20$ | 0m | Camera approaches water surface | Minimal UI, ocean visual dominance |
+| **Phase 2: Water Entry** | $0.16 - 0.33$ | 0m – 150m | Camera breaches water surface | `WE CAN SEE THE SURFACE. BUT NOT EVERYTHING BENEATH IT.` (Skin vs. volumetric column) |
+| **Phase 3: Shallow Ocean** | $0.31 - 0.47$ | 150m – 350m | Sunlight, caustics, particles, subtle fish | `THE OCEAN IS VOLUMETRIC. OUR OBSERVATIONS ARE NOT.` (Argo float sparsity) |
+| **Phase 4: Mesopelagic** | $0.45 - 0.61$ | 350m – 600m | Darker blue twilight ocean | `BETWEEN THE OBSERVATIONS LIES THE UNKNOWN.` (Eddies, heatwaves without in-situ arrays) |
+| **Phase 5: The Question** | $0.59 - 0.75$ | 600m – 780m | Deepening water, sunbeams fade | `HOW DO WE RECONSTRUCT WHAT WE CANNOT DIRECTLY OBSERVE?` (The turning point) |
+| **Phase 6: Meet Kyogre** | $0.73 - 0.87$ | 780m – 950m | Video reaches dark deep ocean | `MEET KYOGRE.` + `CNN-LSTM DEEP LEARNING MODEL` + Multimodal satellite chips (`SST`, `SSS`, `SSH / SLA`, `SURFACE WINDS`, `SURFACE CURRENTS`) |
+| **Phase 7: 1000m Reconstruction** | $0.84 - 1.00$ | 1000m | Held final 1000m abyss video frame | `FROM SURFACE SIGNALS TO SUBSURFACE INTELLIGENCE.` + Cartesian bathymetric grid + T20/T15/T10 stratified isotherms |
+
+### 37.4 Seamless Transition to Product Console
+At the conclusion of the 1000m reconstruction ($p \approx 1.00$), the page smoothly continues into `<main>` without any sudden black cut:
+1. `<ResearchConsole />`: **"THE OCEAN, MADE COMPUTABLE."** (Immediate transition destination).
+2. `<ScientificPipeline />`: Scientific Benchmark & In-situ Validation Metrics.
+3. `<PrototypeShowcase />`: Interactive Prototype & Demo Video.
+4. `<ApplicationsGrid />`: Cyclone Intensity, Fisheries, Submarine Acoustics, Marine Heatwaves.
+5. `<InstitutionalRoadmap />`: INCOIS, MoES, IMD Deployment Architecture.
+6. `<FinalCTA />`: Final Call to Action & Research Links.
+
+---
+
+## 38. Full-Page Continuous Video Duration Sync & rAF Lerp Scrub Architecture
+
+### 38.1 Architectural Problem: Mid-Page Freeze vs Full-Page Continuity
+In previous revisions, the 4K ocean descent video playback duration was mapped strictly to a fraction of the initial scroll sequence (ending at $p \approx 0.62$), causing the video to freeze or fade to black early while subsequent sections (`ResearchConsole`, `ScientificPipeline`, etc.) sat over static black. Additionally, raw scroll event listeners directly setting `video.currentTime` produced noticeable micro-stutter (jank) due to uneven mouse wheel event bursts and seek contention.
+
+### 38.2 Full-Page Scroll Duration Mapping (Requirement A)
+The video duration is synchronized to the **full scrollable height of the entire webpage**:
+$$\text{scrollProgress} = \frac{\text{window.scrollY}}{\text{document.documentElement.scrollHeight} - \text{window.innerHeight}} \in [0.0, 1.0]$$
+$$\text{targetTime} = \text{scrollProgress} \times (\text{video.duration} - 0.05)$$
+- **Scroll Top ($0.00$)**: Camera hovers over the ocean surface (aerial drone perspective).
+- **Intermediate Scroll ($0.15 - 0.65$)**: Camera breaches the surface and descends through the volumetric column (0m $\to$ 1000m).
+- **Post-1000m Product & Validation Sections ($0.65 - 1.00$)**: The deep-ocean video remains active as a living, scroll-linked backdrop behind the Research Console, Scientific Pipeline, Prototype Showcase, and Roadmap.
+- **Scroll Bottom ($1.00$)**: The video completes playback *exactly* when the visitor hits the bottom of the page footer.
+
+### 38.3 Jitter-Free rAF Lerp Interpolation Engine (Requirement B)
+To eliminate decode stalls and frame-skipping jank, seeking is completely decoupled from scroll listeners:
+1. **Raw Scroll Handler**: Computes `scrollProgress` and updates `targetTimeRef.current` without touching `video.currentTime`.
+2. **Dedicated `requestAnimationFrame` Loop**: Interpolates `video.currentTime` smoothly toward `targetTimeRef.current` each display refresh:
+   $$\text{nextTime} = \text{currentTime} + (\text{targetTime} - \text{currentTime}) \times 0.15$$
+3. **Seek Guard & Watchdog**: Protected by `isSeekingRef` lock with a $35\text{ms}$ safety timeout to guarantee rapid wheel-scroll deltas never stall the video decoder.
+
+### 38.4 Video Asset Swap (`kyogre-bg-smooth.mp4` — Requirement C)
+The primary video source is configured as `kyogre-bg-smooth.mp4` (encoded with dense I-frames, GOP=5, 143 keyframes over 23.85s) served from `public/media/` and `media/` with fallback to `kyogre-ocean-dive.mp4`. Seeking latency at any arbitrary timestamp is $<2\text{ms}$.
+
+### 38.5 Percentage-Based UI Element Triggers & IntersectionObservers (Requirement D)
+All scroll-linked reveals and telemetry updates operate on normalized percentage progress $[0, 1]$ and `IntersectionObserver` instances rather than brittle viewport pixel offsets:
+- **Hero Fade-out**: Holds $1.0$ opacity through $p \le 0.08$, then smoothly transitions out via smoothstep easing by $p = 0.16$.
+- **Continuous Depth HUD**: Maps depth numerical readout and active indicator pip continuously from $0\text{m} \to 1000\text{m}$, remaining visible across survey sections and softly fading at $p \ge 0.92$.
+- **Temperature Gradient Reveal (`ResearchConsole`)**: Animated horizontal expansion (`scaleX(0.92 -> 1.0)`) and luminance sweep triggered when the section intersects viewport (threshold $0.25$) or $p \ge 0.55$.
+- Validation Heading & 01-06 Step Grid (`ScientificPipeline`): Heading and pipeline stage tiles stagger-reveal with smooth $+20\text{px} \to 0\text{px}$ translateY and $75\text{ms}$ sequential delays when the section intersects viewport (threshold $0.15$) or $p \ge 0.65$.
+
+---
+
+## 39. Jury Submission Visual Polish & Content Pacing Architecture
+
+### 39.1 Visual Refinements
+- **Depth Ruler Frosted Backing**: The vertical depth ruler scale features a permanent semi-transparent dark backdrop (`bg-black/65 backdrop-blur-md rounded-l-xl drop-shadow-[0_1px_4px_rgba(0,0,0,0.9)]`) running the full height of the track, ensuring tick marks and labels (`text-white/75`, `text-white/70`) maintain high contrast across bright surface sun-glare and dark abyssal video frames.
+- **Top-Left KYOGRE Focus Pull**: Top-left brand wordmark transitions with a simulated optical focus pull combining scale (`scale(0.92)` $\to$ `scale(1.0)`), gaussian blur (`blur(4px)` $\to$ `blur(0px)`), and smoothstep opacity across $pFull \in [0.04, 0.10]$, reversing on scroll up.
+- **Micro Climatological Temperature Readout**: Live dynamic numerical temperature indicator (`calcTempAtDepth`) embedded directly into the depth HUD, displaying typical thermal stratification ($29.8^\circ\text{C} \to 4.9^\circ\text{C}$) in real time alongside depth.
+- **Edge Vignette & Film Grain Overlays**: Pinned radial vignette (`transparent 38%` $\to$ `rgba(2,6,13,0.88) 100%`) provides an ambient contrast floor, while an SVG procedural fractal noise texture (`opacity: 0.035`) provides cinematic film grain without sacrificing readability.
+- **Scroll Progress Indicator**: Viewport top-edge $2\text{px}$ cyan glowing line maps normalized full-page descent $0\% \to 100\%$.
+
+### 39.2 Content Pacing & Structural Restructuring
+To eliminate dead scroll before jury evaluation, narrative beats were re-staged ~2x earlier:
+- **Phase 0 (Hero)**: Eases out between $p = 0.04 \to 0.10$.
+- **Phase 1 (Surface Blind Spot)**: Triggers at $p = 0.08 \to 0.22$ (~100m depth) rather than $0.16 \to 0.33$.
+- **Phase 2 (Argo Sparsity)**: Triggers at $p = 0.20 \to 0.34$.
+- **Phase 3 (The Consequence)**: Triggers at $p = 0.32 \to 0.46$.
+- **Phase 4 (Surface Physics Encoding)**: Triggers at $p = 0.44 \to 0.58$.
+- **Phase 5 (Meet Kyogre)**: Triggers at $p = 0.56 \to 0.72$.
+- **Phase 6 (Reconstruction Climax)**: Triggers at $p = 0.74 \to 1.00$.
+- **Digital Twin Isotherm Canvas**: Trigger advanced from $p \ge 0.78$ to $p \ge 0.65$.
+
+### 39.3 Content Realism & Truth Verification
+All placeholder metrics were removed and replaced with verified figures from `PITCH.md`:
+- **Overall Benchmark RMSE**: $0.75^\circ\text{C}$ (vs monthly climatology $0.84^\circ\text{C}$).
+- **Skill Score**: $+20.0\%$ over monthly climatology baseline ($n=41$ blind Argo floats, $615$ depth points).
+- **Inference Latency**: $< 1.5\text{ms}$ cached / $\sim 1.2\text{s}$ cold CPU basin grid.
+- **Applications 01–05**: Formatted with real operational consequence framing (what breaks when data is absent).
 

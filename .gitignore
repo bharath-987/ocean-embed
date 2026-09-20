@@ -16,6 +16,9 @@ backend/__pycache__/
 backend/data/*.npy
 *.npy
 *.npz
+*.nc
+backend/data/downloads/
+backend/data/v6_satswap_anom_14yr/unpacked/
 !backend/data/trimmed/
 !backend/data/trimmed/*.npy
 !backend/data/trimmed/*.json

@@ -168,12 +168,20 @@ function resetStatCards(promptText) {
   const upNote = document.getElementById('stat-upwelling-note');
   const pfzNote = document.getElementById('stat-pfz-note');
   const nutrNote = document.getElementById('stat-nutrient-note');
+  const nutrBadge = document.getElementById('stat-nutrient-badge');
+  const nutrPill = document.getElementById('stat-nutrient-pill');
 
   if (tcEl) tcEl.textContent = '—';
   if (upEl) upEl.textContent = '—';
   if (pfzEl) pfzEl.textContent = '—';
   if (pfzBadge) pfzBadge.style.display = 'none';
   if (nutrEl) nutrEl.textContent = '—';
+  if (nutrBadge) nutrBadge.style.display = 'none';
+  if (nutrPill) {
+    nutrPill.className = 'ky-provenance-pill ky-provenance-pill--heuristic';
+    nutrPill.textContent = 'Estimated Heuristic';
+    nutrPill.title = 'Source of chlorophyll reading';
+  }
 
   if (tcNote) tcNote.textContent = noteText;
   if (upNote) upNote.textContent = noteText;
@@ -1069,12 +1077,14 @@ function renderChart(depths, temps, nutrients) {
   });
 }
 
-function updateStatCards(zone, thermocline, upwelling, pfzScore, nutrientVal) {
+function updateStatCards(zone, thermocline, upwelling, pfzScore, nutrientVal, chlSourceInfo) {
   const tcEl = document.getElementById('stat-thermocline-val');
   const upEl = document.getElementById('stat-upwelling-val');
   const pfzEl = document.getElementById('stat-pfz-val');
   const pfzBadge = document.getElementById('stat-pfz-badge');
   const nutrEl = document.getElementById('stat-nutrient-val');
+  const nutrBadge = document.getElementById('stat-nutrient-badge');
+  const nutrPill = document.getElementById('stat-nutrient-pill');
 
   const tcNote = document.getElementById('stat-thermocline-note');
   const upNote = document.getElementById('stat-upwelling-note');
@@ -1113,9 +1123,65 @@ function updateStatCards(zone, thermocline, upwelling, pfzScore, nutrientVal) {
 
   if (tcNote) tcNote.textContent = 'Max vertical gradient (dT/dz)';
   if (upNote) upNote.textContent = 'Derived from 0–50 m thermal gradient';
-  if (nutrNote) nutrNote.textContent = 'Surface value (matches 0m depth)';
 
   if (nutrEl) nutrEl.textContent = `${nutrientVal.toFixed(2)} mg/m³`;
+
+  // Chlorophyll observation source disclosure (satellite vs climatology)
+  let src = 'heuristic';
+  let srcLabel = 'Estimated Heuristic';
+  if (chlSourceInfo) {
+    if (typeof chlSourceInfo === 'string') {
+      src = chlSourceInfo;
+      srcLabel = chlSourceInfo === 'satellite' ? 'Satellite (8-day composite)' : (chlSourceInfo === 'climatology' ? 'Seasonal average (cloud-obscured)' : 'Estimated Heuristic');
+    } else if (typeof chlSourceInfo === 'object') {
+      src = chlSourceInfo.source || chlSourceInfo.chlorophyll_source || src;
+      srcLabel = chlSourceInfo.label || chlSourceInfo.chlorophyll_source_label || srcLabel;
+    }
+  } else if (zone) {
+    src = zone.chlorophyll_source || (zone.indices && zone.indices.chlorophyll_source) || src;
+    srcLabel = zone.chlorophyll_source_label || (zone.indices && zone.indices.chlorophyll_source_label) || srcLabel;
+  }
+
+  if (src === 'satellite') {
+    if (nutrPill) {
+      nutrPill.className = 'ky-provenance-pill ky-provenance-pill--satellite';
+      nutrPill.textContent = 'Satellite';
+      nutrPill.title = 'Observed NASA MODIS-Aqua 8-day composite';
+    }
+    if (nutrBadge) {
+      nutrBadge.style.display = '';
+      nutrBadge.className = 'ky-stat-card__badge ky-stat-card__badge--green';
+      nutrBadge.textContent = 'Satellite (8-day composite)';
+      nutrBadge.title = 'Observed NASA MODIS-Aqua 8-day composite';
+    }
+    if (nutrNote) nutrNote.textContent = 'Observed NASA MODIS-Aqua 8-day composite';
+  } else if (src === 'climatology') {
+    if (nutrPill) {
+      nutrPill.className = 'ky-provenance-pill ky-provenance-pill--climatology';
+      nutrPill.textContent = 'Climatology';
+      nutrPill.title = 'Persistent cloud obscuration: infilled via 2021–2023 monthly geometric climatology';
+    }
+    if (nutrBadge) {
+      nutrBadge.style.display = '';
+      nutrBadge.className = 'ky-stat-card__badge ky-stat-card__badge--amber';
+      nutrBadge.textContent = 'Seasonal average (cloud-obscured)';
+      nutrBadge.title = 'Persistent cloud obscuration: infilled via 2021–2023 monthly geometric climatology';
+    }
+    if (nutrNote) nutrNote.textContent = 'Seasonal average (cloud-obscured fallback)';
+  } else {
+    if (nutrPill) {
+      nutrPill.className = 'ky-provenance-pill ky-provenance-pill--heuristic';
+      nutrPill.textContent = 'Estimated';
+      nutrPill.title = 'No satellite or climatology data available — synthetic dynamical proxy';
+    }
+    if (nutrBadge) {
+      nutrBadge.style.display = '';
+      nutrBadge.className = 'ky-stat-card__badge ky-stat-card__badge--amber';
+      nutrBadge.textContent = 'Estimated — no satellite or climatology data';
+      nutrBadge.title = 'Synthetic proxy based on upwelling, SLA, and geostrophic currents';
+    }
+    if (nutrNote) nutrNote.textContent = 'Estimated — no satellite or climatology data';
+  }
 }
 
 /**
@@ -1470,7 +1536,11 @@ async function selectLocation(lat, lon, zoomTo = true) {
     revealTvdPanel();
     renderTable(DEPTH_LEVELS, temps, nutrients, highlightDepth);
     renderChart(DEPTH_LEVELS, temps, nutrients);
-    updateStatCards(matchedZone, thermocline, upwelling, pfzScore, surfaceChla);
+    updateStatCards(matchedZone, thermocline, upwelling, pfzScore, surfaceChla, {
+      source: indices.chlorophyll_source,
+      label: indices.chlorophyll_source_label,
+      val: indices.chlorophyll_satellite_val
+    });
     // updateAdvisory(pfzScore, upwelling, thermocline, matchedZone); // Intentionally omitted in simplified UI
 
     // Update popup with real probability score
@@ -1495,7 +1565,10 @@ async function selectLocation(lat, lon, zoomTo = true) {
     revealTvdPanel();
     renderTable(DEPTH_LEVELS, temps, nutrients, highlightDepth);
     renderChart(DEPTH_LEVELS, temps, nutrients);
-    updateStatCards(matchedZone, thermocline, upwelling, pfzScore, surfaceChla);
+    updateStatCards(matchedZone, thermocline, upwelling, pfzScore, surfaceChla, {
+      source: 'heuristic',
+      label: 'Estimated Heuristic'
+    });
     // updateAdvisory(pfzScore, upwelling, thermocline, matchedZone); // Intentionally omitted in simplified UI
 
     if (currentPopup) {
@@ -1834,6 +1907,11 @@ function initControls() {
           currentPopup = null;
         }
         updateEmptyStatePrompt();
+        return;
+      }
+      if (val < '2023-06-01' || val > '2023-12-31') {
+        alert('Please select a date between 2023-06-01 and 2023-12-31 (Currently serving the new 14-year model for June–December 2023. Full 2021–2023 coverage coming soon).');
+        nativePicker.value = currentDateStr || '2023-09-04';
         return;
       }
       currentDateStr = val;

@@ -62,7 +62,7 @@
               <polyline points="6,9 12,15 18,9"/>
             </svg>
           </button>
-          <input type="date" id="native-date-picker" min="2021-01-11" max="2023-12-31" value="" class="ky-hidden-date-input" aria-label="Choose date" />
+          <input type="date" id="native-date-picker" min="2023-06-01" max="2023-12-31" value="" class="ky-hidden-date-input" aria-label="Choose date" />
         </div>
 
         <div class="ky-live-indicator">
@@ -74,6 +74,14 @@
         </div>
       </div>
     </header>
+
+    <!-- Model Window Banner (June–Dec 2023 Window) -->
+    <div class="ky-model-window-banner" role="status" aria-live="polite">
+      <div class="ky-model-window-banner__inner">
+        <span class="ky-model-window-banner__badge">14-Year Model</span>
+        <span class="ky-model-window-banner__text">Currently serving the new 14-year model for June–December 2023. Full 2021–2023 coverage coming soon.</span>
+      </div>
+    </div>
 
     <!-- ============================================================
          BODY — sidebar + main content
@@ -151,7 +159,8 @@
               <div class="ky-stat-card__label-row">
                 <span class="ky-stat-card__label">Mixed Layer Depth (MLD)</span>
                 <div class="ky-stat-card__pill-row">
-                  <span class="ky-provenance-pill ky-provenance-pill--model" title="Calculated from CNN-LSTM predicted temperature profile using de Boyer Montégut (0.2°C) criterion">Model-Derived</span>
+                  <span class="ky-provenance-pill ky-provenance-pill--model" title="Calculated from raw predicted temperature profile using de Boyer Montégut (0.2°C) criterion">Model-Derived</span>
+                  <span class="ky-provenance-pill" style="background:#FEF3C7;color:#92400E;border-color:#FCD34D;" title="Experimental de Boyer Montégut MLD parameterization under V6 SatSwap 14-year model">Experimental</span>
                 </div>
               </div>
               <div class="ky-stat-card__val" id="stat-mld-val">—</div>
@@ -468,6 +477,18 @@
                 <button class="ky-tvd-toggle__btn" id="tvd-btn-graph">Graph</button>
               </div>
 
+              <!-- Raw vs Smoothed Profile Mode Toggle (Default: Raw non-monotonic per Ajay's rule) -->
+              <div class="ky-tvd-raw-toggle-wrap" style="padding: 6px 16px 4px 16px; display: flex; flex-direction: column; gap: 4px;">
+                <label class="ky-tvd-raw-toggle-label" for="toggle-raw-profile" title="Toggle between raw non-monotonic model output and forced-monotonic smoothing">
+                  <input type="checkbox" id="toggle-raw-profile" class="ky-tvd-raw-checkbox" checked />
+                  <span style="font-size: 12px; color: #475569; font-weight: 500;">Show raw model output (unsmoothed)</span>
+                </label>
+                <div id="raw-profile-note" class="ky-tvd-raw-note" style="display: flex;">
+                  <span class="ky-tvd-raw-note__icon">ⓘ</span>
+                  <span>Raw view displays unsmoothed model output. Natural subsurface temperature inversions are preserved.</span>
+                </div>
+              </div>
+
               <!-- Loading spinner -->
               <div id="result-loading" style="display:none;" class="ky-tvd-loading">
                 <div class="sonar-wrap">
@@ -484,19 +505,20 @@
               <!-- Initial Idle state (retained so app.js can show errors if needed) -->
               <div class="ky-tvd-idle" id="result-idle" style="display:none;">
                 <svg width="40" height="40" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <circle cx="28" cy="28" r="26" stroke="#93C5FD" stroke-width="1.5" stroke-dasharray="4 3"/>
-                  <circle cx="28" cy="28" r="4" fill="#93C5FD" opacity="0.5"/>
+                  <rect x="10" y="10" width="36" height="36" rx="10" stroke="#CBD5E1" stroke-width="2"/>
+                  <path d="M20 28H36" stroke="#94A3B8" stroke-width="2" stroke-linecap="round"/>
+                  <path d="M28 20L36 28L28 36" stroke="#94A3B8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
-                <p class="ky-tvd-idle__text">Click any point in the Indian Ocean to inspect profile.</p>
+                <p class="ky-tvd-idle__text">Click the map or search a location, then choose a date to generate prediction.</p>
               </div>
 
-              <!-- Result content (Active by default for clean presentation) -->
-              <div id="result-content" class="ky-tvd-result">
+              <!-- Output Container -->
+              <div class="ky-tvd-content" id="result-content">
 
-                <!-- Hidden location/date summary preserved for app.js -->
-                <div style="display:none;">
-                  <span id="result-coords-val"></span>
-                  <span id="result-region-val"></span>
+                <!-- Location / Date Info Bar -->
+                <div class="ky-tvd-meta" id="result-meta-bar" style="display:none;">
+                  <span id="result-location-val"></span>
+                  <span class="ky-tvd-meta__dot">·</span>
                   <span id="result-date-val"></span>
                 </div>
 
@@ -512,16 +534,6 @@
 
                 <!-- GRAPH view -->
                 <div id="tvd-graph-view" class="ky-tvd-chart-wrap" style="display:none;">
-                  <div class="ky-tvd-raw-toggle-wrap">
-                    <label class="ky-tvd-raw-toggle-label" for="toggle-raw-profile" title="Bypass isotonic monotonicity smoothing to inspect raw model output">
-                      <input type="checkbox" id="toggle-raw-profile" class="ky-tvd-raw-checkbox" />
-                      <span>Show raw model output (unsmoothed)</span>
-                    </label>
-                  </div>
-                  <div id="raw-profile-note" class="ky-tvd-raw-note" style="display:none;">
-                    <span class="ky-tvd-raw-note__icon">ⓘ</span>
-                    <span>Raw view displays unsmoothed model output. Subsurface temperature inversions may appear due to real physical phenomena (e.g. barrier layers in the Bay of Bengal).</span>
-                  </div>
                   <canvas id="profile-chart" aria-label="Depth profile chart"></canvas>
                 </div>
 
@@ -542,7 +554,7 @@
                       <!-- Populated when location + date are chosen -->
                     </tbody>
                   </table>
-                  <p class="ky-tvd-table-note"><em>Argo-bias-corrected (fit on 2021-23 Argo, scored on unseen 2023 profiles). 0–100 m: blended with satellite SST and adjusted for physical consistency.</em></p>
+                  <p class="ky-tvd-table-note"><em>V6 SatSwap 14-Year Model (June–Dec 2023). MLD is Experimental. TCHP band is ±11.8 kJ/cm².</em></p>
                 </div>
 
                 <!-- Preserved hidden containers for app.js data integrity without cluttering UI -->

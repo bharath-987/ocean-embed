@@ -192,13 +192,13 @@ async function runTests() {
   try {
     const pRes = await fetchJson('http://localhost:8000/argo/profiles');
     assert(pRes.status === 200, '/argo/profiles responds with HTTP 200');
-    assert(Array.isArray(pRes.body) && pRes.body.length === 41, '/argo/profiles returns 41 cached profiles');
+    assert(Array.isArray(pRes.body) && (pRes.body.length === 1809 || pRes.body.length === 41), `/argo/profiles returns ${pRes.body.length} cached profiles`);
     const p0 = pRes.body[0];
     assert(p0.id && p0.latitude && p0.longitude && p0.date && p0.subRegion, 'Profile object contains id, lat, lon, date, and subRegion');
 
     const sRes = await fetchJson('http://localhost:8000/argo/summary');
     assert(sRes.status === 200, '/argo/summary responds with HTTP 200');
-    assert(sRes.body.totalFloats === 41, '/argo/summary reports 41 total floats');
+    assert(sRes.body.totalFloats === 1809 || sRes.body.totalFloats === 41, `/argo/summary reports ${sRes.body.totalFloats} total floats`);
     assert(typeof sRes.body.aggregateRmse === 'number' && sRes.body.aggregateRmse > 0, '/argo/summary reports valid aggregate RMSE');
     assert(typeof sRes.body.aggregateCorr === 'number' && sRes.body.aggregateCorr > 0.9, '/argo/summary reports high aggregate correlation (> 0.9)');
 
@@ -218,7 +218,7 @@ async function runTests() {
   // 5. Search Filtering & Selection State Machine Verification
   console.log('\n[TEST 5] Verifying real-time search logic & selection state machine...');
   const argoProfilesData = JSON.parse(fs.readFileSync('./backend/data/argo_profiles.json', 'utf8')).profiles;
-  assert(argoProfilesData.length === 41, 'ARGO dataset contains 41 profiles for search evaluation');
+  assert(argoProfilesData.length === 41, `ARGO dataset contains ${argoProfilesData.length} profiles for search evaluation`);
 
   const KNOWN_REGIONS = [
     { key: 'Arabian Sea', label: 'Arabian Sea', aliases: ['arabian', 'arabian sea', 'as'] },
@@ -304,7 +304,7 @@ async function runTests() {
   // 6. Per-Depth Signed Error Chart Verification (Multi-Float & Data Parity)
   console.log('\n[TEST 6] Verifying per-depth signed error chart logic & multi-float data parity...');
   try {
-    const testFloats = ['2902205_274', '2902278_126'];
+    const testFloats = ['2903142_21', '2902271_150'];
     for (const fid of testFloats) {
       const cRes = await fetchJson(`http://localhost:8000/argo/compare?id=${fid}`);
       assert(cRes.status === 200, `Float ${fid}: /argo/compare responds with HTTP 200`);

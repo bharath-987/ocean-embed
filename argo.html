@@ -60,6 +60,14 @@
       </div>
     </header>
 
+    <!-- Model Window Banner (June–Dec 2023 Window) -->
+    <div class="ky-model-window-banner" role="status" aria-live="polite">
+      <div class="ky-model-window-banner__inner">
+        <span class="ky-model-window-banner__badge">14-Year Model</span>
+        <span class="ky-model-window-banner__text">Currently serving the new 14-year model for June–December 2023. Full 2021–2023 coverage coming soon.</span>
+      </div>
+    </div>
+
     <!-- ============================================================
          BODY — Sidebar + Main Content
          ============================================================ -->
@@ -124,17 +132,16 @@
         <!-- 2. STAT CARDS ROW (4 Cards: icon + label + big number only) -->
         <div class="ky-argo-stat-grid">
           <!-- Card 1: Basin RMSE -->
-          <div class="ky-argo-mini-card" title="RMSE: 0.75 °C (vs monthly climatology baseline, n=41 Argo profiles, full validation set)">
+          <div class="ky-argo-mini-card" title="RMSE: 1.15 °C (vs monthly climatology baseline, n=1,809 Argo profiles, June–Dec 2023 benchmark)">
             <div class="ky-argo-mini-card__icon ky-argo-mini-card__icon--blue">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                 <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
               </svg>
             </div>
             <div class="ky-argo-mini-card__body">
-              <span class="ky-argo-mini-card__label" title="RMSE: 0.75 °C (vs monthly climatology baseline, n=41 Argo profiles, full validation set)">Basin RMSE</span>
-              <span class="ky-argo-mini-card__val" id="stat-argo-rmse">0.75 °C</span>
-              <span class="ky-argo-mini-card__baseline">(full validation set, n=41 Argo profiles)</span>
-              <span class="ky-argo-mini-card__baseline" style="margin-top:2px;color:#1d4ed8;" title="Trimmed demo-window subset: 27 of 41 profiles that fall inside the trimmed data window. Source: collaborator HANDOFF.md.">0.715 °C (trimmed demo-window subset, n=27 profiles)</span>
+              <span class="ky-argo-mini-card__label" title="RMSE: 1.15 °C (vs monthly climatology baseline, n=1,809 Argo profiles, June–Dec 2023 benchmark)">Basin RMSE</span>
+              <span class="ky-argo-mini-card__val" id="stat-argo-rmse">1.15 °C</span>
+              <span class="ky-argo-mini-card__baseline">(in-window benchmark, n=1,809 profiles)</span>
             </div>
           </div>
 
@@ -147,7 +154,7 @@
             </div>
             <div class="ky-argo-mini-card__body">
               <span class="ky-argo-mini-card__label">Mean Thermal Bias</span>
-              <span class="ky-argo-mini-card__val" id="stat-argo-bias">+0.12 °C</span>
+              <span class="ky-argo-mini-card__val" id="stat-argo-bias">+0.04 °C</span>
             </div>
           </div>
 
@@ -162,7 +169,7 @@
             </div>
             <div class="ky-argo-mini-card__body">
               <span class="ky-argo-mini-card__label">Profile Coherence</span>
-              <span class="ky-argo-mini-card__val" id="stat-argo-corr">0.995</span>
+              <span class="ky-argo-mini-card__val" id="stat-argo-corr">0.987</span>
             </div>
           </div>
 
@@ -176,7 +183,7 @@
             </div>
             <div class="ky-argo-mini-card__body">
               <span class="ky-argo-mini-card__label">Active Floats</span>
-              <span class="ky-argo-mini-card__val" id="stat-argo-floats">41</span>
+              <span class="ky-argo-mini-card__val" id="stat-argo-floats">1,809</span>
             </div>
           </div>
         </div>
@@ -193,10 +200,10 @@
               <h2 class="ky-argo-panel-title">ARGO Float In-Situ Network</h2>
               <!-- Subregion Filter Pills -->
               <div class="ky-argo-filter-bar" id="subregion-filters">
-                <button type="button" class="ky-argo-filter-btn ky-argo-filter-btn--active" data-region="all">All (41)</button>
-                <button type="button" class="ky-argo-filter-btn" data-region="Arabian Sea">Arabian Sea (15)</button>
-                <button type="button" class="ky-argo-filter-btn" data-region="Bay of Bengal">Bay of Bengal (16)</button>
-                <button type="button" class="ky-argo-filter-btn" data-region="Equatorial Indian Ocean">Equatorial (10)</button>
+                <button type="button" class="ky-argo-filter-btn ky-argo-filter-btn--active" data-region="all">All (1,809)</button>
+                <button type="button" class="ky-argo-filter-btn" data-region="Arabian Sea">Arabian Sea (1,455)</button>
+                <button type="button" class="ky-argo-filter-btn" data-region="Bay of Bengal">Bay of Bengal (277)</button>
+                <button type="button" class="ky-argo-filter-btn" data-region="Equatorial Indian Ocean">Equatorial (77)</button>
               </div>
             </div>
 

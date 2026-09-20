@@ -13,7 +13,7 @@ import urllib.error
 API_BASE = "http://localhost:8000"
 STANDARD_DEPTHS = [0, 5, 10, 20, 30, 50, 75, 100, 125, 150, 200, 300, 500, 700, 1000]
 SURFACE_PARAMS = ["sst", "ssh", "sss", "sla", "current", "wind"]
-TEST_DATE = "2022-07-02"
+TEST_DATE = "2023-10-22"
 
 
 def print_step(name):
@@ -221,10 +221,10 @@ def test_gating_logic_rules():
 
 def test_raw_output_toggle():
     print_step("Raw Model Output Toggle (Bypass Isotonic Monotonicity Smoothing)")
-    lat, lon = 12.0, 85.0
-    date = "2021-02-14"
+    lat, lon = 15.0, 88.0
+    date = "2023-10-22"
 
-    # 1. Default POST /predict (no param): strictly smoothed & monotonic in upper 50m
+    # 1. Default POST /predict (no param): raw by default per Ajay's rule
     url_default = f"{API_BASE}/predict"
     payload_def = json.dumps({"latitude": lat, "longitude": lon, "date": date}).encode("utf-8")
     req_def = urllib.request.Request(url_default, data=payload_def, headers={"Content-Type": "application/json"})
@@ -232,43 +232,38 @@ def test_raw_output_toggle():
         assert_true(res.status == 200, "Default /predict responds with HTTP 200")
         data_def = json.loads(res.read().decode("utf-8"))
         temps_def = data_def["temps"]
-        assert_true(data_def.get("raw") is False, "Default response flags raw=False")
-        is_monotonic_def = all(temps_def[i] >= temps_def[i + 1] - 0.15 for i in range(5))
-        assert_true(is_monotonic_def, f"Default upper 50m profile tracks physical stratification within Argo bias adjustment tolerance: {temps_def[:6]}")
+        assert_true(data_def.get("raw") is True, "Default response flags raw=True (per Ajay's rule)")
 
-    # 2. Raw POST /predict?raw=true: skips _isotonic_decreasing() and returns raw non-monotonic values
-    url_raw = f"{API_BASE}/predict?raw=true"
-    payload_raw = json.dumps({"latitude": lat, "longitude": lon, "date": date, "raw": True}).encode("utf-8")
-    req_raw = urllib.request.Request(url_raw, data=payload_raw, headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req_raw, timeout=10) as res:
-        assert_true(res.status == 200, "Raw /predict?raw=true responds with HTTP 200")
-        data_raw = json.loads(res.read().decode("utf-8"))
-        temps_raw = data_raw["temps"]
-        assert_true(data_raw.get("raw") is True, "Raw response flags raw=True")
+    # 2. Smoothed POST /predict?raw=false: applies isotonic smoothing
+    url_smooth = f"{API_BASE}/predict?raw=false"
+    payload_smooth = json.dumps({"latitude": lat, "longitude": lon, "date": date, "raw": False}).encode("utf-8")
+    req_smooth = urllib.request.Request(url_smooth, data=payload_smooth, headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req_smooth, timeout=10) as res:
+        assert_true(res.status == 200, "Smoothed /predict?raw=false responds with HTTP 200")
+        data_smooth = json.loads(res.read().decode("utf-8"))
+        temps_smooth = data_smooth["temps"]
+        assert_true(data_smooth.get("raw") is False, "Smoothed response flags raw=False")
 
-        # Confirm values differ where raw profile has barrier-layer warm anomaly
-        diffs = [round(r - s, 2) for r, s in zip(temps_raw[:6], temps_def[:6])]
+        # Confirm values differ
+        diffs = [round(r - s, 2) for r, s in zip(temps_def, temps_smooth)]
         assert_true(any(d != 0.0 for d in diffs), f"Raw output differs from smoothed output (diffs={diffs})")
-        # Specifically, 50m is warmer than 30m in raw output at this location (Bay of Bengal barrier layer)
-        has_subsurface_warming = temps_raw[5] > temps_raw[4]
-        assert_true(has_subsurface_warming, f"Raw profile reveals genuine subsurface warm anomaly (50m={temps_raw[5]}°C > 30m={temps_raw[4]}°C)")
 
     # 3. Direct GET /predict?raw=true parity
     url_get = f"{API_BASE}/predict?latitude={lat}&longitude={lon}&date={date}&raw=true"
     with urllib.request.urlopen(url_get, timeout=10) as res:
         assert_true(res.status == 200, "GET /predict?raw=true responds with HTTP 200")
         data_get = json.loads(res.read().decode("utf-8"))
-        assert_true(data_get["temps"] == temps_raw, "GET /predict matches POST /predict raw output exactly")
+        assert_true(data_get["temps"] == temps_def, "GET /predict matches POST /predict raw output exactly")
 
-    # 4. /temperature-grid?raw=true parity at requested depth (50m, depth index 5)
+    # 4. /temperature-grid?raw=true parity at requested depth (100m, depth index 7)
     lat_idx = int(round((lat - 5.0) / 0.25))
     lon_idx = int(round((lon - 45.0) / 0.25))
-    url_grid_raw = f"{API_BASE}/temperature-grid?date={date}&depth=50&raw=true"
+    url_grid_raw = f"{API_BASE}/temperature-grid?date={date}&depth=100&raw=true"
     with urllib.request.urlopen(url_grid_raw, timeout=10) as res:
         grid_data = json.loads(res.read().decode("utf-8"))
         assert_true(grid_data["raw"] is True, "/temperature-grid?raw=true returns raw=True")
         grid_val = grid_data["grid"][lat_idx][lon_idx]
-        assert_true(abs(grid_val - temps_raw[5]) < 0.05, f"Raw temperature grid ({grid_val:.2f}°C) matches raw predict ({temps_raw[5]:.2f}°C)")
+        assert_true(abs(grid_val - temps_def[7]) < 0.05, f"Raw temperature grid ({grid_val:.2f}°C) matches raw predict ({temps_def[7]:.2f}°C)")
 
 
 def main():

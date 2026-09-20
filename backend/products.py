@@ -14,15 +14,16 @@ import numpy as np
 # 15 Standard Depths in meters matching V6 model output
 DEPTHS = [0, 5, 10, 20, 30, 50, 75, 100, 125, 150, 200, 300, 500, 700, 1000]
 
-# Empirical Argo depth bias vector (fit on 2021-23 Argo, scored on 1,791 unseen 2023 profiles)
+# Empirical Argo depth bias vector (v6_satswap_anom_14yr, correction_v6_satswap_anom_14yr.json)
 ARGO_DEPTH_BIAS = np.array([
-    0.0239, -0.0730, -0.0247, 0.1150, 0.1966, 0.4969, 0.3907,
-    1.2660, 0.1142, -0.0594, 0.5943, -0.3995, -0.3958, 0.3015, 0.6239
+    0.02692635, -0.01744583, 0.01577189, 0.11663548, 0.15960154,
+    0.40214999,  0.23907496, 1.07216843, -0.15642495, -0.30402927,
+    0.39556680, -0.35816629, -0.39205419, 0.31647621, 0.61763212
 ], dtype=np.float32)
 
-# Post-processing empirical TCHP adjustment constants
-TCHP_OFFSET = 2.67      # kJ/cm², added after computing TCHP from the corrected profile
-TCHP_BAND = 15.7        # kJ/cm², the ± error band to display
+# Post-processing empirical TCHP adjustment constants (v6_satswap_anom_14yr)
+TCHP_OFFSET = 2.47      # kJ/cm², added after computing TCHP from the corrected profile
+TCHP_BAND = 11.8        # kJ/cm², new empirical error band (±11.8 kJ/cm², updated from ±15.7)
 
 
 def correct_profile(raw_profile: Union[np.ndarray, List[float]]) -> np.ndarray:

@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+
+<html class="dark scroll-smooth" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>KYOGRE // NEUROTIDE — Seeing Beneath the Surface</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600&amp;family=JetBrains+Mono:wght@300;400;500;600&amp;family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "background": "#02060d",
+            "surface": "#060d1a",
+            "primary": "#dbfcff",
+            "primary-container": "#00f0ff",
+            "surface-tint": "#00dbe9",
+            "surface-container": "#0a1324",
+            "surface-container-high": "#111f38",
+            "surface-container-lowest": "#010409",
+            "on-surface": "#dde2f3",
+            "on-surface-variant": "#94a9be",
+            "outline": "#48627e",
+            "outline-variant": "#1c2d47",
+            "error": "#ffb4ab"
+          },
+          fontFamily: {
+            "display-lg": ["Space Grotesk", "sans-serif"],
+            "headline-xl": ["Space Grotesk", "sans-serif"],
+            "headline-md": ["Space Grotesk", "sans-serif"],
+            "headline-sm": ["Space Grotesk", "sans-serif"],
+            "body-lg": ["Inter", "sans-serif"],
+            "body-md": ["Inter", "sans-serif"],
+            "body-sm": ["Inter", "sans-serif"],
+            "label-lg": ["JetBrains Mono", "monospace"],
+            "label-md": ["JetBrains Mono", "monospace"],
+            "label-sm": ["JetBrains Mono", "monospace"]
+          }
+        }
+      }
+    }
+</script>
+<style>
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+    display: inline-block;
+    vertical-align: middle;
+  }
+  /* Ultra-smooth backdrop & particle styles */
+  .marine-particle {
+    position: absolute;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(180, 240, 255, 0.8) 0%, rgba(0, 240, 255, 0) 70%);
+    pointer-events: none;
+    animation: drift 18s infinite ease-in-out;
+  }
+  @keyframes drift {
+    0%, 100% { transform: translateY(0px) translateX(0px); opacity: 0.2; }
+    50% { transform: translateY(-40px) translateX(25px); opacity: 0.7; }
+  }
+  .cyan-halo {
+    text-shadow: 0 0 40px rgba(0, 240, 255, 0.45);
+  }
+  .glass-hairline {
+    background: rgba(4, 10, 22, 0.55);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(0, 240, 255, 0.12);
+  }
+</style>
+</head>
+<body class="bg-background text-on-surface font-body-md antialiased selection:bg-primary-container selection:text-background relative overflow-x-hidden">
+<!-- ========================================================================= -->
+<!-- LAYER 0: CONTINUOUS FIXED CINEMATIC OCEAN DESCENT BACKGROUND SYSTEM       -->
+<!-- ========================================================================= -->
+<div class="fixed inset-0 w-full h-full pointer-events-none z-0 overflow-hidden" id="ocean-dive-stage">
+<!-- Air & Surface Horizon Image (Hero) -->
+<div class="absolute inset-0 w-full h-full bg-cover bg-center transition-opacity duration-700 ease-out will-change-transform" id="layer-sky" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBm1kMesL7epCBxxd1Y1G9hH_htJ9vjU5XrIDsmb0sq4rmiimKwJNnbwQb5dKDNAC3w1ijH8oPvz8YNmwTAHFr3NTh2LJiWpLBbSEOc3Vt5IBSe2sbwbTTzHncxerL7vIADsmDheY8WB2s2g5cVwNDMfpkGz9nRNFzWPpA6vmVXvCFLN8K5R7kK53kaPpFHhqKge7JN3VXpTuufRSrhuGD9xu325GgE2qhYoyzQD1kMD5t2wEyXSqZgPA'); opacity: 1; transform: scale(1.02);">
+<div class="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-[#020b18]/90"></div>
+</div>
+<!-- Sunlit Water Penetration (0m - 200m) -->
+<div class="absolute inset-0 w-full h-full bg-cover bg-center transition-opacity duration-700 ease-out will-change-transform" id="layer-sunbeams" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBpfIyRLbsMihUxR0xZpg31ZzaW_94EanWhajX0PUFLwDiXZMYAbOyPNYTPKSw0QI_f7kSo_9cTEf5sniMx3JSJzehs6VpbdMLl7L6gBsis0DXtlzHJghHrD_yoUYIq6onARHVFZTs_rxSLkbOkEYxnRZKNtqk4HVbvP4GgGaI6mdI_heMkxzsA2b1ijSIO4eqCx3bCAf7tP1F7n4Izy_70WRvflDguy9YmkGAbGuNk26xSWzv4Re5FTg'); opacity: 0; transform: scale(1.08);">
+<div class="absolute inset-0 bg-gradient-to-b from-[#020b18]/60 via-transparent to-[#010816]/90"></div>
+</div>
+<!-- Volumetric Deep Thermocline / Abyssal Layer (750m - 1000m) -->
+<div class="absolute inset-0 w-full h-full bg-cover bg-center transition-opacity duration-700 ease-out will-change-transform" id="layer-abyss" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDNa3AcRKKV_ZxLp5-408yxfU9dzkc-XOewgKhesWAwROAv_-ZT1-NSh3NT-3W_lQUI5WY54rbwNWgvrCEeIFiaieO9y0FEc11JHbcuc77NQwJU7mHjIVIKazIlp3t8x1lbldNi8dVtTyzXuYlfepjUOu0AYQiOp1ol5HiyCW2rHdX8ZeV1XiTQqrjKLWsBdnK5UjRsjyfK18KpSO8YUHBE657KpPvowLEb9Vm-mak1uAidzp-lr_TZYg'); opacity: 0; transform: scale(1.05);">
+<div class="absolute inset-0 bg-gradient-to-b from-[#010816]/80 via-transparent to-[#000308]/95"></div>
+</div>
+<!-- Deep Ocean Twilight & Haze Gradient Overlays -->
+<div class="absolute inset-0 w-full h-full pointer-events-none transition-opacity duration-700" id="layer-haze" style="background: radial-gradient(circle at 50% 35%, rgba(0, 90, 140, 0.15), rgba(1, 4, 10, 0.95) 85%); opacity: 0.4;"></div>
+<!-- Marine Snow Particle Field -->
+<div class="absolute inset-0 w-full h-full overflow-hidden opacity-60">
+<div class="marine-particle w-1.5 h-1.5 left-[15%] top-[25%]" style="animation-delay: 0s;"></div>
+<div class="marine-particle w-1 h-1 left-[32%] top-[65%]" style="animation-delay: 3s;"></div>
+<div class="marine-particle w-2 h-2 left-[48%] top-[18%]" style="animation-delay: 7s;"></div>
+<div class="marine-particle w-1.5 h-1.5 left-[72%] top-[42%]" style="animation-delay: 2s;"></div>
+<div class="marine-particle w-1 h-1 left-[85%] top-[78%]" style="animation-delay: 5s;"></div>
+<div class="marine-particle w-2.5 h-2.5 left-[60%] top-[88%]" style="animation-delay: 9s;"></div>
+</div>
+</div>
+<!-- ========================================================================= -->
+<!-- PERSISTENT TOP APP BAR (Minimal Navigational Film Bar)                     -->
+<!-- ========================================================================= -->
+<header class="fixed top-0 left-0 w-full z-50 backdrop-blur-md border-b border-white/5 bg-background/40">
+<div class="flex justify-between items-center w-full px-6 lg:px-12 h-16 max-w-7xl mx-auto">
+<div class="flex items-center gap-3">
+<a class="text-headline-sm font-light tracking-widest text-primary uppercase flex items-center gap-2 group" href="#hero">
+<span class="inline-block w-2 h-2 bg-primary-container rounded-full shadow-[0_0_12px_#00f0ff] animate-pulse"></span>
+<span class="tracking-widest font-display-lg font-medium">KYOGRE</span>
+<span class="text-xs text-outline font-label-sm font-normal hidden sm:inline">// NEUROTIDE</span>
+</a>
+<span class="hidden xl:inline-flex items-center px-2 py-0.5 rounded text-[10px] font-label-sm bg-white/5 text-surface-tint border border-white/10 tracking-widest">
+        SIH26066 · INCOIS / MoES
+      </span>
+</div>
+<nav class="hidden md:flex items-center space-x-8 text-xs font-label-sm tracking-wider uppercase">
+<a class="text-on-surface-variant hover:text-primary transition-colors" href="#section-surface">0m Surface</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors" href="#section-problem">The Void</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors" href="#section-kyogre">Architecture</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors" href="#section-reconstruction">1000m Strata</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors" href="#section-console">Console</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors" href="#section-prototype">Prototype</a>
+</nav>
+<div class="flex items-center gap-4">
+<a class="px-4 py-1.5 rounded-full border border-primary-container/40 text-primary hover:bg-primary-container hover:text-background font-label-sm text-xs transition-all duration-200 tracking-wider flex items-center gap-1.5" href="#section-console">
+<span class="material-symbols-outlined text-[15px]">sensors</span>
+<span>EXPLORER</span>
+</a>
+</div>
+</div>
+</header>
+<!-- ========================================================================= -->
+<!-- PERSISTENT RIGHT-HAND VERTICAL DEPTH TELEMETRY HUD                        -->
+<!-- ========================================================================= -->
+<aside class="fixed right-6 lg:right-10 top-1/2 -translate-y-1/2 z-40 flex flex-col items-end pointer-events-none select-none">
+<!-- Micro Telemetry Coordinate Stamp -->
+<div class="text-right font-label-sm text-[10px] text-surface-tint/70 tracking-widest mb-3 space-y-0.5">
+<div>15.24°N // 68.85°E</div>
+<div class="text-outline text-[9px]">ARABIAN SEA TRANSECT</div>
+</div>
+<!-- Primary Depth Counter -->
+<div class="text-right flex flex-col items-end mb-4">
+<span class="font-label-sm text-[10px] tracking-widest text-primary-container uppercase">SENSOR TELEMETRY</span>
+<div class="font-label-md font-mono text-xl sm:text-2xl font-bold tracking-tight text-primary flex items-baseline gap-1" id="hud-depth-display">
+<span class="text-outline text-xs">DEPTH:</span>
+<span class="text-primary-container text-2xl font-extrabold" id="hud-depth-num">000</span>
+<span class="text-sm font-light text-on-surface-variant">m</span>
+</div>
+<div class="font-label-sm text-[10px] text-outline font-mono mt-0.5" id="hud-water-temp">
+      T(z): 29.8 °C
+    </div>
+</div>
+<!-- Vertical Depth Scale Ruler -->
+<div class="relative h-64 w-8 flex flex-col items-end justify-between py-1 border-r border-white/10 font-label-sm text-[9px] text-outline">
+<!-- Active Depth Tracker Pip -->
+<div class="absolute right-[-3px] top-[0%] w-1.5 h-3 bg-primary-container rounded-sm shadow-[0_0_10px_#00f0ff] transition-all duration-150" id="depth-marker-pip"></div>
+<div class="pr-2 cursor-pointer pointer-events-auto hover:text-primary transition-colors" onclick="scrollToSection('hero')">AIR</div>
+<div class="pr-2 cursor-pointer pointer-events-auto hover:text-primary transition-colors" onclick="scrollToSection('section-surface')">0m</div>
+<div class="pr-2 cursor-pointer pointer-events-auto hover:text-primary transition-colors" onclick="scrollToSection('section-problem')">100m</div>
+<div class="pr-2 cursor-pointer pointer-events-auto hover:text-primary transition-colors" onclick="scrollToSection('section-gap')">250m</div>
+<div class="pr-2 cursor-pointer pointer-events-auto hover:text-primary transition-colors" onclick="scrollToSection('section-question')">500m</div>
+<div class="pr-2 cursor-pointer pointer-events-auto hover:text-primary transition-colors" onclick="scrollToSection('section-kyogre')">750m</div>
+<div class="pr-2 cursor-pointer pointer-events-auto hover:text-primary transition-colors font-bold text-primary-container" onclick="scrollToSection('section-reconstruction')">1000m</div>
+</div>
+</aside>
+<!-- ========================================================================= -->
+<!-- MAIN CINEMATIC DESCENT NARRATIVE OVERLAYS (Full Viewport Editorial Flow)  -->
+<!-- ========================================================================= -->
+<main class="relative z-10 w-full">
+<!-- ======================================================================= -->
+<!-- 01 // HERO — HIGH ALTITUDE AERIAL OCEAN (Film Opening)                   -->
+<!-- ======================================================================= -->
+<section class="min-h-screen w-full flex flex-col justify-center items-center px-6 lg:px-12 relative text-center pt-20 pb-16" id="hero">
+<div class="max-w-4xl mx-auto space-y-6">
+<div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-label-sm text-surface-tint tracking-widest uppercase bg-black/40 backdrop-blur-md border border-white/10">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-container animate-ping"></span>
+<span>SIH26066 · OCEAN EMBED · NEUROTIDE</span>
+</div>
+<h1 class="text-6xl sm:text-7xl md:text-8xl lg:text-9xl font-display-lg font-bold tracking-tighter uppercase text-primary cyan-halo leading-none">
+        KYOGRE
+      </h1>
+<p class="text-xl sm:text-2xl md:text-3xl font-headline-sm font-light text-primary tracking-wide">
+        Seeing Beneath the Surface
+      </p>
+<p class="text-base sm:text-lg font-body-lg text-on-surface-variant font-light max-w-xl mx-auto leading-relaxed">
+        AI-powered spatial reconstruction of subsurface ocean temperature fields using multimodal satellite observations.
+      </p>
+<!-- Clean Minimal CTA -->
+<div class="pt-6 flex flex-col sm:flex-row items-center justify-center gap-5">
+<a class="px-8 py-3.5 rounded-full bg-primary-container text-background font-headline-sm font-medium tracking-wider text-sm hover:shadow-[0_0_25px_rgba(0,240,255,0.7)] transition-all duration-300" href="#section-console">
+          EXPLORE KYOGRE
+        </a>
+<a class="px-8 py-3.5 rounded-full border border-white/20 text-on-surface hover:text-primary hover:border-primary/50 text-sm font-headline-sm tracking-wider transition-all duration-200 backdrop-blur-sm" href="#section-prototype">
+          VIEW PROTOTYPE
+        </a>
+</div>
+</div>
+<!-- Scroll Prompt -->
+<a class="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-on-surface-variant hover:text-primary transition-colors cursor-pointer group" href="#section-surface">
+<span class="font-label-sm text-[11px] tracking-widest uppercase opacity-75 group-hover:opacity-100">SCROLL TO DESCEND</span>
+<span class="material-symbols-outlined text-lg animate-bounce text-primary-container">south</span>
+</a>
+</section>
+<!-- ======================================================================= -->
+<!-- 02 // 0m — THE SURFACE (Breaking the Waterline)                          -->
+<!-- ======================================================================= -->
+<section class="min-h-screen w-full flex items-center px-6 lg:px-16 py-24 relative" id="section-surface">
+<div class="max-w-4xl space-y-6">
+<div class="font-label-sm text-xs tracking-widest text-primary-container flex items-center gap-2">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span>
+<span>0.0 METERS // EPILIMNION WATERLINE</span>
+</div>
+<h2 class="text-3xl sm:text-5xl md:text-6xl font-display-lg font-medium tracking-tight text-primary leading-tight">
+        WE CAN SEE THE SURFACE.<br/>
+<span class="text-on-surface-variant font-light">BUT NOT EVERYTHING BENEATH IT.</span>
+</h2>
+<p class="text-base sm:text-lg font-body-lg text-on-surface-variant font-light max-w-2xl leading-relaxed">
+        Satellite radar altimeters and radiometers blanket millions of square kilometers daily, providing Sea Surface Temperature, Salinity, and Sea Level Anomalies. Yet optical and infrared wavelengths cannot penetrate beyond the skin layer of the oceanic column.
+      </p>
+<div class="pt-4 flex flex-wrap gap-8 text-xs font-label-sm text-outline border-t border-white/10 max-w-xl">
+<div>
+<span class="text-surface-tint font-bold">PENETRATION DEPTH:</span> &lt; 1.0 mm (Infrared/Microwave)
+        </div>
+<div>
+<span class="text-surface-tint font-bold">SATELLITE SWATH:</span> Sentinel-3, Jason-3, SWOT
+        </div>
+</div>
+</div>
+</section>
+<!-- ======================================================================= -->
+<!-- 03 // 100m — THE PROBLEM (The Volumetric Ocean & Argo Sparsity)          -->
+<!-- ======================================================================= -->
+<section class="min-h-screen w-full flex items-center px-6 lg:px-16 py-24 relative" id="section-problem">
+<div class="max-w-5xl space-y-12">
+<div class="space-y-4">
+<div class="font-label-sm text-xs tracking-widest text-primary-container flex items-center gap-2">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span>
+<span>100 METERS // THERMOCLINE BOUNDARY</span>
+</div>
+<h2 class="text-3xl sm:text-5xl md:text-6xl font-display-lg font-medium tracking-tight text-primary leading-tight">
+          THE OCEAN IS VOLUMETRIC.<br/>
+<span class="text-on-surface-variant font-light">OUR OBSERVATIONS ARE NOT.</span>
+</h2>
+<p class="text-base sm:text-lg font-body-lg text-on-surface-variant font-light max-w-2xl leading-relaxed">
+          Physical in-situ profiling relies primarily on the autonomous ARGO buoy array. Each float drifts with deep currents and surfaces only once every 10 days, leaving vast oceanic basins temporally disconnected.
+        </p>
+</div>
+<!-- Natural Floating Data Inscriptions (Zero Card Bloat) -->
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-8 pt-4 border-t border-white/10 max-w-3xl">
+<div class="space-y-1">
+<div class="text-3xl sm:text-4xl font-display-lg font-light text-primary font-mono">~300 km</div>
+<div class="text-xs font-label-sm text-primary-container tracking-wider uppercase">Spatial Sparsity</div>
+<p class="text-xs text-on-surface-variant font-light">Average lateral distance between physical profiling buoys in the Indian Ocean.</p>
+</div>
+<div class="space-y-1">
+<div class="text-3xl sm:text-4xl font-display-lg font-light text-primary font-mono">10 Days</div>
+<div class="text-xs font-label-sm text-primary-container tracking-wider uppercase">Temporal Gap</div>
+<p class="text-xs text-on-surface-variant font-light">Descent to 1000m parking depth and ascent cycle, missing transient dynamic events.</p>
+</div>
+<div class="space-y-1">
+<div class="text-3xl sm:text-4xl font-display-lg font-light text-primary font-mono">Δ 16.5°C</div>
+<div class="text-xs font-label-sm text-primary-container tracking-wider uppercase">Thermocline Gradient</div>
+<p class="text-xs text-on-surface-variant font-light">Steep thermal drop within upper 150m controlling cyclone energy exchange.</p>
+</div>
+</div>
+</div>
+</section>
+<!-- ======================================================================= -->
+<!-- 04 // 250m — THE GAP (The Observational Vacuum)                         -->
+<!-- ======================================================================= -->
+<section class="min-h-screen w-full flex items-center justify-end px-6 lg:px-20 py-24 relative" id="section-gap">
+<div class="max-w-2xl text-right space-y-6">
+<div class="font-label-sm text-xs tracking-widest text-primary-container inline-flex items-center gap-2">
+<span>250 METERS // MESOPELAGIC TWILIGHT</span>
+<span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span>
+</div>
+<h2 class="text-3xl sm:text-5xl md:text-6xl font-display-lg font-medium tracking-tight text-primary leading-tight">
+        BETWEEN THE OBSERVATIONS<br/>
+<span class="text-on-surface-variant font-light">LIES THE UNKNOWN.</span>
+</h2>
+<p class="text-base sm:text-lg font-body-lg text-on-surface-variant font-light leading-relaxed">
+        When marine heatwaves ignite or cyclone eddies churn the subsurface waters, our physical buoy arrays are hundreds of nautical miles away. Without high-resolution continuous subsurface fields, numerical models are forced to rely on historical climatology.
+      </p>
+<div class="font-label-sm text-xs text-outline tracking-wider pt-2">
+        [ ARGO VOLUMETRIC COVERAGE DENSITY: &lt; 0.000004% OF WATER COLUMN ]
+      </div>
+</div>
+</section>
+<!-- ======================================================================= -->
+<!-- 05 // 500m — THE QUESTION (Dramatic Turning Point)                      -->
+<!-- ======================================================================= -->
+<section class="min-h-screen w-full flex items-center justify-center px-6 lg:px-12 py-24 relative text-center" id="section-question">
+<div class="max-w-4xl space-y-8">
+<div class="font-label-sm text-xs tracking-widest text-primary-container uppercase">
+        500 METERS // INTERMEDIATE DEPTH
+      </div>
+<h2 class="text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-display-lg font-bold tracking-tight text-primary cyan-halo leading-tight">
+        HOW DO WE RECONSTRUCT WHAT WE CANNOT DIRECTLY OBSERVE?
+      </h2>
+<p class="text-lg sm:text-xl font-headline-sm font-light text-on-surface max-w-2xl mx-auto leading-relaxed">
+        Can surface ocean signatures be transformed into an accurate, continuous volumetric representation of subsurface temperature?
+      </p>
+<div class="text-xs font-label-sm text-outline tracking-widest uppercase pt-6">
+        BY MAPPING BAROCLINIC DYNAMICS THROUGH SPATIO-TEMPORAL DEEP LEARNING
+      </div>
+</div>
+</section>
+<!-- ======================================================================= -->
+<!-- 06 // 750m — MEET KYOGRE (Architecture Inscriptions in Water)          -->
+<!-- ======================================================================= -->
+<section class="min-h-screen w-full flex items-center px-6 lg:px-16 py-24 relative" id="section-kyogre">
+<div class="max-w-5xl space-y-10">
+<div class="space-y-4">
+<div class="font-label-sm text-xs tracking-widest text-primary-container flex items-center gap-2">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span>
+<span>750 METERS // DEEP THERMOCLINE</span>
+</div>
+<h2 class="text-4xl sm:text-6xl md:text-7xl font-display-lg font-bold tracking-tight text-primary uppercase leading-tight">
+          MEET KYOGRE.
+        </h2>
+<p class="text-lg sm:text-xl font-body-lg text-on-surface-variant font-light max-w-2xl leading-relaxed">
+          AI-powered reconstruction of subsurface ocean temperature fields from satellite remote sensing observations.
+        </p>
+</div>
+<!-- Floating Scientific Input Tags Directly in Space -->
+<div class="space-y-3">
+<div class="text-xs font-label-sm text-outline tracking-widest uppercase mb-4">
+          [ MULTIMODAL SATELLITE SURFACE EMBEDDINGS ]
+        </div>
+<div class="flex flex-wrap gap-3 max-w-3xl">
+<div class="px-4 py-2 rounded-full border border-primary-container/30 bg-black/40 backdrop-blur-sm text-xs font-label-sm text-primary">
+<span class="text-surface-tint font-bold mr-1.5">SST</span> Sea Surface Temperature
+          </div>
+<div class="px-4 py-2 rounded-full border border-primary-container/30 bg-black/40 backdrop-blur-sm text-xs font-label-sm text-primary">
+<span class="text-surface-tint font-bold mr-1.5">SSS</span> Sea Surface Salinity
+          </div>
+<div class="px-4 py-2 rounded-full border border-primary-container/30 bg-black/40 backdrop-blur-sm text-xs font-label-sm text-primary">
+<span class="text-surface-tint font-bold mr-1.5">SSH / SLA</span> Sea Level Anomaly (Altimetry)
+          </div>
+<div class="px-4 py-2 rounded-full border border-primary-container/30 bg-black/40 backdrop-blur-sm text-xs font-label-sm text-primary">
+<span class="text-surface-tint font-bold mr-1.5">WINDS</span> Scatterometer Vectors
+          </div>
+<div class="px-4 py-2 rounded-full border border-primary-container/30 bg-black/40 backdrop-blur-sm text-xs font-label-sm text-primary">
+<span class="text-surface-tint font-bold mr-1.5">CURRENTS</span> OSCAR Geostrophic Advection
+          </div>
+</div>
+</div>
+<div class="text-xs font-label-sm text-surface-tint tracking-wide max-w-2xl border-l-2 border-primary-container/60 pl-4 py-1">
+        Spatial CNN filters extract meso-scale eddy structures, while bi-directional LSTM units learn planetary wave propagation delays and vertical heat diffusion.
+      </div>
+</div>
+</section>
+<!-- ======================================================================= -->
+<!-- 07 // 1000m — THE RECONSTRUCTION (The Visual Climax)                    -->
+<!-- ======================================================================= -->
+<section class="min-h-screen w-full flex flex-col justify-center px-6 lg:px-16 py-24 relative" id="section-reconstruction">
+<div class="max-w-4xl space-y-6">
+<div class="font-label-sm text-xs tracking-widest text-primary-container flex items-center gap-2">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-container animate-ping"></span>
+<span>1000 METERS // BATHYPELAGIC REALM</span>
+</div>
+<h2 class="text-3xl sm:text-5xl md:text-6xl font-display-lg font-bold tracking-tight text-primary leading-tight">
+        FROM SURFACE SIGNALS<br/>
+<span class="text-surface-tint font-light">TO SUBSURFACE INTELLIGENCE.</span>
+</h2>
+<p class="text-base sm:text-lg font-body-lg text-on-surface-variant font-light max-w-2xl leading-relaxed">
+        Kyogre reconstructs full volumetric thermal strata across standard depths from 0m to 2000m. The invisible internal wave dynamics, thermocline depths, and oceanic heat reservoirs are rendered computable.
+      </p>
+<div class="flex flex-wrap gap-8 pt-4 text-xs font-label-sm text-outline border-t border-white/10 max-w-xl">
+<div><span class="text-primary font-bold">GRID RESOLUTION:</span> 0.25° × 0.25°</div>
+<div><span class="text-primary font-bold">VERTICAL LEVELS:</span> 36 Standard Depths</div>
+<div><span class="text-primary font-bold">INFERENCE:</span> &lt; 140ms / Basin Cell</div>
+</div>
+</div>
+</section>
+<!-- ======================================================================= -->
+<!-- 08 // SCIENTIFIC PIPELINE & VALIDATION                                  -->
+<!-- ======================================================================= -->
+<section class="min-h-screen w-full flex flex-col justify-center px-6 lg:px-16 py-24 relative" id="section-validation">
+<div class="max-w-6xl mx-auto w-full space-y-16">
+<div class="space-y-4">
+<div class="font-label-sm text-xs tracking-widest text-primary-container">
+          SCIENTIFIC BENCHMARK &amp; ARCHITECTURAL FLOW
+        </div>
+<h2 class="text-3xl sm:text-4xl md:text-5xl font-display-lg font-medium tracking-tight text-primary">
+          A RECONSTRUCTION IS ONLY AS VALUABLE AS ITS VALIDATION.
+        </h2>
+</div>
+<!-- Linear Pipeline Chain (Zero Card Clutter) -->
+<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-6 text-xs font-label-sm border-y border-white/10 py-8">
+<div>
+<div class="text-surface-tint mb-1">01 // INGESTION</div>
+<div class="text-primary font-bold">SURFACE TELEMETRY</div>
+<div class="text-outline text-[11px] mt-1">SST, SSS, SSH, ASCAT Winds</div>
+</div>
+<div>
+<div class="text-surface-tint mb-1">02 // ALIGNMENT</div>
+<div class="text-primary font-bold">PREPROCESSING</div>
+<div class="text-outline text-[11px] mt-1">Spatial Gaussian &amp; Grid Inpainting</div>
+</div>
+<div>
+<div class="text-primary-container mb-1">03 // ENGINE</div>
+<div class="text-primary font-bold">CNN-LSTM CORE</div>
+<div class="text-outline text-[11px] mt-1">Spatio-Temporal Feature Learning</div>
+</div>
+<div>
+<div class="text-primary-container mb-1">04 // SYNTHESIS</div>
+<div class="text-primary font-bold">3D RECONSTRUCTION</div>
+<div class="text-outline text-[11px] mt-1">0 - 2000m Stratified Profiles</div>
+</div>
+<div>
+<div class="text-surface-tint mb-1">05 // BENCHMARK</div>
+<div class="text-primary font-bold">ARGO VALIDATION</div>
+<div class="text-outline text-[11px] mt-1">Independent In-Situ Matchup</div>
+</div>
+<div>
+<div class="text-surface-tint mb-1">06 // OUTPUT</div>
+<div class="text-primary font-bold">OCEAN INTELLIGENCE</div>
+<div class="text-outline text-[11px] mt-1">OHC, TCHP &amp; Cyclone Feeds</div>
+</div>
+</div>
+<!-- Independent Validation Metrics -->
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-8 pt-4">
+<div class="space-y-1">
+<div class="text-outline text-xs font-label-sm tracking-wider uppercase">ROOT MEAN SQUARE ERROR</div>
+<div class="text-4xl sm:text-5xl font-display-lg font-bold text-primary font-mono">0.38°C</div>
+<div class="text-xs text-on-surface-variant font-light">Upper 200m thermocline boundary in the Arabian Sea across test folds.</div>
+</div>
+<div class="space-y-1">
+<div class="text-outline text-xs font-label-sm tracking-wider uppercase">MEAN PREDICTION BIAS</div>
+<div class="text-4xl sm:text-5xl font-display-lg font-bold text-primary font-mono">+0.02°C</div>
+<div class="text-xs text-on-surface-variant font-light">Near-zero systematic offset indicating robust physical energy conservation.</div>
+</div>
+<div class="space-y-1">
+<div class="text-outline text-xs font-label-sm tracking-wider uppercase">CORRELATION COEFFICIENT</div>
+<div class="text-4xl sm:text-5xl font-display-lg font-bold text-primary font-mono">0.962</div>
+<div class="text-xs text-on-surface-variant font-light">High correlation against blind independent ARGO float observations.</div>
+</div>
+</div>
+</div>
+</section>
+<!-- ======================================================================= -->
+<!-- 09 // THE PRODUCT CONSOLE — THE OCEAN, MADE COMPUTABLE                  -->
+<!-- ======================================================================= -->
+<section class="min-h-screen w-full flex flex-col justify-center px-6 lg:px-16 py-24 relative" id="section-console">
+<div class="max-w-6xl mx-auto w-full space-y-10">
+<div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+<div class="space-y-2">
+<div class="font-label-sm text-xs tracking-widest text-primary-container">
+            NATIONAL OCEANOGRAPHIC RESEARCH CONSOLE
+          </div>
+<h2 class="text-3xl sm:text-5xl font-display-lg font-medium tracking-tight text-primary">
+            THE OCEAN, MADE COMPUTABLE.
+          </h2>
+</div>
+<div class="font-mono text-xs text-surface-tint flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+<span>DOMAIN: NORTH INDIAN OCEAN [ACTIVE]</span>
+</div>
+</div>
+<!-- High-Precision Glass Interface Frame -->
+<div class="glass-hairline rounded-2xl p-6 lg:p-8 space-y-6">
+<div class="flex flex-wrap justify-between items-center gap-4 text-xs font-label-sm border-b border-white/10 pb-4 text-outline">
+<div class="flex items-center gap-4">
+<span class="text-primary font-bold">KYOGRE v2.4 OPERATIONAL RUN</span>
+<span>LAT: 04°N – 24°N</span>
+<span>LON: 55°E – 98°E</span>
+</div>
+<div class="flex items-center gap-3">
+<span class="text-surface-tint">ACTIVE ARGO BUOYS: 142</span>
+<span class="text-primary-container">INFERENCE: 138ms</span>
+</div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+<!-- Left Controls -->
+<div class="lg:col-span-4 space-y-6">
+<div class="space-y-3">
+<div class="flex justify-between text-xs font-label-sm">
+<span class="text-outline">VERTICAL DEPTH TRANSECT</span>
+<span class="text-primary font-bold font-mono" id="console-slider-val">150 m</span>
+</div>
+<input class="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-primary-container" id="console-depth-slider" max="2000" min="0" step="25" type="range" value="150"/>
+<div class="flex justify-between text-[10px] font-label-sm text-outline">
+<span>0m (SST)</span>
+<span>500m</span>
+<span>1000m</span>
+<span>2000m</span>
+</div>
+</div>
+<div class="space-y-2 text-xs font-label-sm">
+<div class="text-outline uppercase text-[10px] tracking-wider mb-2">TELEMETRY OVERLAYS</div>
+<label class="flex items-center justify-between text-on-surface-variant cursor-pointer">
+<span>ARGO Float Vectors</span>
+<span class="text-primary-container font-mono">ONLINE</span>
+</label>
+<label class="flex items-center justify-between text-on-surface-variant cursor-pointer">
+<span>Isotherm Contours (Δ1°C)</span>
+<span class="text-primary-container font-mono">ACTIVE</span>
+</label>
+<label class="flex items-center justify-between text-on-surface-variant cursor-pointer">
+<span>Ekman Pumping Velocity</span>
+<span class="text-outline font-mono">COMPUTED</span>
+</label>
+</div>
+<div class="p-3.5 rounded-lg bg-black/40 border border-white/5 space-y-1.5 font-label-sm text-xs">
+<div class="text-outline text-[10px]">SELECTED CELL (BAY OF BENGAL)</div>
+<div class="flex justify-between text-on-surface"><span>COORDINATE:</span> <span>14.25°N, 84.50°E</span></div>
+<div class="flex justify-between text-primary"><span>T(z) PREDICTION:</span> <span class="font-bold text-primary-container">19.42 °C</span></div>
+<div class="flex justify-between text-outline"><span>CONFIDENCE INTERVAL:</span> <span>± 0.28 °C</span></div>
+</div>
+</div>
+<!-- Right: Visual Transect Slice -->
+<div class="lg:col-span-8 h-64 lg:h-80 rounded-xl relative overflow-hidden flex flex-col justify-between p-6 bg-cover bg-center border border-white/10" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDNa3AcRKKV_ZxLp5-408yxfU9dzkc-XOewgKhesWAwROAv_-ZT1-NSh3NT-3W_lQUI5WY54rbwNWgvrCEeIFiaieO9y0FEc11JHbcuc77NQwJU7mHjIVIKazIlp3t8x1lbldNi8dVtTyzXuYlfepjUOu0AYQiOp1ol5HiyCW2rHdX8ZeV1XiTQqrjKLWsBdnK5UjRsjyfK18KpSO8YUHBE657KpPvowLEb9Vm-mak1uAidzp-lr_TZYg');">
+<div class="flex justify-between items-center text-xs font-label-sm text-primary z-10">
+<span class="px-2.5 py-1 rounded bg-black/60 backdrop-blur-sm border border-white/10">3D SUB-SURFACE THERMAL VOLUME</span>
+<span class="text-outline text-[11px]">TRANSECT: 14°N LATITUDE</span>
+</div>
+<!-- Thermal Scale Strip -->
+<div class="z-10 bg-black/70 backdrop-blur-md p-3 rounded-lg flex items-center justify-between text-xs font-label-sm border border-white/10">
+<span class="text-outline">4°C (Abyss)</span>
+<div class="flex-1 mx-4 h-2 rounded bg-gradient-to-r from-blue-900 via-teal-400 via-amber-400 to-red-500"></div>
+<span class="text-primary">31°C (Surface)</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- ======================================================================= -->
+<!-- 10 // PROTOTYPE SHOWCASE & RESEARCH VIDEO                               -->
+<!-- ======================================================================= -->
+<section class="min-h-screen w-full flex flex-col justify-center px-6 lg:px-16 py-24 relative" id="section-prototype">
+<div class="max-w-6xl mx-auto w-full space-y-12">
+<div class="space-y-4">
+<div class="font-label-sm text-xs tracking-widest text-primary-container">
+          LIVE DEMO &amp; EVALUATION REPO
+        </div>
+<h2 class="text-3xl sm:text-5xl font-display-lg font-medium tracking-tight text-primary">
+          KYOGRE IS ALREADY TAKING SHAPE.
+        </h2>
+<p class="text-base sm:text-lg font-body-lg text-on-surface-variant font-light max-w-2xl leading-relaxed">
+          Tested on historical INCOIS data pipelines with live model inference benchmarks for SIH26066 evaluators.
+        </p>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+<!-- Interactive Demo Frame -->
+<div class="lg:col-span-8 glass-hairline rounded-2xl p-4 overflow-hidden relative group">
+<div class="aspect-video w-full rounded-xl bg-cover bg-center relative flex flex-col justify-between p-6 border border-white/5" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBpfIyRLbsMihUxR0xZpg31ZzaW_94EanWhajX0PUFLwDiXZMYAbOyPNYTPKSw0QI_f7kSo_9cTEf5sniMx3JSJzehs6VpbdMLl7L6gBsis0DXtlzHJghHrD_yoUYIq6onARHVFZTs_rxSLkbOkEYxnRZKNtqk4HVbvP4GgGaI6mdI_heMkxzsA2b1ijSIO4eqCx3bCAf7tP1F7n4Izy_70WRvflDguy9YmkGAbGuNk26xSWzv4Re5FTg');">
+<div class="flex justify-between items-center text-xs font-label-sm text-white/80 z-10">
+<span class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span> DEMO REEL // SIH26066</span>
+<span>4K SPATIAL RECONSTRUCTION</span>
+</div>
+<div class="flex items-center justify-center my-auto z-10">
+<button class="w-20 h-20 rounded-full bg-primary-container text-background flex items-center justify-center hover:scale-105 transition-all shadow-[0_0_30px_rgba(0,240,255,0.6)] cursor-pointer">
+<span class="material-symbols-outlined text-4xl">play_arrow</span>
+</button>
+</div>
+<div class="flex justify-between items-center text-xs font-label-sm text-surface-tint z-10">
+<span>02:45 / 04:12</span>
+<span>TEAM NEUROTIDE</span>
+</div>
+</div>
+</div>
+<!-- Specifications & Academic Repo -->
+<div class="lg:col-span-4 space-y-6">
+<div class="space-y-4 font-label-sm text-xs">
+<div class="text-primary-container font-bold tracking-wider">[ INFERENCE BENCHMARKS ]</div>
+<div class="space-y-3 border-y border-white/10 py-4 text-on-surface-variant">
+<div class="flex justify-between"><span>CELL LATENCY:</span> <span class="text-primary font-bold">&lt; 140ms</span></div>
+<div class="flex justify-between"><span>STRATA RESOLUTION:</span> <span class="text-on-surface">36 Depths</span></div>
+<div class="flex justify-between"><span>HORIZON SPACING:</span> <span class="text-on-surface">25km × 25km</span></div>
+<div class="flex justify-between"><span>INFERENCE CORE:</span> <span class="text-surface-tint">PyTorch / TensorRT</span></div>
+</div>
+</div>
+<div class="p-4 rounded-xl border border-white/10 bg-white/5 flex items-center gap-4">
+<div class="w-14 h-14 rounded bg-black/60 border border-white/10 flex items-center justify-center font-label-sm text-[9px] text-center text-outline">
+              [ SIH QR REPO ]
+            </div>
+<div class="space-y-1">
+<div class="text-sm font-headline-sm text-primary">Open Source Codebase</div>
+<div class="text-xs text-on-surface-variant font-light">Prototype repository &amp; Jupyter notebooks for SIH26066 evaluators.</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- ======================================================================= -->
+<!-- 11 // APPLICATIONS & NATIONAL IMPORTANCE                                -->
+<!-- ======================================================================= -->
+<section class="min-h-screen w-full flex flex-col justify-center px-6 lg:px-16 py-24 relative" id="section-applications">
+<div class="max-w-6xl mx-auto w-full space-y-12">
+<div class="space-y-4">
+<div class="font-label-sm text-xs tracking-widest text-primary-container">
+          NATIONAL OCEAN APPLICATIONS
+        </div>
+<h2 class="text-3xl sm:text-5xl font-display-lg font-medium tracking-tight text-primary">
+          A BETTER VIEW OF THE OCEAN BELOW THE SURFACE.
+        </h2>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 pt-4">
+<div class="space-y-2 border-t border-white/10 pt-4">
+<div class="text-primary-container font-label-sm text-xs uppercase">01 // CYCLONES &amp; MONSOONS</div>
+<div class="text-lg font-headline-sm font-medium text-primary">Tropical Cyclone Heat Potential</div>
+<p class="text-xs text-on-surface-variant font-light leading-relaxed">
+            Real-time calculation of heat potential prevents dangerous underestimation of rapid storm intensification before landfall along the Indian coastline.
+          </p>
+</div>
+<div class="space-y-2 border-t border-white/10 pt-4">
+<div class="text-primary-container font-label-sm text-xs uppercase">02 // FISHERIES INTELLIGENCE</div>
+<div class="text-lg font-headline-sm font-medium text-primary">26°C Isotherm Depth (D26)</div>
+<p class="text-xs text-on-surface-variant font-light leading-relaxed">
+            Tracks coastal upwelling zones and mixed layer depth to pinpoint Potential Fishing Zones (PFZ) for sustainable pelagic harvesting.
+          </p>
+</div>
+<div class="space-y-2 border-t border-white/10 pt-4">
+<div class="text-primary-container font-label-sm text-xs uppercase">03 // OCEAN SCIENCE</div>
+<div class="text-lg font-headline-sm font-medium text-primary">Baroclinic Wave Dynamics</div>
+<p class="text-xs text-on-surface-variant font-light leading-relaxed">
+            Enables high-fidelity investigation of deep thermobaric circulation, Rossby wave propagation, and turbulent heat flux across the Bay of Bengal.
+          </p>
+</div>
+<div class="space-y-2 border-t border-white/10 pt-4">
+<div class="text-primary-container font-label-sm text-xs uppercase">04 // MARITIME DEFENSE</div>
+<div class="text-lg font-headline-sm font-medium text-primary">Sound Velocity Profiles (SVP)</div>
+<p class="text-xs text-on-surface-variant font-light leading-relaxed">
+            Accurate vertical acoustic profiles derived directly from reconstructed temperature fields optimize sonar propagation models for sovereign naval security.
+          </p>
+</div>
+<div class="space-y-2 border-t border-white/10 pt-4 sm:col-span-2 lg:col-span-2">
+<div class="text-primary-container font-label-sm text-xs uppercase">05 // NUMERICAL MODEL ASSIMILATION</div>
+<div class="text-lg font-headline-sm font-medium text-primary">MoES Coupled Ocean-Atmosphere Feed</div>
+<p class="text-xs text-on-surface-variant font-light leading-relaxed">
+            Reconstructed 3D fields provide high-resolution continuous initial conditions for Indian Ocean Dipole (IOD) and Madden-Julian Oscillation (MJO) models at 100x conventional computational speed.
+          </p>
+</div>
+</div>
+</div>
+</section>
+<!-- ======================================================================= -->
+<!-- 12 // DEPLOYMENT VISION (Institutional Integration)                      -->
+<!-- ======================================================================= -->
+<section class="min-h-screen w-full flex flex-col justify-center px-6 lg:px-16 py-24 relative" id="section-deployment">
+<div class="max-w-5xl mx-auto w-full space-y-12">
+<div class="space-y-4">
+<div class="font-label-sm text-xs tracking-widest text-primary-container">
+          INSTITUTIONAL ROADMAP
+        </div>
+<h2 class="text-3xl sm:text-5xl font-display-lg font-medium tracking-tight text-primary">
+          FROM PROTOTYPE TO OCEAN INTELLIGENCE INFRASTRUCTURE.
+        </h2>
+<p class="text-base sm:text-lg font-body-lg text-on-surface-variant font-light leading-relaxed">
+          Designed for frictionless integration into India's premier ocean science institutes (INCOIS, NIOT, and MoES).
+        </p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-8 border-y border-white/10 py-10 font-label-sm text-xs">
+<div class="space-y-2">
+<div class="text-surface-tint">PHASE 01 // TELEMETRY HARVESTING</div>
+<div class="text-primary font-bold text-sm">COPERNICUS + INSAT-3D + ARGO</div>
+<p class="text-on-surface-variant font-light text-[11px] leading-relaxed">
+            Automated ingestion pipeline gathering satellite radar swaths, radiometers, and in-situ ARGO profiles.
+          </p>
+</div>
+<div class="space-y-2">
+<div class="text-primary-container">PHASE 02 // NEURAL CLOUD</div>
+<div class="text-primary font-bold text-sm">KYOGRE INFERENCE RUNNER</div>
+<p class="text-on-surface-variant font-light text-[11px] leading-relaxed">
+            Continuous 24-hour neural generation producing gridded 4D subsurface datasets across sovereign waters.
+          </p>
+</div>
+<div class="space-y-2">
+<div class="text-surface-tint">PHASE 03 // DISSEMINATION</div>
+<div class="text-primary font-bold text-sm">INCOIS &amp; MoES ADVISORIES</div>
+<p class="text-on-surface-variant font-light text-[11px] leading-relaxed">
+            Exporting actionable feeds directly into cyclone warnings, naval dashboards, and commercial fishing advisories.
+          </p>
+</div>
+</div>
+</div>
+</section>
+<!-- ======================================================================= -->
+<!-- 13 // FINAL CTA & MAJESTIC HORIZON RETURN                               -->
+<!-- ======================================================================= -->
+<section class="min-h-screen w-full flex flex-col justify-between px-6 lg:px-16 pt-24 pb-12 relative text-center" id="section-final">
+<div class="max-w-4xl mx-auto my-auto space-y-8">
+<div class="font-label-sm text-xs tracking-widest text-primary-container uppercase">
+        KYOGRE // 2025 OCEAN EMBED
+      </div>
+<h2 class="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-display-lg font-bold tracking-tighter text-primary cyan-halo uppercase">
+        THE SURFACE IS ONLY THE BEGINNING.
+      </h2>
+<p class="text-lg sm:text-2xl font-headline-sm font-light text-on-surface-variant max-w-xl mx-auto">
+        Seeing Beneath the Surface
+      </p>
+<div class="pt-6 flex flex-wrap items-center justify-center gap-4">
+<a class="px-8 py-3.5 rounded-full bg-primary-container text-background font-headline-sm font-medium tracking-wider text-sm hover:shadow-[0_0_25px_rgba(0,240,255,0.7)] transition-all" href="#section-console">
+          EXPLORE KYOGRE CONSOLE
+        </a>
+<a class="px-8 py-3.5 rounded-full border border-white/20 text-on-surface hover:text-primary hover:border-primary/50 text-sm font-headline-sm tracking-wider transition-all" href="#section-prototype">
+          WATCH PROTOTYPE VIDEO
+        </a>
+<a class="px-8 py-3.5 rounded-full border border-white/20 text-outline hover:text-primary text-sm font-headline-sm tracking-wider transition-all" href="#hero">
+          SIH26066 WHITE PAPER
+        </a>
+</div>
+</div>
+<!-- Minimal Film Footer -->
+<footer class="w-full border-t border-white/10 pt-8 flex flex-col sm:flex-row justify-between items-center gap-4 text-xs font-label-sm text-outline">
+<div>
+        © 2025 KYOGRE // SIH26066 — Team NeuroTide, Kumaraguru College of Technology.
+      </div>
+<div class="flex items-center gap-6">
+<a class="hover:text-primary transition-colors" href="#hero">Telemetry</a>
+<a class="hover:text-primary transition-colors" href="#section-validation">Validation</a>
+<a class="hover:text-primary transition-colors" href="#section-kyogre">CNN-LSTM Architecture</a>
+<a class="hover:text-primary transition-colors" href="#section-deployment">MoES / INCOIS</a>
+</div>
+</footer>
+</section>
+</main>
+<!-- ========================================================================= -->
+<!-- DYNAMIC OCEAN CAMERA DESCENT ENGINE (Smooth Depth Calculation)             -->
+<!-- ========================================================================= -->
+<script>
+  function scrollToSection(id) {
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  const layerSky = document.getElementById('layer-sky');
+  const layerSunbeams = document.getElementById('layer-sunbeams');
+  const layerAbyss = document.getElementById('layer-abyss');
+  const layerHaze = document.getElementById('layer-haze');
+  const depthNum = document.getElementById('hud-depth-num');
+  const depthPip = document.getElementById('depth-marker-pip');
+  const tempDisplay = document.getElementById('hud-water-temp');
+
+  window.addEventListener('scroll', () => {
+    const scrollY = window.scrollY;
+    const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+    const progress = Math.min(Math.max(scrollY / (maxScroll || 1), 0), 1);
+
+    // Continuous 0m to 1000m Depth calculation
+    const currentDepth = Math.round(progress * 1000);
+    const currentTemp = (29.8 - (progress * 24.8)).toFixed(1);
+
+    if (depthNum) {
+      depthNum.textContent = currentDepth.toString().padStart(3, '0');
+    }
+    if (tempDisplay) {
+      tempDisplay.textContent = `T(z): ${currentTemp} °C`;
+    }
+    if (depthPip) {
+      depthPip.style.top = `${Math.min(progress * 96, 96)}%`;
+    }
+
+    // Dynamic Camera Descent Background Crossfades
+    // Phase 1: Sky (Air to 150m)
+    if (progress < 0.25) {
+      const p = progress / 0.25;
+      layerSky.style.opacity = (1 - p).toFixed(3);
+      layerSunbeams.style.opacity = p.toFixed(3);
+      layerAbyss.style.opacity = 0;
+      layerHaze.style.opacity = (0.2 + (p * 0.3)).toFixed(3);
+    } 
+    // Phase 2: Sunbeams to Mid-waters (150m to 650m)
+    else if (progress < 0.65) {
+      const p = (progress - 0.25) / 0.4;
+      layerSky.style.opacity = 0;
+      layerSunbeams.style.opacity = (1 - p).toFixed(3);
+      layerAbyss.style.opacity = (p * 0.9).toFixed(3);
+      layerHaze.style.opacity = (0.5 + (p * 0.3)).toFixed(3);
+    } 
+    // Phase 3: Pure Abyssal Volumetric Strata (650m to 1000m)
+    else {
+      const p = (progress - 0.65) / 0.35;
+      layerSky.style.opacity = 0;
+      layerSunbeams.style.opacity = 0;
+      layerAbyss.style.opacity = 1;
+      layerHaze.style.opacity = (0.8 + (p * 0.2)).toFixed(3);
+    }
+  }, { passive: true });
+
+  // Console Slider Micro-interaction
+  const slider = document.getElementById('console-depth-slider');
+  const sliderVal = document.getElementById('console-slider-val');
+  if (slider && sliderVal) {
+    slider.addEventListener('input', (e) => {
+      sliderVal.textContent = `${e.target.value} m`;
+    });
+  }
+</script>
+</body></html>

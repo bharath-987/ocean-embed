@@ -19,7 +19,14 @@ const DEPTHS = [0, 5, 10, 20, 30, 50, 75, 100, 125, 150, 200, 300, 500, 700, 100
 const EPOCH_START    = new Date('2021-01-01');
 const EPOCH_END      = new Date('2023-12-31');
 const TOTAL_DAYS     = Math.round((EPOCH_END - EPOCH_START) / 86400000);
-const MIN_VALID_DAY  = 10;  // First 10 days of 2021 excluded — model needs 10 days of prior history
+const MIN_VALID_DAY  = 10;
+
+// V6 SatSwap 14-Year Model Active Window (June–December 2023)
+const WINDOW_START_DATE = new Date('2023-06-01');
+const WINDOW_END_DATE   = new Date('2023-12-31');
+const WINDOW_START_DAY  = Math.round((WINDOW_START_DATE - EPOCH_START) / 86400000); // 881
+const WINDOW_END_DAY    = Math.round((WINDOW_END_DATE - EPOCH_START) / 86400000);   // 1094
+const DEFAULT_DEMO_DAY  = Math.round((new Date('2023-10-22') - EPOCH_START) / 86400000); // 1024
 
 const TEAL  = '#2563EB';  // blue-600 for light theme
 const CORAL = '#EA7C3A';  // orange accent
@@ -414,12 +421,13 @@ function dateToISO(d) {
 const dateSlider  = document.getElementById('date-slider');
 const dateDisplay = document.getElementById('date-display');
 
-dateSlider.min = MIN_VALID_DAY;
-dateSlider.max = TOTAL_DAYS;
-dateSlider.value = Math.round(TOTAL_DAYS / 2);
+dateSlider.min = WINDOW_START_DAY;
+dateSlider.max = WINDOW_END_DAY;
+dateSlider.value = DEFAULT_DEMO_DAY;
 
 function updateSliderUI() {
-  const pct = (dateSlider.value / dateSlider.max) * 100;
+  const range = (dateSlider.max - dateSlider.min) || 1;
+  const pct = ((dateSlider.value - dateSlider.min) / range) * 100;
   dateSlider.style.setProperty('--slider-pct', pct + '%');
   const d = dayIndexToDate(parseInt(dateSlider.value, 10));
   const formatted = formatDate(d);
@@ -477,12 +485,12 @@ if (nativeDatePicker) {
     const selectedDate = new Date(`${val}T00:00:00`);
     if (isNaN(selectedDate.getTime())) return;
 
-    // Validate date range: 2021-01-11 to 2023-12-31 (10 days prior history required for model)
-    const minValidDate = new Date('2021-01-11T00:00:00');
-    const maxValidDate = new Date('2023-12-31T00:00:00');
+    // Validate date range: 2023-06-01 to 2023-12-31 (V6 SatSwap 14-Year Model Window)
+    const minValidDate = WINDOW_START_DATE;
+    const maxValidDate = WINDOW_END_DATE;
 
     if (selectedDate < minValidDate || selectedDate > maxValidDate) {
-      showRegionNotice('Please select a date between 2021-01-11 and 2023-12-31 (Model requires 10 days of prior satellite history).', 'warning');
+      showRegionNotice('Currently serving the new 14-year model for June–December 2023. Please select a date between 2023-06-01 and 2023-12-31.', 'warning');
       nativeDatePicker.value = hasSelectedDate ? dateToISO(dayIndexToDate(parseInt(dateSlider.value, 10))) : '';
       return;
     }
@@ -491,7 +499,7 @@ if (nativeDatePicker) {
     
     // Calculate difference in days from EPOCH_START
     const diffDays = Math.round((selectedDate - EPOCH_START) / 86400000);
-    const clampedDay = Math.max(MIN_VALID_DAY, Math.min(TOTAL_DAYS, diffDays));
+    const clampedDay = Math.max(WINDOW_START_DAY, Math.min(WINDOW_END_DAY, diffDays));
     
     dateSlider.value = clampedDay;
     updateSliderUI();
