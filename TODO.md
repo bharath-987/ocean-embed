@@ -4,6 +4,30 @@
 > **MANDATORY PROTOCOL**: This file **MUST** be updated after **EVERY SINGLE TASK** without exception or user reminder.
 > Record status, files changed, and verification evidence for every item.
 
+- [x] **Task: Remove 14-Year Model Banner from Fisheries Mode and ARGO Comparison Pages** `[Completed 2026-09-21 20:10]`
+  - **Item 1: Markup Removal**:
+    - Removed `<div class="ky-model-window-banner">` completely from [fisheries.html](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/fisheries.html).
+    - Removed `<div class="ky-model-window-banner">` completely from [argo.html](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/argo.html).
+  - **Item 2: Verification Matrix**:
+    - `node test_argo_page.js`: **PASS (149 / 149 assertions passed, 100%)**
+    - `python test_regression_guard.py`: **PASS (100% clean)**
+    - `node test_stat_card_outputs.js`: **PASS (100% clean)**
+    - `node test_interactions.js`: **PASS (100% clean)**
+
+- [x] **Task: Clean Up Text in ARGO Validation Stat Cards (Basin RMSE & Mean Thermal Bias)** `[Completed 2026-09-21 19:21]`
+  - **Item 1: Clean Up Basin RMSE Card in `argo.html` & `argo.js`**:
+    - Removed `"(0.90 °C corrected)"` subtext and baseline subtext line (`#stat-argo-baseline`) from the Basin RMSE card in `argo.html`.
+    - Updated `loadSummaryStats()` in `argo.js` to populate `#stat-argo-rmse` with clean `${rawRmse} °C` (`textContent`) without injecting corrected span or baseline note.
+  - **Item 2: Clean Up Mean Thermal Bias Card in `argo.html` & `argo.js`**:
+    - Ensured `#stat-argo-bias` displays cleanly as `+0.08 °C` (or dynamic live bias) without any `"(+0.08 °C corr)"` subtext in `argo.html`.
+    - Updated `loadSummaryStats()` in `argo.js` to set `biasEl.textContent = `${rawBias >= 0 ? '+' : ''}${rawBias} °C`` without injecting corrected bias span.
+  - **Item 3: Verification Matrix**:
+    - `node test_argo_page.js`: **PASS (149 / 149 assertions passed, 100%)**
+    - `python test_regression_guard.py`: **PASS (100% clean)**
+    - `node test_stat_card_outputs.js`: **PASS (100% clean)**
+    - `node test_interactions.js`: **PASS (100% clean)**
+    - Live `/argo/summary` endpoint verified on `http://localhost:8000`.
+
 - [x] **Task: Add D26 Isotherm Depth as 4th Stat Box to Explore Dashboard** `[Completed 2026-09-21 17:26]`
   - **Item 1: 4th Stat Box Markup in `explore.html`**:
     - Added `<div class="ky-stat-card">` for **D26 Isotherm Depth** (`#stat-d26-val`) directly following D20 in `.ky-stat-row`.

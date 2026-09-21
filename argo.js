@@ -221,19 +221,14 @@ async function loadSummaryStats() {
 
     if (rmseEl) {
       const rawRmse = (summary.rmseRaw ?? summary.aggregateRmse ?? 1.002).toFixed(2);
-      const corrRmse = (summary.rmseCorrected ?? 0.901).toFixed(2);
-      rmseEl.innerHTML = `${rawRmse} °C <span class="ky-argo-rmse-sub" style="font-size: 13px; font-weight: 500; color: #64748B;">(${corrRmse} °C corrected)</span>`;
+      rmseEl.textContent = `${rawRmse} °C`;
     }
     if (biasEl) {
       const rawBias = (summary.biasRaw ?? summary.aggregateBias ?? 0.05).toFixed(2);
-      const corrBias = (summary.biasCorrected ?? 0.00).toFixed(2);
-      biasEl.innerHTML = `${rawBias >= 0 ? '+' : ''}${rawBias} °C <span style="font-size: 12px; font-weight: 500; color: #64748B;">(${corrBias >= 0 ? '+' : ''}${corrBias} °C corr)</span>`;
+      biasEl.textContent = `${rawBias >= 0 ? '+' : ''}${rawBias} °C`;
     }
     if (glorysEl) glorysEl.textContent = `${(summary.glorysRmse ?? summary.rmseGlorys ?? 0.948).toFixed(2)} °C`;
     if (floatsEl) floatsEl.textContent = `${summary.totalFloats.toLocaleString()}`;
-    if (baselineEl) {
-      baselineEl.textContent = summary.baselineLabel || "(14-year calendar-average baseline, n=1,809 profiles)";
-    }
 
     if (summary.subRegions) {
       const filterBtns = document.querySelectorAll('.ky-argo-filter-btn');
