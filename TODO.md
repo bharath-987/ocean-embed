@@ -4,6 +4,53 @@
 > **MANDATORY PROTOCOL**: This file **MUST** be updated after **EVERY SINGLE TASK** without exception or user reminder.
 > Record status, files changed, and verification evidence for every item.
 
+- [x] **Task: Add D26 Isotherm Depth as 4th Stat Box to Explore Dashboard** `[Completed 2026-09-21 17:26]`
+  - **Item 1: 4th Stat Box Markup in `explore.html`**:
+    - Added `<div class="ky-stat-card">` for **D26 Isotherm Depth** (`#stat-d26-val`) directly following D20 in `.ky-stat-row`.
+    - Exactly preserves card component hierarchy: indigo icon chip, title `"D26 Isotherm Depth"`, provenance pill `"Model-Derived"` with tooltip `"Calculated from CNN-LSTM predicted temperature profile via 26°C isotherm interpolation"`, and default empty placeholder dash `"—"`.
+    - Standard 4-column layout (`grid-template-columns: repeat(4, 1fr)`) in `style.css` naturally accommodates all 4 boxes: MLD, OHC₃₀₀, D20, D26.
+  - **Item 2: Computation & Logic in `app.js`**:
+    - Implemented `computeD26Isotherm(depths, temps)` using exact linear vertical interpolation at 26.0°C directly from model-predicted temperature profiles without any heuristic or constant-salinity assumptions.
+    - Updated `setStatsLoading(isLoading)` to include `'stat-d26-val'` for in-flight loading animation (`···`).
+    - Updated `updateStatCards(prediction)` to compute `computeD26Isotherm(depths, temps)` and update `#stat-d26-val` (displaying formatted `X m` when reached, `N/A — 26°C not reached in profile` when unreached, or `—` when empty).
+    - Updated `handleBackendFailure()` to reset `#stat-d26-val` to `—`.
+    - Exposed `window.computeD26Isotherm = computeD26Isotherm`.
+  - **Item 3: Verification Matrix**:
+    - `node test_stat_card_outputs.js`: **PASS (100% clean)** — verifies MLD (`58 m`), OHC₃₀₀ (`2706.5 kJ/cm²`), D20 (`173 m`), D26 (`92 m`).
+    - `node test_d26_card.js`: **PASS (100% clean)** — verifies markup, 4-column CSS grid, loading state (`···`), prediction calculation (`102 m`), unreachable profile (`N/A`), and empty reset (`—`).
+    - `node test_d20_card.js`: **PASS (100% clean)** — D20 card regression test remains 100% intact.
+    - `node test_interactions.js`: **PASS (100% clean)** — ocean parameter mutually exclusive toggles and TVD sync intact.
+    - `python test_regression_guard.py`: **PASS (100% clean)** — zero banned stale benchmark strings.
+    - Live `/predict` + live profile test with coordinates (15.5°N, 65.0°E): all 4 cards populate with live values (`stat-mld-val: 22 m`, `stat-ohc-val: 2678.3 kJ/cm²`, `stat-d20-val: 167 m`, `stat-d26-val: 92 m`).
+    - Backend API grid endpoints (0m, 200m, 1000m temp grids + 6 parameter grids): **ALL HTTP 200 OK**.
+
+- [x] **Task: Revert Explore/Dashboard Page Layout & Navigation to Pre-Change Baseline** `[Completed 2026-09-21 17:18]`
+  - **Item 1: Remove "14-Year Model" Info & Climate State Banner**:
+    - Removed `<div class="ky-model-window-banner">` and its climate state badge from `explore.html`.
+  - **Item 2: Verify Top Stat Boxes (Exact 3 Scientifically Valid Cards)**:
+    - Maintained strictly the 3 valid stat cards (Mixed Layer Depth, Ocean Heat Content - 300m, D20 Isotherm Depth).
+    - Did NOT restore the invalid Sound Velocity / Acoustic Shadow Depth (SVAD) card (deliberately removed in `4e4ef09` per Ajay's review due to unphysical 35 PSU constant assumption).
+    - Verified zero presence of SVAD or old confidence indicators across all 4 pages.
+  - **Item 3: Remove Storm Heat Replay Section**:
+    - Removed `<div class="ky-storm-replay-bar" id="ky-storm-replay-bar">` and cyclone jump controls from `explore.html`.
+    - Removed `initStormReplay()` from `app.js`.
+  - **Item 4: Restore Ocean Parameters to Exact 6 Physical Parameters**:
+    - Removed the 4 newly-added product map tiles (`d20`, `d26`, `tchp`, `mld`) from `explore.html`.
+    - Verified exact 6 physical parameters match baseline: SST, SSH, SSS, SLA, Current, Wind.
+    - Reverted `/products-grid` routing back to `/parameter-grid` in `checkAndRefreshHeatmap()`, and removed product entries from `PARAM_CONFIG` and `paramToColor` in `app.js`.
+  - **Item 5: Restore Sidebar to Canonical 4 Modes**:
+    - Reverted navigation across `explore.html`, `argo.html`, `fisheries.html`, and `marine-ecology.html` to exactly 4 items: `Dashboard`, `Fisheries Mode`, `Marine Ecology`, `ARGO Validation & Compare`.
+    - Removed `Fingerprint Atlas` nav entry from all sidebars (underlying `fingerprint.html` and `/regimes` endpoint preserved in codebase).
+  - **Item 6: Verification Matrix**:
+    - `python test_regression_guard.py`: **PASS (100% clean)**
+    - `node test_stat_card_outputs.js`: **PASS (100% clean)**
+    - `node test_d20_card.js`: **PASS (100% clean)**
+    - `node test_interactions.js`: **PASS (100% clean)**
+    - `node test_region_mask.js`: **PASS (100% clean)**
+    - Backend API grid endpoints (0m, 200m, 1000m temp grids + 6 parameter grids): **ALL HTTP 200 OK**
+    - Browser DOM structural audit: **100% PASS**
+
+
 - [x] **Task: Second Half of Ajay's Pre-Review List — New Features & Final-Days Polish (Items 9–16)** `[Completed 2026-09-20 23:31]`
   - [x] **Item 9: Fingerprint Atlas (`GET /regimes?date=`)**:
     - Built `GET /regimes?date=` endpoint returning 8 regime clusters, hex colors, profiles, RGB raster data, and anomalies ($\Delta T$) relative to domain average.

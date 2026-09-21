@@ -1056,55 +1056,6 @@ function paramToColor(param, val) {
       { t: 1.00, r: 234, g: 88,  b: 12  }, // #EA580C
     ];
     return interpolateColorStops(stops, norm);
-  } else if (p === 'd20') {
-    // D20 Isotherm Depth: 40 to 220 m
-    const minV = 40.0, maxV = 220.0;
-    const norm = Math.max(0, Math.min(1, (val - minV) / (maxV - minV)));
-    const stops = [
-      { t: 0.00, r: 15,  g: 23,  b: 42  }, // #0F172A
-      { t: 0.25, r: 29,  g: 78,  b: 216 }, // #1D4ED8
-      { t: 0.50, r: 6,   g: 182, b: 212 }, // #06B6D4
-      { t: 0.75, r: 245, g: 158, b: 11  }, // #F59E0B
-      { t: 1.00, r: 220, g: 38,  b: 38  }, // #DC2626
-    ];
-    return interpolateColorStops(stops, norm);
-  } else if (p === 'd26') {
-    // D26 Isotherm Depth: 20 to 140 m
-    const minV = 20.0, maxV = 140.0;
-    const norm = Math.max(0, Math.min(1, (val - minV) / (maxV - minV)));
-    const stops = [
-      { t: 0.00, r: 30,  g: 58,  b: 138 }, // #1E3A8A
-      { t: 0.25, r: 59,  g: 130, b: 246 }, // #3B82F6
-      { t: 0.50, r: 16,  g: 185, b: 129 }, // #10B981
-      { t: 0.75, r: 251, g: 191, b: 36  }, // #FBBF24
-      { t: 1.00, r: 239, g: 68,  b: 68  }, // #EF4444
-    ];
-    return interpolateColorStops(stops, norm);
-  } else if (p === 'tchp') {
-    // Tropical Cyclone Heat Potential: 10 to 140 kJ/cm²
-    const minV = 10.0, maxV = 140.0;
-    const norm = Math.max(0, Math.min(1, (val - minV) / (maxV - minV)));
-    const stops = [
-      { t: 0.00, r: 49,  g: 46,  b: 129 }, // #312E81
-      { t: 0.20, r: 67,  g: 56,  b: 202 }, // #4338CA
-      { t: 0.45, r: 2,   g: 132, b: 199 }, // #0284C7
-      { t: 0.70, r: 234, g: 179, b: 8   }, // #EAB308
-      { t: 0.88, r: 239, g: 68,  b: 68  }, // #EF4444
-      { t: 1.00, r: 153, g: 27,  b: 27  }, // #991B1B
-    ];
-    return interpolateColorStops(stops, norm);
-  } else if (p === 'mld') {
-    // Mixed Layer Depth: 10 to 100 m
-    const minV = 10.0, maxV = 100.0;
-    const norm = Math.max(0, Math.min(1, (val - minV) / (maxV - minV)));
-    const stops = [
-      { t: 0.00, r: 4,   g: 120, b: 87  }, // #047857
-      { t: 0.25, r: 16,  g: 185, b: 129 }, // #10B981
-      { t: 0.50, r: 56,  g: 189, b: 248 }, // #38BDF8
-      { t: 0.75, r: 37,  g: 99,  b: 235 }, // #2563EB
-      { t: 1.00, r: 30,  g: 27,  b: 75  }, // #1E1B4B
-    ];
-    return interpolateColorStops(stops, norm);
   }
   return tempToColor(val, 0);
 }
@@ -1803,13 +1754,10 @@ function checkAndRefreshHeatmap() {
       }
     }
 
-    const isProduct = ['d20', 'd26', 'tchp', 'mld'].includes(selectedParam);
-    const endpoint = isProduct
-      ? `${API_BASE}/products-grid?name=${selectedParam}&date=${dateStr}`
-      : `${API_BASE}/parameter-grid?param=${selectedParam}&date=${dateStr}`;
+    const endpoint = `${API_BASE}/parameter-grid?param=${selectedParam}&date=${dateStr}`;
 
     const startParamTime = Date.now();
-    console.log(`[OceanEmbed API] GET ${isProduct ? '/products-grid' : '/parameter-grid'} started for param=${selectedParam}&date=${dateStr}`);
+    console.log(`[OceanEmbed API] GET /parameter-grid started for param=${selectedParam}&date=${dateStr}`);
 
     fetch(endpoint, {
       signal: heatmapController ? heatmapController.signal : undefined
@@ -2428,7 +2376,7 @@ function renderSurfaceInputs(inputs) {
 /* ── Stat Cards In-Flight Loading State ──────────────────── */
 
 function setStatsLoading(isLoading) {
-  const statIds = ['stat-mld-val', 'stat-ohc-val', 'stat-d20-val'];
+  const statIds = ['stat-mld-val', 'stat-ohc-val', 'stat-d20-val', 'stat-d26-val'];
   statIds.forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
@@ -2468,6 +2416,28 @@ function computeD20Isotherm(depths, temps) {
 }
 if (typeof window !== 'undefined') {
   window.computeD20Isotherm = computeD20Isotherm;
+}
+
+/* ── D26 Isotherm Depth Calculation (Linear Interpolation) ── */
+
+function computeD26Isotherm(depths, temps) {
+  if (!temps || !depths || temps.length === 0 || temps[0] === null || isNaN(temps[0])) return null;
+  if (temps[0] <= 26.0) return depths[0];
+  for (let i = 1; i < depths.length; i++) {
+    if (temps[i] === null || temps[i] === undefined || isNaN(temps[i])) break;
+    if (temps[i] <= 26.0) {
+      const d0 = depths[i - 1];
+      const d1 = depths[i];
+      const t0 = temps[i - 1];
+      const t1 = temps[i];
+      const frac = (t0 - 26.0) / (t0 - t1 || 1);
+      return Math.round(d0 + frac * (d1 - d0));
+    }
+  }
+  return null;
+}
+if (typeof window !== 'undefined') {
+  window.computeD26Isotherm = computeD26Isotherm;
 }
 
 /* ── Mixed Layer Depth Calculation (de Boyer Montégut 2004, 10m Reference Depth) ── */
@@ -2577,6 +2547,25 @@ function updateStatCards(prediction) {
     } else {
       d20El.textContent = '—';
       d20El.title = '';
+    }
+  }
+
+  // 4: D26 Isotherm Depth
+  // Compute depth (in meters) at which temperature first drops to 26°C,
+  // linearly interpolating between the depth level just above 26°C and the depth level just below 26°C.
+  let d26Isotherm = computeD26Isotherm(depths, temps);
+
+  const d26El = document.getElementById('stat-d26-val');
+  if (d26El) {
+    if (d26Isotherm !== null) {
+      d26El.textContent = `${d26Isotherm} m`;
+      d26El.title = `D26 Isotherm Depth: ${d26Isotherm} m`;
+    } else if (temps && temps.length > 0) {
+      d26El.textContent = 'N/A — 26°C not reached in profile';
+      d26El.title = '26°C isotherm not reached in depth range';
+    } else {
+      d26El.textContent = '—';
+      d26El.title = '';
     }
   }
 }
@@ -2719,10 +2708,6 @@ const PARAM_CONFIG = {
   sla:        { title: 'Sea Level Anomaly (m)',        ticks: ['-0.20', '-0.10', '0.00', '+0.10', '+0.20'], bar: 'linear-gradient(to right, #1E1B4B 0%, #4338CA 30%, #E0F2FE 50%, #EC4899 75%, #9D174D 100%)' },
   current:    { title: 'Surface Ocean Current (m/s)',  ticks: ['0.0', '0.5', '1.0', '1.5', '2.0+'], bar: 'linear-gradient(to right, #0F172A 0%, #0284C7 30%, #06B6D4 55%, #EAB308 80%, #E11D48 100%)' },
   wind:       { title: 'Surface Winds (m/s)',          ticks: ['0', '3', '6', '9', '12', '15+'], bar: 'linear-gradient(to right, #334155 0%, #475569 25%, #38BDF8 55%, #F59E0B 80%, #EA580C 100%)' },
-  d20:        { title: 'D20 Isotherm Depth (m)',       ticks: ['40', '85', '130', '175', '220+'], bar: 'linear-gradient(to right, #0F172A, #1D4ED8, #06B6D4, #F59E0B, #DC2626)' },
-  d26:        { title: 'D26 Isotherm Depth (m)',       ticks: ['20', '50', '80', '110', '140+'], bar: 'linear-gradient(to right, #1E3A8A, #3B82F6, #10B981, #FBBF24, #EF4444)' },
-  tchp:       { title: 'Cyclone Heat Potential (kJ/cm²)', ticks: ['10', '40', '70', '100', '130+'], bar: 'linear-gradient(to right, #312E81, #4338CA, #0284C7, #EAB308, #EF4444, #991B1B)' },
-  mld:        { title: 'Mixed Layer Depth (m)',        ticks: ['10', '30', '50', '75', '100+'], bar: 'linear-gradient(to right, #047857, #10B981, #38BDF8, #2563EB, #1E1B4B)' },
 };
 
 document.querySelectorAll('.ky-param-tile').forEach(tile => {
@@ -3158,7 +3143,7 @@ function handleBackendFailure(msg) {
   }
 
   // Set honest placeholders rather than displaying fabricated numbers
-  ['stat-mld-val', 'stat-ohc-val', 'stat-d20-val'].forEach(id => {
+  ['stat-mld-val', 'stat-ohc-val', 'stat-d20-val', 'stat-d26-val'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.textContent = '—';
   });
@@ -3470,156 +3455,3 @@ function validateLayerMarkerSync() {
 
 window.validateLayerMarkerSync = validateLayerMarkerSync;
 window.getLastValidationReport = () => lastValidationReport;
-
-/* ── Storm Heat Replay Toolbar (Item 10) ─────────────────── */
-
-function initStormReplay() {
-  const replayBar = document.getElementById('ky-storm-replay-bar');
-  if (!replayBar) return;
-
-  const stormBtns = replayBar.querySelectorAll('.ky-storm-btn');
-  const playBtn = document.getElementById('btn-storm-play');
-  const slider = document.getElementById('storm-day-slider');
-  const readout = document.getElementById('storm-date-readout');
-
-  let currentStorm = null;
-  let isPlaying = false;
-  let playInterval = null;
-
-  function stopPlayback() {
-    isPlaying = false;
-    if (playInterval) {
-      clearInterval(playInterval);
-      playInterval = null;
-    }
-    if (playBtn) {
-      playBtn.style.background = '#1D4ED8';
-      playBtn.innerHTML = `
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-        <span id="storm-play-text">Play Replay</span>
-      `;
-    }
-  }
-
-  function setStormDate(dayOffset) {
-    if (!currentStorm) return;
-    const dateObj = new Date(currentStorm.startDate.getTime() + dayOffset * 86400000);
-    const dateStr = dateToISO(dateObj);
-    if (readout) readout.textContent = dateStr;
-
-    // Sync with global date controls
-    const diffDays = Math.round((dateObj - EPOCH_START) / 86400000);
-    hasSelectedDate = true;
-    if (dateSlider) {
-      dateSlider.value = diffDays;
-      updateSliderUI();
-    }
-    const nativePicker = document.getElementById('native-date-picker');
-    if (nativePicker) nativePicker.value = dateStr;
-
-    // Refresh grid overlay
-    checkAndRefreshHeatmap();
-    checkAndTriggerCast();
-  }
-
-  stormBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-      stopPlayback();
-
-      // Style active button
-      stormBtns.forEach(b => {
-        b.style.background = '#F8FAFC';
-        b.style.color = '#334155';
-        b.style.borderColor = '#CBD5E1';
-        b.style.fontWeight = '500';
-      });
-      btn.style.background = '#1E293B';
-      btn.style.color = '#FFFFFF';
-      btn.style.borderColor = '#1E293B';
-      btn.style.fontWeight = '700';
-
-      const stormName = btn.getAttribute('data-storm');
-      const startStr = btn.getAttribute('data-start');
-      const endStr = btn.getAttribute('data-end');
-
-      const startDate = new Date(`${startStr}T00:00:00`);
-      const endDate = new Date(`${endStr}T00:00:00`);
-      const totalDays = Math.round((endDate - startDate) / 86400000) + 1;
-
-      currentStorm = {
-        name: stormName,
-        startDate,
-        endDate,
-        totalDays
-      };
-
-      if (slider) {
-        slider.min = '0';
-        slider.max = String(totalDays - 1);
-        slider.value = '0';
-      }
-
-      // Automatically activate TCHP product layer
-      const tchpTile = document.getElementById('param-tchp');
-      if (tchpTile && selectedParam !== 'tchp') {
-        tchpTile.click();
-      }
-
-      setStormDate(0);
-    });
-  });
-
-  if (slider) {
-    slider.addEventListener('input', () => {
-      stopPlayback();
-      const val = parseInt(slider.value, 10);
-      setStormDate(val);
-    });
-  }
-
-  if (playBtn) {
-    playBtn.addEventListener('click', () => {
-      if (!currentStorm) {
-        // Default to Tej if none selected yet
-        const tejBtn = replayBar.querySelector('[data-storm="Tej"]');
-        if (tejBtn) {
-          tejBtn.click();
-        }
-      }
-
-      if (isPlaying) {
-        stopPlayback();
-      } else {
-        isPlaying = true;
-        playBtn.style.background = '#DC2626';
-        playBtn.innerHTML = `
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-            <rect x="6" y="4" width="4" height="16"/>
-            <rect x="14" y="4" width="4" height="16"/>
-          </svg>
-          <span id="storm-play-text">Pause</span>
-        `;
-
-        playInterval = setInterval(() => {
-          if (!currentStorm || !slider) return;
-          let nextVal = parseInt(slider.value, 10) + 1;
-          const maxVal = parseInt(slider.max, 10);
-          if (nextVal > maxVal) {
-            nextVal = 0; // Loop replay
-          }
-          slider.value = String(nextVal);
-          setStormDate(nextVal);
-        }, 1200);
-      }
-    });
-  }
-}
-
-if (typeof window !== 'undefined') {
-  window.addEventListener('DOMContentLoaded', () => {
-    initStormReplay();
-  });
-}
-
-
-

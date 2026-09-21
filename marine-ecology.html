@@ -75,19 +75,6 @@
       </div>
     </header>
 
-    <!-- Model Window Banner & Universal Provenance -->
-    <div class="ky-model-window-banner" role="status" aria-live="polite">
-      <div class="ky-model-window-banner__inner" style="display: flex; justify-content: space-between; align-items: center; width: 100%; max-width: 1400px; margin: 0 auto; padding: 0 16px;">
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <span class="ky-model-window-banner__badge">14-Year Model</span>
-          <span class="ky-model-window-banner__text">Currently serving <code>model_v6_satswap_anom_14yr</code> for June–December 2023. Caveats: Trained 2010–2020, tested 2023 (one training run · MLD experimental).</span>
-        </div>
-        <div class="ky-climate-state-badge" id="ky-climate-state-badge" style="background: #EFF6FF; border: 1px solid #BFDBFE; color: #1E40AF; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 600;">
-          2023 Climate: El Niño, with a positive Indian Ocean Dipole from mid-year
-        </div>
-      </div>
-    </div>
-
     <!-- ============================================================
          BODY — Sidebar + Main Content
          ============================================================ -->
@@ -135,18 +122,7 @@
                 <rect x="17" y="3" width="4" height="18" rx="1"/>
               </svg>
             </span>
-            <span class="ky-nav-item__label">Truth Check (Validation)</span>
-          </button>
-
-          <button class="ky-nav-item" data-nav="fingerprint" onclick="window.location.href='fingerprint.html'">
-            <span class="ky-nav-item__icon">
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10"/>
-                <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/>
-                <path d="M2 12h20"/>
-              </svg>
-            </span>
-            <span class="ky-nav-item__label">Fingerprint Atlas</span>
+            <span class="ky-nav-item__label">ARGO Validation &amp; Compare</span>
           </button>
         </nav>
 
@@ -179,13 +155,9 @@
             </div>
             <div class="ky-stat-card__body">
               <div class="ky-stat-card__label-row">
-                <div>
-                  <span class="ky-stat-card__label">Marine Heatwave Status</span>
-                  <div style="font-size: 10px; color: #64748B; font-weight: 500; margin-top: 1px;">experimental: baseline 2021-23 only</div>
-                </div>
+                <span class="ky-stat-card__label">Marine Heatwave Status</span>
                 <div class="ky-stat-card__pill-row">
                   <span class="ky-provenance-pill ky-provenance-pill--heuristic" title="Derived from Hobday et al. (2016) statistical thresholding of reconstructed SST — not a direct model prediction.">Estimated Heuristic</span>
-                  <span class="ky-provenance-pill" style="background:#FEF3C7;color:#92400E;border-color:#FCD34D;" title="MHW baseline established using 2021-2023 satellite observations only">experimental: baseline 2021-23 only</span>
                 </div>
               </div>
               <div class="ky-stat-card__val-row">

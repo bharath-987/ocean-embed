@@ -1,11 +1,11 @@
 const fs = require('fs');
 const assert = require('assert');
 
-console.log('============================================================');
-console.log('  KYOGRE STAT CARDS REGRESSION TEST SUITE (MLD, OHC300, D20)');
-console.log('============================================================');
+console.log('=================================================================');
+console.log('  KYOGRE STAT CARDS REGRESSION TEST SUITE (MLD, OHC300, D20, D26)');
+console.log('=================================================================');
 
-// 1. Setup DOM Mock for updateStatCards (3 cards: MLD, OHC, D20)
+// 1. Setup DOM Mock for updateStatCards (4 cards: MLD, OHC, D20, D26)
 const makeElement = () => ({
   textContent: '—',
   title: '',
@@ -15,7 +15,8 @@ const makeElement = () => ({
 const domElements = {
   'stat-mld-val': makeElement(),
   'stat-ohc-val': makeElement(),
-  'stat-d20-val': makeElement()
+  'stat-d20-val': makeElement(),
+  'stat-d26-val': makeElement()
 };
 
 const documentMock = {
@@ -55,14 +56,16 @@ const sandboxFn = new Function(
   return {
     computeMLD,
     computeD20Isotherm,
+    computeD26Isotherm,
     updateStatCards
   };
 `
 );
 
-const { computeMLD, computeD20Isotherm, updateStatCards } = sandboxFn(documentMock, DEPTHS, {});
+const { computeMLD, computeD20Isotherm, computeD26Isotherm, updateStatCards } = sandboxFn(documentMock, DEPTHS, {});
 assert.strictEqual(typeof computeMLD, 'function', 'computeMLD must be a function');
 assert.strictEqual(typeof computeD20Isotherm, 'function', 'computeD20Isotherm must be a function');
+assert.strictEqual(typeof computeD26Isotherm, 'function', 'computeD26Isotherm must be a function');
 assert.strictEqual(typeof updateStatCards, 'function', 'updateStatCards must be a function');
 console.log('[TEST 2] Production functions successfully extracted and bound to mock DOM.');
 
@@ -79,10 +82,12 @@ updateStatCards(casPrediction);
 console.log(`  MLD:  ${domElements['stat-mld-val'].textContent}`);
 console.log(`  OHC:  ${domElements['stat-ohc-val'].textContent}`);
 console.log(`  D20:  ${domElements['stat-d20-val'].textContent}`);
+console.log(`  D26:  ${domElements['stat-d26-val'].textContent}`);
 
 assert.strictEqual(domElements['stat-mld-val'].textContent, '58 m');
 assert(domElements['stat-ohc-val'].textContent.includes('kJ/cm²'));
 assert.strictEqual(domElements['stat-d20-val'].textContent, '173 m');
+assert.strictEqual(domElements['stat-d26-val'].textContent, '92 m');
 
 console.log('\n============================================================');
 console.log('  ALL STAT CARDS REGRESSION TESTS PASSED (100% SUCCESS)');
