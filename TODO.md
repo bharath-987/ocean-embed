@@ -4,6 +4,19 @@
 > **MANDATORY PROTOCOL**: This file **MUST** be updated after **EVERY SINGLE TASK** without exception or user reminder.
 > Record status, files changed, and verification evidence for every item.
 
+- [x] **Task: Push Everything into Master & UI-Sample Branches, Keep UI-Sample Active** `[Completed 2026-09-22 21:12]`
+  - **Item 1: Verification Matrix Passed Prior to Commit**:
+    - Python backend syntax checked with `py_compile`: clean.
+    - JavaScript syntax checked with `node -c`: clean.
+    - Endpoints verified: `/predict`, `/temperature-grid` (0m, 200m, 1000m), `/parameter-grid` (6 params): all HTTP 200.
+    - Test suites passed: `test_datepicker.js` (100%), `test_sliding_sidebar.js` (100%), `test_argo_page.js` (100%), `test_fisheries.js` (100%), `test_marine_ecology.js` (100%), `test_stat_card_outputs.js` (100%), `verify_landing_page.js` (100%).
+  - **Item 2: Commit & Fast-Forward Synchronization**:
+    - Created commit `fc8df35` on `ui-sample`.
+    - Switched to `master` and fast-forward merged `ui-sample` into `master` (`761debf..fc8df35`).
+    - Pushed `master` to `origin/master`.
+    - Switched back to `ui-sample` and pushed `ui-sample` to `origin/ui-sample`.
+    - Confirmed active working branch is `ui-sample`.
+
 - [x] **Task: Remove Map Highlighted Regions & Fish Icon Markers in Fisheries Mode** `[Completed 2026-09-22 21:05]`
   - **Item 1: Suppress Dashed Polygon Outlines & Fish Badges on Fisheries Map**:
     - Introduced `SHOW_PFZ_ZONE_HIGHLIGHTS = false` in `fisheries.js` (exported to `module.exports` and `window.SHOW_PFZ_ZONE_HIGHLIGHTS`).
