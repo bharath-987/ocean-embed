@@ -772,6 +772,12 @@ function showChartPlaceholder() {
   if (biasEl) biasEl.textContent = '—';
   if (corrEl) corrEl.textContent = '—';
 
+  // Hide per-result model badges
+  const modelBadge = document.getElementById('argo-model-badge');
+  if (modelBadge) modelBadge.style.display = 'none';
+  const subchartBadge = document.getElementById('argo-subchart-model-badge');
+  if (subchartBadge) subchartBadge.style.display = 'none';
+
   // Reset bottom table with date selection prompt
   const tbody = document.getElementById('argo-table-body');
   if (tbody) {
@@ -847,7 +853,30 @@ async function selectDate(cycleId) {
 function renderComparisonData(data) {
   const { depths, aiTemps, argoTemps, diffs, metrics } = data;
 
-  // 1. Update 3 Plain Metrics (label + big number only)
+  // 1. Update per-result model badge
+  const modelName = data.data_source || data.model_name || 'model_v6_satswap_anom_14yr';
+  const is14Yr = modelName.includes('14yr');
+  const badgeLabel = is14Yr ? '14-Year Model' : 'Baseline Model';
+  const badgeClass = is14Yr ? 'ky-provenance-pill ky-provenance-pill--model' : 'ky-provenance-pill ky-provenance-pill--heuristic';
+  const badgeTitle = `Served by: ${modelName}${data.provenance ? ` — ${data.provenance}` : ''}`;
+
+  const modelBadge = document.getElementById('argo-model-badge');
+  if (modelBadge) {
+    modelBadge.textContent = badgeLabel;
+    modelBadge.className = badgeClass;
+    modelBadge.title = badgeTitle;
+    modelBadge.style.display = 'inline-flex';
+  }
+
+  const subchartBadge = document.getElementById('argo-subchart-model-badge');
+  if (subchartBadge) {
+    subchartBadge.textContent = badgeLabel;
+    subchartBadge.className = badgeClass;
+    subchartBadge.title = badgeTitle;
+    subchartBadge.style.display = 'inline-flex';
+  }
+
+  // 2. Update 3 Plain Metrics (label + big number only)
   const rmseEl = document.getElementById('comp-float-rmse');
   const biasEl = document.getElementById('comp-float-bias');
   const maxErrEl = document.getElementById('comp-float-max-err');

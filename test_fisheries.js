@@ -639,7 +639,7 @@ console.log('16. Verifying Dynamic PFZ Grid Endpoint, Cluster Grouping & Fish Ce
   // (A) Static HTML Empty/Prompt State Assertions
   assert(html.includes('<span id="date-display-header">Select date</span>'), 'Date display header must show placeholder "Select date"');
   assert(
-    html.includes('id="native-date-picker"') && html.includes('value=""') && (html.includes('min="2023-06-01"') || html.includes('min="2021-01-11"')),
+    html.includes('id="native-date-picker"') && html.includes('value=""') && (html.includes('min="2023-01-10"') || html.includes('min="2023-06-01"') || html.includes('min="2021-01-11"')),
     'Native date picker value must be empty on load'
   );
 
@@ -870,16 +870,13 @@ console.log('16. Verifying Dynamic PFZ Grid Endpoint, Cluster Grouping & Fish Ce
   ];
 
   const renderedOverlay = await loadAndRenderDynamicPfzZones('2023-09-04', syntheticMixedZones);
-  assert.strictEqual(renderedOverlay.length, 1, 'Only 1 candidate zone (Elevated) must be highlighted on map');
-  assert.strictEqual(renderedOverlay[0].id, 'z-elevated', 'Rendered zone must be the Elevated tier zone');
-  assert.strictEqual(mockSourceData.features.length, 1, 'GeoJSON source must contain exactly 1 feature');
-  assert.strictEqual(mockSourceData.features[0].properties.tier, 'elevated', 'Feature must have tier: elevated');
-  assert.strictEqual(mockMarkers.length, 1, 'Exactly 1 fish marker must be placed on map');
-  assert.deepStrictEqual(mockMarkers[0].coords, [65.0, 15.0], 'Marker must be placed at Elevated zone centroid');
+  assert.strictEqual(renderedOverlay.length, 0, 'Candidate zone highlights on map must be disabled');
+  assert.strictEqual(mockSourceData.features.length, 0, 'GeoJSON source must contain 0 features (no highlighted regions)');
+  assert.strictEqual(mockMarkers.length, 0, 'Zero fish markers must be placed on map');
 
   // Verify all zones remain stored in currentDynamicZones for manual lookup/click
   assert.strictEqual(renderedOverlay.allZones.length, 3, 'All 3 candidate zones must be preserved in allZones');
-  console.log('   ✓ Candidate zone visibility filter verified: only Elevated tier produces map overlay; Moderate/Low excluded.');
+  console.log('   ✓ Candidate zone map highlight removal verified: zero highlighted regions and zero fish markers on map.');
 
   // 20. Assertion: Data-Quality Guard for Temperature-Corruption Bug
   console.log('20. Verifying Data-Quality Guard for Temperature-Corruption Bug...');

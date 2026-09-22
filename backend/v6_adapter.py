@@ -2,7 +2,7 @@
 OceanEmbed / Kyogre — V6 SatSwap 14-Year Model Adapter
 ======================================================
 Serves precomputed predictions from the 14-year satellite model
-(v6_satswap_anom_14yr) for the available window: 2023-06-01 to 2023-12-31.
+(v6_satswap_anom_14yr) for the available window: 2023-01-10 to 2023-12-31.
 Bypasses runtime neural network forward passes for instant sub-millisecond
 responses, enforces the raw-vs-corrected split for oceanographic indices,
 and applies provenance metadata.
@@ -13,19 +13,19 @@ from __future__ import annotations
 import json
 import math
 import os
-import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 
-# Load serving module from local directory
+# Load serving helper from local folder
 V6_DIR = Path(__file__).parent / "data" / "v6_satswap_anom_14yr"
-sys.path.insert(0, str(V6_DIR.resolve()))
+import sys
+if str(V6_DIR) not in sys.path:
+    sys.path.insert(0, str(V6_DIR))
 import serving
 
-# Model domain definition
 MIN_LAT, MAX_LAT = 5.0, 30.0
 MIN_LON, MAX_LON = 45.0, 105.0
 RESOLUTION_DEG = 0.25
@@ -33,8 +33,8 @@ RESOLUTION_DEG = 0.25
 STANDARD_DEPTHS = [0, 5, 10, 20, 30, 50, 75, 100, 125, 150, 200, 300, 500, 700, 1000]
 
 MODEL_NAME = "model_v6_satswap_anom_14yr"
-PROVENANCE_NOTE = "Currently serving the new 14-year model for June–December 2023. Full 2021–2023 coverage coming soon."
-WINDOW_START = "2023-06-01"
+PROVENANCE_NOTE = "Currently serving the 14-year model for 2023 (Jan 10 – Dec 31)."
+WINDOW_START = "2023-01-10"
 WINDOW_END = "2023-12-31"
 
 TCHP_RMSE_BAND = 11.8  # New empirical error band (±11.8 kJ/cm², updated from ±15.7)
@@ -80,8 +80,8 @@ except Exception:
 
 
 def is_date_in_window(date_str: str) -> bool:
-    """Check if date is within the active 214-day 14-year model window."""
-    return date_str in AVAILABLE_DATES
+    """Check if date is within the active model window (2023-01-10 to 2023-12-31)."""
+    return WINDOW_START <= date_str <= WINDOW_END and date_str in AVAILABLE_DATES
 
 
 def get_satellite_sst(latitude: float, longitude: float, date_str: str) -> Optional[float]:
@@ -138,7 +138,7 @@ def predict_temperature_profile(
     latitude: float,
     longitude: float,
     date_str: str,
-    raw: bool = True,
+    raw: bool = False,
     smoothing: bool = False,
     apply_sst_blend: bool = True,
     corrected: Optional[bool] = None,
@@ -147,10 +147,10 @@ def predict_temperature_profile(
     Wrap ServingData.profile() to output {depth: temp} dictionary format expected by frontend.
 
     By default:
-    - raw=True (or corrected=False): Returns uncorrected profile.
     - corrected=True (or raw=False): Returns bias-corrected profile.
+    - raw=True (or corrected=False): Returns uncorrected profile.
     - smoothing=True: Applies PAVA isotonic decreasing smoothing (0–100m only).
-    - If date is outside 2023-06-01 to 2023-12-31, fails gracefully without falling back to old model.
+    - If date is outside 2023-01-10 to 2023-12-31, fails gracefully without falling back to old model.
     """
     if not is_date_in_window(date_str):
         return {
@@ -169,6 +169,32 @@ def predict_temperature_profile(
         prof = serving_data.profile(latitude, longitude, date_str)
     except Exception as e:
         return {"error": str(e)}
+
+    if not prof.get("is_ocean", False):
+        # Fallback: check immediate 1-cell neighborhood (radius of 0.25 deg) for nearest ocean cell
+        # to handle coastal boundary floats where coordinate discretisation placed it on the land side of cell border
+        i, j = serving_data.cell(latitude, longitude)
+        vm = serving_data.field["valid_mask"][0]
+        best_cand = None
+        min_dist_sq = float("inf")
+        for di in (-1, 0, 1):
+            for dj in (-1, 0, 1):
+                if di == 0 and dj == 0:
+                    continue
+                ni, nj = i + di, j + dj
+                if 0 <= ni < len(serving_data.lats) and 0 <= nj < len(serving_data.lons):
+                    if vm[ni, nj]:
+                        dist_sq = (serving_data.lats[ni] - latitude) ** 2 + (serving_data.lons[nj] - longitude) ** 2
+                        if dist_sq < min_dist_sq:
+                            min_dist_sq = dist_sq
+                            best_cand = (serving_data.lats[ni], serving_data.lons[nj])
+        if best_cand is not None:
+            try:
+                neighbor_prof = serving_data.profile(float(best_cand[0]), float(best_cand[1]), date_str)
+                if neighbor_prof.get("is_ocean", False):
+                    prof = neighbor_prof
+            except Exception:
+                pass
 
     if not prof.get("is_ocean", False):
         return {"error": "no satellite data available for this location/date (likely land or data gap)"}

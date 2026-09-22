@@ -109,7 +109,7 @@ CHECKPOINT_PATH = os.path.join(BASE_DIR, "model_v6_satswap_anom_best.pt")
 MIN_LON, MAX_LON = 45, 105             # region: North Indian Ocean
 MIN_LAT, MAX_LAT = 5, 30
 YEARS_COVERED = list(range(2021, 2024))  # Legacy fallback dataset: 2021-01-01 to 2023-12-31
-                                          # (Active serving is now driven by v6_adapter for 2023-06-01 to 2023-12-31)
+                                          # (Active serving is now driven by v6_adapter for 2023-01-10 to 2023-12-31)
 DATASET_START_DATE = f"{YEARS_COVERED[0]}-01-01"
 SEQUENCE_LENGTH = 10                   # (item 7) model reads a 10-day window of data
 LOOKBACK_DAYS = SEQUENCE_LENGTH - 1    # window is [target_day - 9, target_day] INCLUSIVE (same-day

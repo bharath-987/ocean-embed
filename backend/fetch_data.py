@@ -59,9 +59,9 @@ KNOWN_SIZES: Dict[str, int] = {
 V6_KNOWN_SIZES: Dict[str, int] = {
     "correction_v6_satswap_anom_14yr.json": 1415,
     "v6_satswap_anom_14yr.bundle.npz": 10268579,
-    "products_v6_satswap_anom_14yr_2023-06-01_2023-12-31.npz": 13716391,
-    "field_v6_satswap_anom_14yr_2023-06-01_2023-12-31.npz": 39400611,
-    "embeddings_v6_satswap_anom_14yr_2023-06-01_2023-12-31.npz": 76636282,
+    "products_v6_satswap_anom_14yr_2023-01-01_2023-12-31.npz": 22187928,
+    "field_v6_satswap_anom_14yr_2023-01-01_2023-12-31.npz": 64837557,
+    "embeddings_v6_satswap_anom_14yr_2023-01-01_2023-12-31.npz": 127401590,
 }
 
 REQUIRED_FILES = list(KNOWN_SIZES.keys())
@@ -95,9 +95,9 @@ def ensure_v6_unpacked(v6_dir: str = V6_DIR) -> None:
         raise RuntimeError(f"Cannot import serving module from {v6_dir}: {err}") from err
 
     npz_mapping = {
-        "field": "field_v6_satswap_anom_14yr_2023-06-01_2023-12-31.npz",
-        "products": "products_v6_satswap_anom_14yr_2023-06-01_2023-12-31.npz",
-        "embeddings": "embeddings_v6_satswap_anom_14yr_2023-06-01_2023-12-31.npz",
+        "field": "field_v6_satswap_anom_14yr_2023-01-01_2023-12-31.npz",
+        "products": "products_v6_satswap_anom_14yr_2023-01-01_2023-12-31.npz",
+        "embeddings": "embeddings_v6_satswap_anom_14yr_2023-01-01_2023-12-31.npz",
     }
 
     unpacked_dir = os.path.join(v6_dir, "unpacked")

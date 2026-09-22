@@ -6239,6 +6239,32 @@ var KyogreApp = (() => {
   // src/components/landing/MinimalNav.tsx
   var import_react9 = __toESM(__require("react"));
   var MinimalNav = () => {
+    const [, setHoveredIdx] = (0, import_react9.useState)(null);
+    const [pillStyle, setPillStyle] = (0, import_react9.useState)({
+      opacity: 0,
+      transform: "translate3d(0, 0, 0)"
+    });
+    const linkRefs = (0, import_react9.useRef)([]);
+    const navRef = (0, import_react9.useRef)(null);
+    const handleMouseEnter = (index) => {
+      setHoveredIdx(index);
+      const link = linkRefs.current[index];
+      const nav = navRef.current;
+      if (link && nav) {
+        const nRect = nav.getBoundingClientRect();
+        const lRect = link.getBoundingClientRect();
+        setPillStyle({
+          transform: `translate3d(${Math.round(lRect.left - nRect.left)}px, ${Math.round(lRect.top - nRect.top)}px, 0)`,
+          width: Math.round(lRect.width),
+          height: Math.round(lRect.height),
+          opacity: 1
+        });
+      }
+    };
+    const handleMouseLeave = () => {
+      setHoveredIdx(null);
+      setPillStyle((prev) => ({ ...prev, opacity: 0 }));
+    };
     return /* @__PURE__ */ import_react9.default.createElement("header", { className: "fixed top-0 left-0 right-0 z-40 px-6 sm:px-12 py-5 flex items-center justify-between pointer-events-auto bg-[#FAFAFA]/80 backdrop-blur-md border-b border-[rgba(11,20,32,0.06)]" }, /* @__PURE__ */ import_react9.default.createElement(
       "a",
       {
@@ -6246,33 +6272,66 @@ var KyogreApp = (() => {
         className: "flex items-center text-[#0B1420] hover:text-[#0E7C74] transition-colors group"
       },
       /* @__PURE__ */ import_react9.default.createElement("span", { className: "font-['Space_Grotesk'] text-sm sm:text-base font-bold tracking-[0.25em] text-[#0B1420] group-hover:text-[#0E7C74] transition-colors" }, "KYOGRE")
-    ), /* @__PURE__ */ import_react9.default.createElement("nav", { className: "flex items-center gap-4 sm:gap-10 font-mono text-[11px] sm:text-xs tracking-wider" }, /* @__PURE__ */ import_react9.default.createElement(
-      "a",
-      {
-        href: "/explore.html",
-        className: "text-[#5B6B74] hover:text-[#0E7C74] transition-colors"
-      },
-      "EXPLORE"
     ), /* @__PURE__ */ import_react9.default.createElement(
-      "a",
+      "nav",
       {
-        href: "/argo.html",
-        className: "text-[#5B6B74] hover:text-[#0E7C74] transition-colors"
+        ref: navRef,
+        onMouseLeave: handleMouseLeave,
+        className: "relative flex items-center gap-1 sm:gap-3 font-mono text-[11px] sm:text-xs tracking-wider p-1"
       },
-      "ARGO"
-    ), /* @__PURE__ */ import_react9.default.createElement(
-      "a",
-      {
-        href: "#about",
-        onClick: (e) => {
-          e.preventDefault();
-          const target = document.getElementById("problem");
-          if (target) target.scrollIntoView({ behavior: "smooth" });
+      /* @__PURE__ */ import_react9.default.createElement(
+        "div",
+        {
+          className: "absolute top-0 left-0 rounded-lg bg-[rgba(14,124,116,0.09)] pointer-events-none z-0",
+          style: {
+            ...pillStyle,
+            transition: "transform 0.26s cubic-bezier(0.25, 1.25, 0.5, 1), width 0.26s cubic-bezier(0.25, 1.25, 0.5, 1), height 0.26s cubic-bezier(0.25, 1.25, 0.5, 1), opacity 0.18s ease"
+          },
+          "aria-hidden": "true"
+        }
+      ),
+      /* @__PURE__ */ import_react9.default.createElement(
+        "a",
+        {
+          ref: (el) => {
+            linkRefs.current[0] = el;
+          },
+          onMouseEnter: () => handleMouseEnter(0),
+          href: "/explore.html",
+          className: "relative z-10 px-3 py-1.5 rounded-lg text-[#5B6B74] hover:text-[#0E7C74] transition-colors"
         },
-        className: "text-[#5B6B74] hover:text-[#0E7C74] transition-colors"
-      },
-      "ABOUT"
-    )));
+        "EXPLORE"
+      ),
+      /* @__PURE__ */ import_react9.default.createElement(
+        "a",
+        {
+          ref: (el) => {
+            linkRefs.current[1] = el;
+          },
+          onMouseEnter: () => handleMouseEnter(1),
+          href: "/argo.html",
+          className: "relative z-10 px-3 py-1.5 rounded-lg text-[#5B6B74] hover:text-[#0E7C74] transition-colors"
+        },
+        "ARGO"
+      ),
+      /* @__PURE__ */ import_react9.default.createElement(
+        "a",
+        {
+          ref: (el) => {
+            linkRefs.current[2] = el;
+          },
+          onMouseEnter: () => handleMouseEnter(2),
+          href: "#about",
+          onClick: (e) => {
+            e.preventDefault();
+            const target = document.getElementById("problem");
+            if (target) target.scrollIntoView({ behavior: "smooth" });
+          },
+          className: "relative z-10 px-3 py-1.5 rounded-lg text-[#5B6B74] hover:text-[#0E7C74] transition-colors"
+        },
+        "ABOUT"
+      )
+    ));
   };
 
   // src/components/landing/HeroSection.tsx

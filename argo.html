@@ -275,7 +275,7 @@
                     <polyline points="6 9 12 15 18 9"/>
                   </svg>
                 </div>
-                <div class="ky-argo-date-sub" id="argo-date-sub">Choose an available observation date (2021–2023)</div>
+                <div class="ky-argo-date-sub" id="argo-date-sub">Choose an available observation date (June–December 2023)</div>
               </div>
 
               <!-- Model Prediction Configuration Toggles (Independently Controllable) -->
@@ -294,6 +294,7 @@
               <div class="ky-argo-chart-section">
                 <div class="ky-argo-chart-header">
                   <div class="ky-argo-chart-title">Temperature Profile &amp; Depth Error Analysis</div>
+                  <span id="argo-model-badge" class="ky-provenance-pill ky-provenance-pill--model" style="display: none; font-size: 11px;">14-Year Model</span>
                 </div>
 
                 <!-- State 2 Placeholder: Shown before date is picked -->
@@ -315,7 +316,10 @@
                   <!-- Left Chart: AI vs ARGO Profile Comparison -->
                   <div class="ky-argo-chart-col">
                     <div class="ky-argo-subchart-header">
-                      <span class="ky-argo-subchart-title">Temperature Profile</span>
+                      <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="ky-argo-subchart-title">Temperature Profile</span>
+                        <span id="argo-subchart-model-badge" class="ky-provenance-pill ky-provenance-pill--model" style="display: none; font-size: 10px;">14-Year Model</span>
+                      </div>
                       <span class="ky-argo-subchart-badge">T vs. Depth</span>
                     </div>
                     <div class="ky-argo-canvas-wrapper">
@@ -523,6 +527,7 @@
 
   </div>
 
+  <script src="sidebar-nav.js"></script>
   <script src="argo.js"></script>
 </body>
 </html>

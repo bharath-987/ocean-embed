@@ -255,6 +255,7 @@ function initDatePicker() {
   if (!dateBtn || !nativePicker) return;
 
   dateBtn.addEventListener('click', () => {
+    if (document.querySelector('.ky-calendar-popover')) return;
     try {
       if (typeof nativePicker.showPicker === 'function') {
         nativePicker.showPicker();

@@ -21,10 +21,10 @@ const EPOCH_END      = new Date('2023-12-31');
 const TOTAL_DAYS     = Math.round((EPOCH_END - EPOCH_START) / 86400000);
 const MIN_VALID_DAY  = 10;
 
-// V6 SatSwap 14-Year Model Active Window (June–December 2023)
-const WINDOW_START_DATE = new Date('2023-06-01');
+// V6 SatSwap 14-Year Model Active Window (January 10 – December 31, 2023)
+const WINDOW_START_DATE = new Date('2023-01-10');
 const WINDOW_END_DATE   = new Date('2023-12-31');
-const WINDOW_START_DAY  = Math.round((WINDOW_START_DATE - EPOCH_START) / 86400000); // 881
+const WINDOW_START_DAY  = Math.round((WINDOW_START_DATE - EPOCH_START) / 86400000); // 739
 const WINDOW_END_DAY    = Math.round((WINDOW_END_DATE - EPOCH_START) / 86400000);   // 1094
 const DEFAULT_DEMO_DAY  = Math.round((new Date('2023-10-22') - EPOCH_START) / 86400000); // 1024
 
@@ -454,6 +454,7 @@ const dateBtn = document.getElementById('ky-date-btn');
 
 if (nativeDatePicker) {
   const openCalendar = () => {
+    if (document.querySelector('.ky-calendar-popover')) return;
     if (typeof nativeDatePicker.showPicker === 'function') {
       try {
         nativeDatePicker.showPicker();
@@ -485,12 +486,12 @@ if (nativeDatePicker) {
     const selectedDate = new Date(`${val}T00:00:00`);
     if (isNaN(selectedDate.getTime())) return;
 
-    // Validate date range: 2023-06-01 to 2023-12-31 (V6 SatSwap 14-Year Model Window)
+    // Validate date range: 2023-01-10 to 2023-12-31 (V6 SatSwap 14-Year Model Window)
     const minValidDate = WINDOW_START_DATE;
     const maxValidDate = WINDOW_END_DATE;
 
     if (selectedDate < minValidDate || selectedDate > maxValidDate) {
-      showRegionNotice('Date outside active model window: Currently serving the 14-year model for June–December 2023. Please select a date between 2023-06-01 and 2023-12-31.', 'warning');
+      showRegionNotice('Date outside active model window: Currently serving the 14-year model for 2023 (Jan 10 – Dec 31). Please select a date between 2023-01-10 and 2023-12-31.', 'warning');
       nativeDatePicker.value = hasSelectedDate ? dateToISO(dayIndexToDate(parseInt(dateSlider.value, 10))) : '';
       return;
     }
@@ -1817,7 +1818,7 @@ function checkAndRefreshHeatmap() {
     const startTempTime = Date.now();
     console.log(`[OceanEmbed API] GET /temperature-grid started for date=${dateStr}&depth=${depth}`);
 
-    fetch(`${API_BASE}/temperature-grid?date=${dateStr}&depth=${depth}`, {
+    fetch(`${API_BASE}/temperature-grid?date=${dateStr}&depth=${depth}&corrected=true`, {
       signal: heatmapController ? heatmapController.signal : undefined
     })
       .then(res => {
@@ -2855,9 +2856,7 @@ function buildChart(prediction) {
 
   const borderWidths = depths.map((_, i) => 1.5 + 1.5 * (i / (n - 1)));
 
-  const chartLabel = (prediction && prediction.raw)
-    ? 'Temperature (Raw Unsmoothed)'
-    : 'Temperature — Argo-bias-corrected (fit on 2021-23 Argo, scored on unseen 2023 profiles)';
+  const chartLabel = 'Temperature — Argo-bias-corrected';
 
   const chartData = [];
   for (let i = 0; i < depths.length; i++) {
@@ -3172,9 +3171,9 @@ document.getElementById('btn-cast').addEventListener('click', function () {
   const dateObj = dayIndexToDate(dayIdx);
   const dateStr = dateToISO(dateObj);
 
-  // Date guard — V6 SatSwap 14-Year Model Active Window (2023-06-01 to 2023-12-31)
+  // Date guard — V6 SatSwap 14-Year Model Active Window (2023-01-10 to 2023-12-31)
   if (dayIdx < WINDOW_START_DAY || dayIdx > WINDOW_END_DAY) {
-    showRegionNotice('Date outside active model window: Currently serving the 14-year model for June–December 2023. Please select a date between 2023-06-01 and 2023-12-31.', 'warning');
+    showRegionNotice('Date outside active model window: Currently serving the 14-year model for 2023 (Jan 10 – Dec 31). Please select a date between 2023-01-10 and 2023-12-31.', 'warning');
     return;
   }
 
@@ -3192,14 +3191,11 @@ document.getElementById('btn-cast').addEventListener('click', function () {
   // Clear stale prediction data and show in-flight "Generating prediction..." loading state
   clearPreviousPredictionUI();
 
-  const rawToggle = document.getElementById('toggle-raw-profile');
-  const isRaw = Boolean(rawToggle && rawToggle.checked);
-
   if (USE_MOCK) {
     // ── Offline dev fallback ─────────────────────────────────
     setTimeout(function () {
       if (reqId !== currentPredictRequestId) return;
-      const prediction = mockPredict(lat, lon, dateStr, isRaw);
+      const prediction = mockPredict(lat, lon, dateStr, false);
       renderPrediction(prediction, lat, lon, dateObj);
     }, 620);
     return;
@@ -3207,7 +3203,7 @@ document.getElementById('btn-cast').addEventListener('click', function () {
 
   // ── Real inference via FastAPI backend with 90s timeout ──────
   const startTime = Date.now();
-  console.log(`[OceanEmbed API] POST /predict started for (${lat.toFixed(3)}, ${lon.toFixed(3)}) on ${dateStr}${isRaw ? ' (raw=true)' : ''}`);
+  console.log(`[OceanEmbed API] POST /predict started for (${lat.toFixed(3)}, ${lon.toFixed(3)}) on ${dateStr} (corrected=true)`);
 
   currentPredictController = typeof AbortController !== 'undefined' ? new AbortController() : null;
   currentPredictTimeoutId = currentPredictController ? setTimeout(() => currentPredictController.abort(), API_REQUEST_TIMEOUT_MS) : null;
@@ -3218,12 +3214,11 @@ document.getElementById('btn-cast').addEventListener('click', function () {
     window.simulateBackendDown === true
   );
   const baseEndpoint = shouldSimulateDown ? 'http://localhost:9999/predict' : `${API_BASE}/predict`;
-  const predictEndpoint = isRaw ? `${baseEndpoint}?raw=true` : baseEndpoint;
 
-  fetch(predictEndpoint, {
+  fetch(baseEndpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ latitude: lat, longitude: lon, date: dateStr, raw: isRaw }),
+    body: JSON.stringify({ latitude: lat, longitude: lon, date: dateStr, corrected: true, raw: false }),
     signal: currentPredictController ? currentPredictController.signal : undefined,
   })
     .then(function (res) {

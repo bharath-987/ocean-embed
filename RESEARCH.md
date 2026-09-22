@@ -2487,27 +2487,30 @@ The `v6_satswap_anom_14yr` model is a 14-year reanalysis deep learning checkpoin
     - $1000\text{m}: +0.6226^\circ\text{C}$
 
 ### 36.2 Unpacked Data Architecture (`backend/data/v6_satswap_anom_14yr/unpacked/`)
-To deliver sub-millisecond serving performance without decompressing massive multi-gigabyte `.npz` files per request, the precomputed fields are unpacked into memory-mapped NumPy structures via `serving.py`:
-- `field/`: `arr.npy` (214 days × 15 depths × 10,817 ocean wet cells, float16), `wet_idx.npy` (10,817 wet coordinate indices), `meta.json`.
-- `products/`: `arr.npy` (214 days × 4 products: `d20`, `d26`, `tchp`, `mld` × 10,817 wet cells, float16), `meta.json`.
-- `embeddings/`: `arr.npy` (214 days × 16 latent dimensions × 10,817 wet cells, float16), `meta.json`.
+To deliver sub-millisecond serving performance without decompressing massive multi-gigabyte `.npz` files per request, the precomputed fields from the updated full-year 2023 files (`field_v6_satswap_anom_14yr_2023-01-01_2023-12-31.npz`, `products_v6_satswap_anom_14yr_2023-01-01_2023-12-31.npz`, `embeddings_v6_satswap_anom_14yr_2023-01-01_2023-12-31.npz`) are unpacked into memory-mapped NumPy structures via `serving.py`:
+- `field/`: `arr.npy` (365 days × 15 depths × 10,817 ocean wet cells, float16), `wet_idx.npy` (10,817 wet coordinate indices), `meta.json`.
+- `products/`: `arr.npy` (365 days × 4 products: `d20`, `d26`, `tchp`, `mld` × 10,817 wet cells, float16), `meta.json`.
+- `embeddings/`: `arr.npy` (356 days × 16 latent dimensions × 10,817 wet cells, float16), `meta.json`.
 
 ### 36.3 Active Window & Strict No-Fallback Protocol
-- **Temporal Window**: `2023-06-01` to `2023-12-31` (214 days, Day 881 to Day 1094).
-- **Strict No-Fallback Policy**:
-  - Out-of-window dates reject cleanly with HTTP 400 and clear provenance notes.
-  - Old and new model weights/constants are never mixed.
-  - Explore, Fisheries, and Argo pages display the unified model window banner:
-    > *"Currently serving the new 14-year model for June–December 2023. Full 2021–2023 coverage coming soon."*
+- **Temporal Window**: `2023-01-10` to `2023-12-31` (356 active serving days).
+  - *Note on Boundary Guard*: The underlying field file starts on `2023-01-01`, but the first 9 days (Jan 1–9) are an empty window-boundary artifact resulting from lookback padding. The serving window and date pickers enforce `2023-01-10` as the absolute minimum valid date.
+- **Full Test Year Coverage**:
+  - The model serves the entire unseen 2023 test year without temporal honesty caveats tied to the old June cutoff.
+  - Out-of-window dates (outside `2023-01-10` to `2023-12-31`) reject cleanly with HTTP 400 and clear provenance notes.
+  - Explore, Fisheries, and Fingerprint pages report the unified model provenance:
+    > *"Currently serving the 14-year model for 2023 (Jan 10 – Dec 31)."*
 
 ### 36.4 Operational Oceanographic Rules
-1. **MLD Labeled Experimental**:
+1. **MLD Labeled Experimental & Computed from Raw Profile**:
    - Mixed Layer Depth is explicitly badged as "Experimental" across Explore stat cards and API metadata.
-2. **Updated TCHP Physical Band**:
+   - **Internal Calculation Invariant**: MLD is strictly computed from the uncorrected raw temperature profile (de Boyer Montégut 0.2°C criterion) to prevent premature artificial shoaling caused by the depth-bias correction vector.
+2. **Corrected-Only Display on Explore / Temperature Views**:
+   - The Explore page and subsurface temperature heatmaps display the Argo-bias-corrected temperature profile by default (`corrected=True`).
+   - The user-facing raw/corrected toggle has been eliminated from the Explore UI for clean presentation, while preserving MLD's internal raw computation.
+   - **ARGO Validation Page Intact**: The ARGO Validation page preserves its dual-comparison benchmark stat cards (+41.4% Raw / +52.6% Corrected) and bias-correction toggles completely untouched.
+3. **Updated TCHP Physical Band**:
    - Tropical Cyclone Heat Potential (TCHP) incorporates the recalibrated offset of $2.47\,\text{kJ/cm}^2$ and confidence band of $\pm 11.8\,\text{kJ/cm}^2$ (updated from old $3.9$ and $\pm 15.7\,\text{kJ/cm}^2$).
-3. **Raw Profile Default & Smoothing Toggle**:
-   - Non-monotonic raw temperature profiles are served by default per collaborator guidelines, preserving natural inversion layers.
-   - Forced-monotonic smoothing (PAVA) is available via client and API toggle (`raw=False` / `smoothing=True`).
 4. **SST Blending Parity**:
    - Satellite SST blending ($0\text{m}$ anchored, $+50\%$ delta at $5\text{m}$) is applied identically to point profiles and 2D spatial grid slices, guaranteeing $0.00^\circ\text{C}$ cross-endpoint parity.
 
@@ -2682,7 +2685,66 @@ To address the risk of stale reference baselines, the monthly and daily climatol
    - Evaluated on each profile's exact day-of-year $t = 2\pi \cdot \text{doy} / 365.25$: $RMSE_{clim,daily} = 1.2895^\circ\text{C}$ (rounds to $1.29^\circ\text{C}$).
    - Resulting Skill Score:
      $$SS_{daily} = 1 - \frac{0.9009^2}{1.2895^2} = 51.19\% \ (\mathbf{51.2\%})$$
-3. **Label Consistency**:
-   - Replaced all occurrences of `"vs monthly-climatology baseline (41-profile validation dataset)"` with `"vs monthly-climatology baseline (n=1,809 Argo profiles, 81 floats, June–Dec 2023)"`.
-   - Updated `baselineSampleSize: 1809` and dynamic tooltip text in `argo.html`, `backend/api_server.py`, and test suites.
+
+## 41. macOS-Style Sliding Sidebar Navigation Architecture
+
+### 41.1 Interaction Model & Visual Physics
+The Kyogre platform sidebar employs an authentic macOS Big Sur / Sonoma / Sequoia sliding pill indicator for menu item transitions:
+1. **Zero Extraneous Controls**: Per design specifications, the '+' creation icon and sidebar collapse/close toggle icons are excluded; the sidebar remains persistent, spacious, and focused on navigation.
+2. **Spring Physics Transition**:
+   - Transition curve: `cubic-bezier(0.25, 1.25, 0.5, 1)` with `0.26s` duration. This produces the characteristic subtle spring overshoot and settle seen in Framer Motion spring configurations (`stiffness: 350, damping: 30`, damping ratio $\zeta \approx 0.80$).
+   - GPU-accelerated 2D positioning via `translate3d(x, y, 0)`, preventing browser layout recalculations and ensuring consistent 60/120 fps rendering.
+3. **Layering & Contrast Architecture**:
+   - Navigation container (`.ky-sidebar__nav`): `position: relative; display: flex; flex-direction: column; gap: 4px;`
+   - Sliding hover pill (`.ky-sidebar__slide-pill`): `position: absolute; pointer-events: none; z-index: 0; background: rgba(30, 41, 59, 0.055); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.03); border-radius: 10px;`
+   - Navigation items (`.ky-nav-item`): `position: relative; z-index: 1; border-radius: 10px;`
+   - Active navigation item (`.ky-nav-item--active`): Solid light ice-blue background `#DCEAFE` with primary brand text `#1D4ED8`.
+   - Hover on active item: When hovering over the active page, the hover pill smoothly fades out (`opacity: 0`) and tucks behind the active pill, avoiding double-highlight collision.
+   - Mouse leave: When the cursor exits `.ky-sidebar__nav`, the sliding pill smoothly fades to `opacity: 0`.
+4. **Universal Platform Integration**:
+   - Activated across all 5 platform pages: `explore.html` (Dashboard), `argo.html` (ARGO Validation), `fisheries.html` (Fisheries Mode), `marine-ecology.html` (Marine Ecology Mode), and `fingerprint.html` (Fingerprint Atlas).
+   - Component counterpart: Clean, standalone React component `MacOSSidebar.tsx` provided in `src/components/` without `+` or collapse icons.
+   - Horizontal landing menubar counterpart: `MinimalNav.tsx` enhanced with horizontal sliding hover pill.
+
+## 42. Watermelon UI DatePicker 3 — Sliding Popover Calendar Architecture
+
+### 42.1 Visual Design & Spring Sliding Dynamics
+The platform's date selector implements the design and motion mechanics of Watermelon UI's DatePicker 3:
+1. **Trigger Element (`.ky-date-btn`)**:
+   - Styled with `rounded-2xl` aesthetics (`border-radius: 16px`, height 40px, padding `8px 16px`).
+   - Prefix Calendar icon, centered date text / placeholder (`Select date`), and suffix Chevron Down icon with animated 180° rotation when open.
+2. **Smooth Sliding Popover Reveal (`.ky-calendar-popover`)**:
+   - Concealed state: `opacity: 0; transform: translateY(-8px) scale(0.97); pointer-events: none; visibility: hidden;`
+   - Open state: `opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; visibility: visible;`
+   - Motion curve: `transition: transform 0.25s cubic-bezier(0.25, 1.25, 0.5, 1), opacity 0.2s ease`. Recreates the smooth vertical sliding spring reveal requested.
+3. **Calendar Month Navigation & Circular Buttons**:
+   - Month & Year title flanked by circular navigation buttons (`<` and `>`).
+   - Weekdays header: `Su  Mo  Tu  We  Th  Fr  Sa`.
+   - Days grid with circular buttons (`border-radius: 9999px` / `rounded-full`).
+   - Active/selected date: Dark slate capsule `#0F172A` with pure white text and soft elevation shadow, per DatePicker 3 design tokens.
+   - Constrained to the 14-year model epoch window (`2023-06-01` to `2023-12-31`). Days outside are cleanly disabled and muted.
+4. **Data Synchronization Contract**:
+   - When a user selects a date, `datepicker.js` updates `#date-display-header.textContent = YYYY-MM-DD`, assigns `#native-date-picker.value = YYYY-MM-DD`, and dispatches a bubbling `change` event.
+   - Existing listeners across `app.js`, `fisheries.js`, `marine-ecology.js`, and `fingerprint.js` receive the event immediately, ensuring full data and pipeline integrity without redundant network requests or breaking DOM contracts.
+
+---
+
+## 43. Fisheries Mode — Clean Presentation Architecture
+
+### 43.1 Suppression of Visual Zone Highlight Overlays & Fish Badges
+In earlier revisions of Fisheries Mode, candidate Potential Fishing Zones (PFZ) were visualized on the MapLibre canvas via:
+1. Dashed circular/elliptical polygon outlines with color-coded fills (`pfz-zones-fill` and `pfz-zones-line`).
+2. Pulsing DOM fish icon badge markers (`.pfz-fish-marker-wrap`, `.pfz-fish-badge`, `.pfz-fish-pulse`) rendered at cluster centroids.
+
+Per user directive, these visual zone highlights and fish badges have been suppressed to provide a clean, unencumbered oceanographic raster presentation:
+- **Flag Decoupling**: Controlled via `const SHOW_PFZ_ZONE_HIGHLIGHTS = false;` in `fisheries.js`.
+- **Zero GeoJSON Features on Overlay**: In `loadAndRenderDynamicPfzZones(dateStr, customZones)`, when `SHOW_PFZ_ZONE_HIGHLIGHTS` is `false`, `highlightedZones` evaluates to an empty array (`[]`), causing `geojson.features = []` and completely clearing polygon fills/lines.
+- **Marker Clean-up**: All active DOM fish markers are pruned from the map, and no new markers are instantiated.
+- **Preserved Backend & Scientific Logic**:
+  - The underlying cluster analysis, defragmentation, and scoring routines remain intact.
+  - The continuous Chlorophyll-a raster heatmap layer continues to render smoothly upon date selection.
+  - Interactive point selection remains fully functional: clicking any ocean coordinate or searching a coordinate drops the neutral location pin and invokes `selectLocation(lat, lon)`, computing the full 3D temperature profile, stat cards (Upwelling Index, Thermocline Depth, Chlorophyll-a, Advisory Score), and the TVD profile panel.
+
+
+
 

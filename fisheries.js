@@ -48,11 +48,16 @@ const DEPTH_LEVELS = [0, 25, 50, 100, 200, 300, 500, 750, 1000];
 
 /**
  * Candidate zone visibility filter threshold.
- * Controls the minimum advisory tier that auto-renders dashed polygon outlines
- * and pulsing fish markers on the map overlay.
+ * Controls the minimum advisory tier that qualifies candidate zones.
  * Single named constant: set to 'elevated' for >=0.70 only; 'moderate' includes >=0.40; 'low' includes all.
  */
 const HIGHLIGHT_MIN_TIER = 'elevated';
+
+/**
+ * Controls whether candidate zones and fish markers are rendered as highlighted map overlays.
+ * Disabled (false) per user directive to keep map clear of circular dashed highlights and fish icons.
+ */
+const SHOW_PFZ_ZONE_HIGHLIGHTS = false;
 
 const TIER_THRESHOLDS = {
   elevated: 0.70,
@@ -218,6 +223,9 @@ function updateEmptyStatePrompt() {
     if (coordBadge) coordBadge.textContent = '—';
     resetStatCards('Select a location on the map');
   }
+
+  const modelBadge = document.getElementById('fisheries-model-badge');
+  if (modelBadge) modelBadge.style.display = 'none';
 }
 
 function revealTvdPanel() {
@@ -761,9 +769,8 @@ async function loadAndRenderDynamicPfzZones(dateStr, customZones) {
     }
 
     // Filter candidate zones for map overlay:
-    // Only render polygon outlines and pulsing fish markers for zones meeting HIGHLIGHT_MIN_TIER
-    // (default: pfz_index >= 0.70, Elevated tier) and with NO data quality corruption flags.
-    const highlightedZones = zones.filter(z => shouldHighlightZone(z));
+    // Highlighted circular regions and pulsing fish markers on map disabled per user directive
+    const highlightedZones = SHOW_PFZ_ZONE_HIGHLIGHTS ? zones.filter(z => shouldHighlightZone(z)) : [];
 
     // 1. Update MapLibre GeoJSON Source (PFZ dashed polygon outlines)
     const geojson = {
@@ -1441,6 +1448,18 @@ async function selectLocation(lat, lon, zoomTo = true) {
     const data = await res.json();
     const elapsed = Date.now() - startTime;
     console.log(`[Fisheries API] POST /predict succeeded in ${elapsed}ms (${(elapsed / 1000).toFixed(2)}s)`);
+
+    // Update per-result model badge
+    const modelName = data.data_source || data.model_name || 'model_v6_satswap_anom_14yr';
+    const is14Yr = modelName.includes('14yr');
+    const fBadge = document.getElementById('fisheries-model-badge');
+    if (fBadge) {
+      fBadge.textContent = is14Yr ? '14-Year Model' : 'Baseline Model';
+      fBadge.className = is14Yr ? 'ky-provenance-pill ky-provenance-pill--model' : 'ky-provenance-pill ky-provenance-pill--heuristic';
+      fBadge.title = `Served by: ${modelName}${data.provenance ? ` — ${data.provenance}` : ''}`;
+      fBadge.style.display = 'inline-flex';
+    }
+
     const modelDepths = data.depths || [0, 5, 10, 20, 30, 50, 75, 100, 125, 150, 200, 300, 500, 700, 1000];
     const modelTemps = data.temps;
     const indices = data.indices || {};
@@ -1889,6 +1908,7 @@ function initControls() {
 
   if (nativePicker && dateBtn) {
     dateBtn.addEventListener('click', () => {
+      if (document.querySelector('.ky-calendar-popover')) return;
       if (typeof nativePicker.showPicker === 'function') {
         nativePicker.showPicker();
       } else {
@@ -1909,8 +1929,8 @@ function initControls() {
         updateEmptyStatePrompt();
         return;
       }
-      if (val < '2023-06-01' || val > '2023-12-31') {
-        alert('Please select a date between 2023-06-01 and 2023-12-31 (Currently serving the new 14-year model for June–December 2023. Full 2021–2023 coverage coming soon).');
+      if (val < '2023-01-10' || val > '2023-12-31') {
+        alert('Please select a date between 2023-01-10 and 2023-12-31 (Currently serving the 14-year model for 2023).');
         nativePicker.value = currentDateStr || '2023-09-04';
         return;
       }
@@ -1950,6 +1970,7 @@ if (typeof window !== 'undefined') {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     HIGHLIGHT_MIN_TIER,
+    SHOW_PFZ_ZONE_HIGHLIGHTS,
     checkTemperatureDataQuality,
     scoreCandidateZone,
     shouldHighlightZone,
@@ -1974,6 +1995,7 @@ if (typeof module !== 'undefined' && module.exports) {
 }
 if (typeof window !== 'undefined') {
   window.HIGHLIGHT_MIN_TIER = HIGHLIGHT_MIN_TIER;
+  window.SHOW_PFZ_ZONE_HIGHLIGHTS = SHOW_PFZ_ZONE_HIGHLIGHTS;
   window.checkTemperatureDataQuality = checkTemperatureDataQuality;
   window.scoreCandidateZone = scoreCandidateZone;
   window.shouldHighlightZone = shouldHighlightZone;

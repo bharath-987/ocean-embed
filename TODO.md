@@ -4,6 +4,100 @@
 > **MANDATORY PROTOCOL**: This file **MUST** be updated after **EVERY SINGLE TASK** without exception or user reminder.
 > Record status, files changed, and verification evidence for every item.
 
+- [x] **Task: Remove Map Highlighted Regions & Fish Icon Markers in Fisheries Mode** `[Completed 2026-09-22 21:05]`
+  - **Item 1: Suppress Dashed Polygon Outlines & Fish Badges on Fisheries Map**:
+    - Introduced `SHOW_PFZ_ZONE_HIGHLIGHTS = false` in `fisheries.js` (exported to `module.exports` and `window.SHOW_PFZ_ZONE_HIGHLIGHTS`).
+    - In `loadAndRenderDynamicPfzZones`, ensured `highlightedZones = SHOW_PFZ_ZONE_HIGHLIGHTS ? zones.filter(z => shouldHighlightZone(z)) : []`.
+    - When `SHOW_PFZ_ZONE_HIGHLIGHTS` is false:
+      - GeoJSON features are emptied (`geojson.features = []`), immediately clearing any dashed circular/elliptical zone outlines (`pfz-zones-fill` and `pfz-zones-line`) from the MapLibre map.
+      - Removed all existing HTML fish badge markers from the map and skipped rendering any new fish icon markers (`activeFishMarkers`).
+  - **Item 2: Preserve Core Clustering, Chlorophyll Heatmap & Point Interaction**:
+    - Maintained full cluster detection, scoring algorithms, and backend `/pfz-grid` evaluation.
+    - Preserved continuous chlorophyll-a raster heatmap overlay on date selection.
+    - Maintained pin drop and profile analysis on user map click or search location lookup (`selectLocation(lat, lon)`), populating the TVD graph, table, and stat cards.
+  - **Item 3: Test Verification**:
+    - Updated `test_fisheries.js` section 19 to assert zero highlighted zone features and zero fish markers on map load.
+    - Ran full verification suite: `test_fisheries.js` (100% pass across all 21 sections), `test_datepicker.js` (100% pass), `test_sliding_sidebar.js` (100% pass), `test_argo_page.js` (100% pass), `test_marine_ecology.js` (100% pass), `test_stat_card_outputs.js` (100% pass).
+
+- [x] **Task: Integrate 3 New Drop-In Data Files, Widen Date Range (2023-01-10 to 2023-12-31), & Show Corrected-Only on Explore** `[Completed 2026-09-22 20:35]`
+  - **Item 1: Drop-In Data Integration & Unpacking**:
+    - Replaced `field`, `products`, and `embeddings` with Ajay's 14-year `2023-01-01_2023-12-31.npz` files in `backend/data/v6_satswap_anom_14yr/`.
+    - Unpacked `field` (365 days × 15 depths × 10,817 wet cells), `products` (365 days × 4 products × 10,817 wet cells), and `embeddings` (356 days × 16 dims × 10,817 wet cells) into `unpacked/`.
+    - Updated `backend/fetch_data.py` with the exact filenames and file byte sizes.
+  - **Item 2: Widen Model Date Range (Jan 10 – Dec 31, 2023)**:
+    - Set date picker min to `2023-01-10` and max to `2023-12-31` (guarding initial 9-day artifact window) across `datepicker.js`, `explore.html`, `fisheries.html`, and `fingerprint.html`.
+    - Updated `WINDOW_START = "2023-01-10"` and `WINDOW_END = "2023-12-31"` in `v6_adapter.py`.
+    - Updated UI text and notifications referencing "June–December 2023" to the full 2023 range across Explore, Fisheries, and Fingerprint.
+    - Removed temporal honesty caveats tied to the old June cutoff.
+  - **Item 3: Show Corrected-Only on Explore / Temperature Views**:
+    - Defaulted `corrected=True` on Explore page and backend `/predict` & `/temperature-grid` endpoints.
+    - Removed `#toggle-raw-profile` and `#raw-profile-note` from Explore page UI.
+    - Enforced invariant: MLD continues to compute internally from raw temperature profile (de Boyer Montégut criterion) to prevent premature artificial shoaling.
+    - **Confirmed ARGO Validation Page Untouched**: The ARGO Validation benchmark stat cards (Raw +41.4% headline, Corrected +52.6%) and toggles were preserved completely untouched.
+  - **Item 4: Rigorous Verification Matrix Passed**:
+    - Backend Endpoints:
+      - `/predict` at `2023-01-10`: **HTTP 200** (`corrected: true`, `raw: false`, `mld: 64.31`, `d20: 144.25`).
+      - `/predict` at `2023-01-09` (out of window): **HTTP 400** (`Date 2023-01-09 is outside the active model window (2023-01-10 to 2023-12-31)`).
+      - `/predict` at `2023-12-31`: **HTTP 200** (`corrected: true`, `raw: false`).
+      - `/temperature-grid` at `2023-01-10` (0m, 200m, 1000m): **HTTP 200** (`corrected: true`).
+      - `/parameter-grid` at `2023-01-10` (sst, ssh, sss, sla, current, wind): **All HTTP 200** (101 grid rows).
+      - `/argo/summary`: **HTTP 200** (`rmseCorrected: 0.901`, `skillScorePct: 41.4`, `secondarySkillScorePct: 52.6`).
+    - Test Suites:
+      - `node test_datepicker.js`: **PASS (40/40 assertions passed, 100%)**.
+      - `node test_sliding_sidebar.js`: **PASS (36/36 assertions passed, 100%)**.
+      - `node test_argo_page.js`: **PASS (149/149 assertions passed, 100%)**.
+      - `node test_fisheries.js`: **PASS (100%)**.
+      - `node test_marine_ecology.js`: **PASS (157/157 assertions passed, 100%)**.
+      - `node test_stat_card_outputs.js`: **PASS (100%)**.
+      - `test_argo_cycle_sync.js`, `test_argo_metric_verify.js`, `test_argo_skill_score.js`, `test_d20_card.js`, `test_d26_card.js`: **All PASS (100%)**.
+
+
+- [x] **Task: Implement Smooth Sliding DatePicker Popover Calendar (DatePicker 3 Style)** `[Completed 2026-09-22 19:22]`
+  - **Item 1: DatePicker Popover Markup & Sliding CSS in `style.css`**:
+    - Designed `.ky-calendar-popover` styled directly after Watermelon UI DatePicker 3: `rounded-2xl` card (`border-radius: 18px`), elevation shadow, and smooth vertical sliding spring reveal (`opacity 0 -> 1`, `transform: translateY(-8px) scale(0.97) -> translateY(0) scale(1)` with `cubic-bezier(0.25, 1.25, 0.5, 1)`).
+    - Styled circular day buttons (`border-radius: 9999px` / `rounded-full`), dark slate active circle (`#0F172A`), and chevron down animation on trigger.
+  - **Item 2: Universal DatePicker Controller (`datepicker.js`)**:
+    - Implemented full month navigation, model window clamping (`2023-06-01` to `2023-12-31`), outside click dismissal, and escape key listener.
+    - Synchronized with `#date-display-header` and `#native-date-picker` (dispatching bubbling `change` event to trigger real-time model and TVD updates).
+  - **Item 3: Integration Across Platform Pages**:
+    - Wired script into `explore.html`, `fisheries.html`, `marine-ecology.html`, and `fingerprint.html`.
+    - Strictly preserved `<span id="date-display-header">Select date</span>` placeholder and `#ky-date-btn`.
+  - **Item 4: Standalone React Component (`DatePicker3.tsx`)**:
+    - Created [src/components/DatePicker3.tsx](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/src/components/DatePicker3.tsx) with inline SVGs, sliding popover calendar, and zero external icon dependencies.
+    - Production bundle recompiled via `node build.js` in 128ms.
+  - **Item 5: Rigorous Verification Matrix**:
+    - `node test_datepicker.js`: **PASS (40/40 assertions passed, 100%)**.
+    - `node test_sliding_sidebar.js`: **PASS (36/36 assertions passed, 100%)**.
+    - `node test_fisheries.js`: **PASS (100%)**.
+    - `node test_marine_ecology.js`: **PASS (157/157 assertions passed, 100%)**.
+    - `node test_argo_page.js`: **PASS (149/149 assertions passed, 100%)**.
+    - `node test_stat_card_outputs.js`: **PASS (100%)**.
+    - `node verify_landing_page.js`: **PASS (41/41 assertions passed, 100%)**.
+
+- [x] **Task: Implement macOS-Style Sliding Sidebar Navigation Effect Across Platform** `[Completed 2026-09-22 18:57]`
+  - **Item 1: Sliding Pill Styling in `style.css`**:
+    - Added `.ky-sidebar__slide-pill` with authentic macOS spring transition physics: `cubic-bezier(0.25, 1.25, 0.5, 1)` with `0.26s` duration.
+    - Set up z-index layering (`.ky-sidebar__slide-pill` at `z-index: 0`, `.ky-nav-item` content at `z-index: 1`).
+    - Added `.ky-sidebar__nav.has-sliding-pill` rules to seamlessly suppress instant static hover backgrounds while preserving active `#DCEAFE` contrast.
+  - **Item 2: Universal Sliding Sidebar Script (`sidebar-nav.js`)**:
+    - Built lightweight, zero-dependency `sidebar-nav.js` with hardware-accelerated `translate3d(x, y, 0)` sliding positioning.
+    - Added smooth glide between menu items, auto-fade when hovering over already-active item, and fade-out on mouseleave / focusout.
+    - Linked script across all 5 platform pages: `explore.html`, `argo.html`, `fisheries.html`, `marine-ecology.html`, and `fingerprint.html`.
+  - **Item 3: Clean React Component (`MacOSSidebar.tsx`)**:
+    - Created [src/components/MacOSSidebar.tsx](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/src/components/MacOSSidebar.tsx) without `+` create icon and without sidebar collapse/close toggle icon per user requirement.
+    - Implemented fluid macOS spring sliding hover pill and active selection state.
+  - **Item 4: Landing Page Menubar Sliding Hover (`MinimalNav.tsx`)**:
+    - Enhanced [src/components/landing/MinimalNav.tsx](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/src/components/landing/MinimalNav.tsx) with horizontal sliding hover pill effect across `EXPLORE`, `ARGO`, `ABOUT`.
+    - Recompiled production bundle via `node build.js` in 125ms.
+  - **Item 5: Rigorous Verification Matrix**:
+    - `node test_sliding_sidebar.js`: **PASS (36/36 assertions passed, 100%)**.
+    - `node test_argo_page.js`: **PASS (149/149 assertions passed, 100%)**.
+    - `node test_marine_ecology.js`: **PASS (157/157 assertions passed, 100%)**.
+    - `node test_fisheries.js`: **PASS (100%)**.
+    - `node test_stat_card_outputs.js`: **PASS (100%)**.
+    - `node verify_landing_page.js`: **PASS (41/41 checks passed, 100%)**.
+    - Backend endpoints (`/predict`, `/temperature-grid`, `/parameter-grid`): **PASS (All HTTP 200)**.
+
 - [x] **Task: Push White Theme Landing Page & 3D Ocean Viewport to `main` and `ui-sample` (Zero Push to `master`)** `[Completed 2026-09-22 10:31]`
   - **Item 1: Rigorous Pre-Commit Verification Matrix Passed**:
     - Build: `npm run build` compiled production bundle `dist/kyogre-app.js` in 128ms with zero errors.

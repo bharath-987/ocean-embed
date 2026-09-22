@@ -37,6 +37,7 @@ function initDateControls() {
 
   if (dateBtn && datePicker) {
     dateBtn.addEventListener('click', () => {
+      if (document.querySelector('.ky-calendar-popover')) return;
       if (typeof datePicker.showPicker === 'function') {
         datePicker.showPicker();
       } else {
@@ -47,8 +48,8 @@ function initDateControls() {
     datePicker.addEventListener('change', (e) => {
       const newDate = e.target.value;
       if (!newDate) return;
-      if (newDate < '2023-06-01' || newDate > '2023-12-31') {
-        alert('Date outside active window: Currently serving the 14-year model for June–December 2023.');
+      if (newDate < '2023-01-10' || newDate > '2023-12-31') {
+        alert('Date outside active window: Currently serving the 14-year model for 2023 (Jan 10 – Dec 31).');
         e.target.value = currentDate;
         return;
       }

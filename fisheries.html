@@ -62,7 +62,7 @@
               <polyline points="6,9 12,15 18,9"/>
             </svg>
           </button>
-          <input type="date" id="native-date-picker" min="2023-06-01" max="2023-12-31" value="" class="ky-hidden-date-input" aria-label="Choose date" />
+          <input type="date" id="native-date-picker" min="2023-01-10" max="2023-12-31" value="" class="ky-hidden-date-input" aria-label="Choose date" />
         </div>
 
         <div class="ky-live-indicator">
@@ -364,8 +364,11 @@
 
               <!-- Coordinate Bar directly below tabs -->
               <div class="ky-tvd-coord-bar">
-                <span class="ky-tvd-coord-label">Selected Location</span>
-                <span class="ky-tvd-loc-inline" id="selected-loc-coord">—</span>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <span class="ky-tvd-coord-label">Selected Location</span>
+                  <span class="ky-tvd-loc-inline" id="selected-loc-coord">—</span>
+                </div>
+                <span id="fisheries-model-badge" class="ky-provenance-pill ky-provenance-pill--model" style="display: none; font-size: 10px;">14-Year Model</span>
               </div>
 
               <!-- EMPTY state (shown until both location and date are selected) -->
@@ -433,6 +436,8 @@
   <!-- end app -->
 
   <script src="coastline.js"></script>
+  <script src="sidebar-nav.js"></script>
+  <script src="datepicker.js"></script>
   <script src="fisheries.js"></script>
 </body>
 </html>

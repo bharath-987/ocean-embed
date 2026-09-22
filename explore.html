@@ -62,7 +62,7 @@
               <polyline points="6,9 12,15 18,9"/>
             </svg>
           </button>
-          <input type="date" id="native-date-picker" min="2023-06-01" max="2023-12-31" value="" class="ky-hidden-date-input" aria-label="Choose date" />
+          <input type="date" id="native-date-picker" min="2023-01-10" max="2023-12-31" value="" class="ky-hidden-date-input" aria-label="Choose date" />
         </div>
 
         <div class="ky-live-indicator">
@@ -469,18 +469,6 @@
                 <button class="ky-tvd-toggle__btn" id="tvd-btn-graph">Graph</button>
               </div>
 
-              <!-- Raw vs Smoothed Profile Mode Toggle (Default: Raw non-monotonic per Ajay's rule) -->
-              <div class="ky-tvd-raw-toggle-wrap" style="padding: 6px 16px 4px 16px; display: flex; flex-direction: column; gap: 4px;">
-                <label class="ky-tvd-raw-toggle-label" for="toggle-raw-profile" title="Toggle between raw non-monotonic model output and forced-monotonic smoothing">
-                  <input type="checkbox" id="toggle-raw-profile" class="ky-tvd-raw-checkbox" checked />
-                  <span style="font-size: 12px; color: #475569; font-weight: 500;">Show raw model output (unsmoothed)</span>
-                </label>
-                <div id="raw-profile-note" class="ky-tvd-raw-note" style="display: flex;">
-                  <span class="ky-tvd-raw-note__icon">ⓘ</span>
-                  <span>Raw view displays unsmoothed model output. Natural subsurface temperature inversions are preserved.</span>
-                </div>
-              </div>
-
               <!-- Loading spinner -->
               <div id="result-loading" style="display:none;" class="ky-tvd-loading">
                 <div class="sonar-wrap">
@@ -546,7 +534,7 @@
                       <!-- Populated when location + date are chosen -->
                     </tbody>
                   </table>
-                  <p class="ky-tvd-table-note"><em>V6 SatSwap 14-Year Model (June–Dec 2023). MLD is Experimental. TCHP band is ±11.8 kJ/cm².</em></p>
+                  <p class="ky-tvd-table-note"><em>V6 SatSwap 14-Year Model (2023). MLD is Experimental. TCHP band is ±11.8 kJ/cm² (75% band).</em></p>
                 </div>
 
                 <!-- Preserved hidden containers for app.js data integrity without cluttering UI -->
@@ -576,6 +564,8 @@
   <!-- end app -->
 
   <script src="coastline.js"></script>
+  <script src="sidebar-nav.js"></script>
+  <script src="datepicker.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

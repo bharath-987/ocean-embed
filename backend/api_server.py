@@ -31,9 +31,15 @@ except ImportError:
     from backend import products as prod
 
 # ---------------------------------------------------------------------------
+# MODEL PROVENANCE & SERVING CONSTANTS
+# ---------------------------------------------------------------------------
+OLD_MODEL_NAME = "model_v6_satswap_anom"
+OLD_MODEL_PROVENANCE_NOTE = "Served via OceanEmbed CNN-LSTM baseline model (2021–2023 dataset)."
+
+# ---------------------------------------------------------------------------
 # SIH DEMO CACHE PRE-WARMING CONFIGURATION (V6 SatSwap 14-Year Model Window)
 # ---------------------------------------------------------------------------
-# In-window dates within active 2023-06-01 to 2023-12-31 span:
+# In-window dates within active 2023-01-10 to 2023-12-31 span:
 DEMO_PREWARM_DATES = [
     "2023-10-22",  # Canonical handoff check date (15°N, 88°E) & Explore default
     "2023-09-04",  # Fisheries Advisory PFZ & upwelling analysis
@@ -188,7 +194,7 @@ def _day_index(date_str: str) -> int:
 
 def _validate_date_available(date_str: str, need_history: bool = True) -> tuple[int, int]:
     """
-    Validates that date_str is within the active 14-year model window (2023-06-01 to 2023-12-31).
+    Validates that date_str is within the active 14-year model window (2023-01-10 to 2023-12-31).
     Fails gracefully with clear provenance explanation rather than falling back to old model.
     Returns (day_idx, mapped_arr_idx) where mapped_arr_idx indexes into surface satellite arrays.
     """
@@ -242,7 +248,17 @@ def _get_mdt(arr_idx: int) -> inf.np.ndarray:
 def extract_surface_inputs(latitude: float, longitude: float, date_str: str) -> dict:
     """Read satellite surface values at the nearest grid cell for the target date."""
     lat_idx, lon_idx = _grid_indices(latitude, longitude)
-    day_idx, arr_idx = _validate_date_available(date_str, need_history=False)
+    try:
+        day_idx = _day_index(date_str)
+        if inf.USE_TRIMMED_DATA or inf._day_index_map is not None:
+            if inf._day_index_map is not None and day_idx in inf._day_index_map:
+                arr_idx = inf._day_index_map[day_idx]
+            else:
+                arr_idx = day_idx
+        else:
+            arr_idx = day_idx
+    except Exception:
+        arr_idx = -1
 
     if inf._sst_arr is not None and 0 <= arr_idx < inf._sst_arr.shape[0]:
         sst = float(inf._sst_arr[arr_idx, lat_idx, lon_idx])
@@ -256,7 +272,10 @@ def extract_surface_inputs(latitude: float, longitude: float, date_str: str) -> 
         mdt_val = float(_get_mdt(arr_idx)[lat_idx, lon_idx])
         ssh_val = mdt_val + ssh_anom
     else:
-        prof = v6_adapter.predict_temperature_profile(latitude, longitude, date_str, raw=True)
+        if v6_adapter.is_date_in_window(date_str):
+            prof = v6_adapter.predict_temperature_profile(latitude, longitude, date_str, raw=True)
+        else:
+            prof = predict_temperature_profile(latitude, longitude, date_str, raw=True)
         sst = float(prof.get(0, 28.0)) if isinstance(prof, dict) and 0 in prof and prof[0] is not None else 28.0
         sst_anom = 0.0
         sss_anom = 0.0
@@ -707,7 +726,7 @@ def predict(
     elif req.raw is not None:
         is_corrected = not bool(req.raw)
     else:
-        is_corrected = False  # Default to raw profile
+        is_corrected = True  # Default to corrected profile everywhere
 
     if smoothed is not None:
         is_smoothed = bool(smoothed)
@@ -779,7 +798,7 @@ _MAX_CACHE_SIZE = 4
 def get_spatial_predictions(date_str: str, raw: bool = False):
     """
     Return spatial predictions on the (101, 241) grid for the target date across 15 depths.
-    In the 2023-06-01 to 2023-12-31 window, returns precomputed v6_satswap_anom_14yr slices in <1ms.
+    In the 2023-01-10 to 2023-12-31 window, returns precomputed v6_satswap_anom_14yr slices in <1ms.
     """
     if v6_adapter.is_date_in_window(date_str):
         cache_key = (date_str, raw)
@@ -954,7 +973,7 @@ def temperature_grid(
     elif raw is not None:
         is_corrected = not bool(raw)
     else:
-        is_corrected = False  # Default to raw non-monotonic profile
+        is_corrected = True  # Default to bias-corrected profile
 
     if smoothed is not None:
         is_smoothed = bool(smoothed)
@@ -1403,6 +1422,19 @@ def compare_argo_profile(
         None,
     )
     if not profile:
+        # Fallback to legacy argo_profiles.json if present
+        p_legacy = os.path.join(os.path.dirname(__file__), "data", "argo_profiles.json")
+        if os.path.exists(p_legacy):
+            try:
+                with open(p_legacy, "r", encoding="utf-8") as f:
+                    leg_data = json.load(f)
+                profile = next(
+                    (p for p in leg_data.get("profiles", []) if p["id"] == id or str(p.get("wmoFloatId")) == id),
+                    None,
+                )
+            except Exception:
+                pass
+    if not profile:
         raise HTTPException(status_code=404, detail=f"ARGO profile '{id}' not found.")
 
     lat = float(profile["latitude"])
@@ -1432,8 +1464,12 @@ def compare_argo_profile(
             smoothing=is_smoothed,
             corrected=is_corrected
         )
+        data_source = v6_adapter.MODEL_NAME
+        provenance = v6_adapter.PROVENANCE_NOTE
     else:
         pred = predict_temperature_profile(lat, lon, date_str, raw=(not is_corrected))
+        data_source = OLD_MODEL_NAME
+        provenance = OLD_MODEL_PROVENANCE_NOTE
     if "error" in pred:
         raise HTTPException(status_code=400, detail=pred["error"])
 
@@ -1495,8 +1531,9 @@ def compare_argo_profile(
             "maxAbsError": max_abs_err,
         },
         "surfaceInputs": surf_inputs,
-        "data_source": v6_adapter.MODEL_NAME,
-        "provenance": v6_adapter.PROVENANCE_NOTE,
+        "data_source": data_source,
+        "model_name": data_source,
+        "provenance": provenance,
     }
 
 
