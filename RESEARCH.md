@@ -2686,6 +2686,13 @@ To address the risk of stale reference baselines, the monthly and daily climatol
    - Resulting Skill Score:
      $$SS_{daily} = 1 - \frac{0.9009^2}{1.2895^2} = 51.19\% \ (\mathbf{51.2\%})$$
 
+### 40.6 Epoch Conventions & ARGO Raw Label Documentation
+- **Dual Epoch Conventions in `v6_adapter.py`**:
+  1. *Serving Data Real-Date Path*: Core 3D predictions (`predict_temperature_profile`, `temperature_map`) resolve via `serving_data` using ISO date strings (`YYYY-MM-DD`) mapped directly to the unpacked 14-year `.npy` arrays.
+  2. *SST Blend Epoch Calculation*: The `(target_ts - start_ts).days` formula against `2021-01-01` is a distinct epoch convention used exclusively for indexing into `_sst_arr` during the optional satellite-SST surface blending step. It is independently bounds-checked (`0 <= d_idx < len(_sst_arr)`) and try-except guarded to safely no-op if misaligned.
+- **ARGO Validation Stat Card Clarity**:
+  - The Basin RMSE card (`#stat-argo-rmse`) explicitly features an inline `(raw)` label adjacent to the uncorrected figure (`1.00 °C (raw)`), distinguishing it from the bias-corrected metric ($0.901^\circ\text{C}$) reported in the benchmark validation breakdown.
+
 ## 41. macOS-Style Sliding Sidebar Navigation Architecture
 
 ### 41.1 Interaction Model & Visual Physics

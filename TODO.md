@@ -4,6 +4,26 @@
 > **MANDATORY PROTOCOL**: This file **MUST** be updated after **EVERY SINGLE TASK** without exception or user reminder.
 > Record status, files changed, and verification evidence for every item.
 
+- [x] **Task: Polish ARGO Validation Page Basin RMSE (Raw) Label & v6_adapter.py Epoch Clarification** `[Completed 2026-09-22 21:46]`
+  - **Item 1: Label Basin RMSE Number as Raw**:
+    - Located Basin RMSE stat card on `argo.html`.
+    - Added an explicit `(raw)` label next to `1.00 °C` in `argo.html` (`style="font-size: 12px; font-weight: 500; color: #64748B;"`) within an `align-items: baseline` container, matching the styling and color palette used across the page.
+    - Verified `git diff argo.html` is purely additive with zero logic or data changes.
+  - **Item 2: Clarify Epoch Conventions in `v6_adapter.py`**:
+    - Added clear docstrings/comments directly above the `days since 2021-01-01` calculations in `v6_adapter.py` (for both `temperature_map` SST blending and `get_satellite_sst`).
+    - Clarified that this epoch calculation is separate from `serving_data`'s real npz dates, is bounds-checked and try-except guarded, and is strictly used for indexing legacy `_sst_arr`.
+  - **Item 3: Full Test Suite Verification**:
+    - `test_argo_page.js`: **PASS (149/149 assertions, 100%)**.
+    - `test_argo_metric_verify.js`: **PASS (50/50 assertions, 100%)**.
+    - `test_argo_cycle_sync.js`: **PASS (100%)**.
+    - `test_argo_skill_score.js`: **PASS (54/54 assertions, 100%)**.
+    - `test_datepicker.js`: **PASS (40/40 assertions, 100%)**.
+    - `test_sliding_sidebar.js`: **PASS (36/36 assertions, 100%)**.
+    - `test_fisheries.js`: **PASS (100%)**.
+    - `test_marine_ecology.js`: **PASS (157/157 assertions, 100%)**.
+    - `test_stat_card_outputs.js`: **PASS (100%)**.
+    - `verify_landing_page.js`: **PASS (41/41 assertions, 100%)**.
+
 - [x] **Task: Push Everything into Master & UI-Sample Branches, Keep UI-Sample Active** `[Completed 2026-09-22 21:12]`
   - **Item 1: Verification Matrix Passed Prior to Commit**:
     - Python backend syntax checked with `py_compile`: clean.

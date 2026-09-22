@@ -89,6 +89,9 @@ def get_satellite_sst(latitude: float, longitude: float, date_str: str) -> Optio
     if _sst_arr is None:
         return None
     try:
+        # Note on epoch conventions:
+        # Separate epoch convention for indexing legacy _sst_arr (2021-01-01 start).
+        # Bounds-checked and try-except guarded; separate from serving_data's real date indexing.
         start_ts = pd.Timestamp("2021-01-01").normalize()
         target_ts = pd.Timestamp(date_str).normalize()
         d_idx = (target_ts - start_ts).days
@@ -338,6 +341,15 @@ def temperature_map(date_str: str, depth: int, corrected: bool = True, apply_sst
     m = serving_data.temperature_map(date_str, depth, corrected=corrected).copy()
     if apply_sst_blend and depth in (0, 5) and _sst_arr is not None:
         try:
+            # Note on epoch conventions:
+            # This "days since 2021-01-01" calculation is a separate epoch convention
+            # used only for indexing into _sst_arr during the satellite-SST blend step.
+            # The core prediction path (predict_temperature_profile / temperature_map via
+            # serving_data) uses real dates read directly from the unpacked npz arrays.
+            # This SST blend step is independently bounds-checked (0 <= d_idx < len(_sst_arr))
+            # and wrapped in try/except (no-ops silently if ever misaligned or missing).
+            # It is NOT a bug and should not be confused with the real date-indexing
+            # path used elsewhere in this file.
             start_ts = pd.Timestamp("2021-01-01").normalize()
             target_ts = pd.Timestamp(date_str).normalize()
             d_idx = (target_ts - start_ts).days
