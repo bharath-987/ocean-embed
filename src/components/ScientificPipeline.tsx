@@ -81,17 +81,17 @@ export const ScientificPipeline: React.FC = () => {
             transform: isRevealed ? 'translateY(0px)' : 'translateY(24px)',
           }}
         >
-          <div className="font-mono text-xs tracking-widest text-[#00f0ff]">
+          <div className="font-mono text-xs tracking-widest text-[#0E7C74]">
             SCIENTIFIC BENCHMARK &amp; ARCHITECTURAL FLOW
           </div>
-          <h2 className="text-3xl sm:text-4xl md:text-5xl font-['Space_Grotesk'] font-medium tracking-tight text-[#dbfcff]">
+          <h2 className="text-3xl sm:text-4xl md:text-5xl font-['Space_Grotesk'] font-medium tracking-tight text-[#0B1420]">
             A RECONSTRUCTION IS ONLY AS VALUABLE AS ITS VALIDATION.
           </h2>
         </div>
 
         {/* Linear Pipeline Chain */}
         <div
-          className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-6 text-xs font-mono border-y border-white/10 py-8 transition-all duration-700 ease-out"
+          className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-6 text-xs font-mono border-y border-[rgba(11,20,32,0.08)] py-8 transition-all duration-700 ease-out"
           style={{
             opacity: isRevealed ? 1 : 0,
             transform: isRevealed ? 'translateY(0px)' : 'translateY(20px)',
@@ -107,20 +107,20 @@ export const ScientificPipeline: React.FC = () => {
                 transform: isRevealed ? 'translateY(0px)' : 'translateY(12px)',
               }}
             >
-              <div className="text-[#00dbe9] text-[10px] tracking-wider font-semibold">
+              <div className="text-[#0E7C74] text-[10px] tracking-wider font-semibold">
                 {stage.step} // {stage.subtitle}
               </div>
-              <div className="text-[#dbfcff] font-bold text-sm tracking-tight group-hover:text-[#00f0ff] transition-colors">
+              <div className="text-[#0B1420] font-bold text-sm tracking-tight group-hover:text-[#0E7C74] transition-colors">
                 {stage.title}
               </div>
-              <div className="text-[#48627e] text-[11px] font-light leading-relaxed">
+              <div className="text-[#5B6B74] text-[11px] font-light leading-relaxed">
                 {stage.details}
               </div>
             </div>
           ))}
         </div>
 
-        {/* Independent Validation Metrics (Placeholders as specified) */}
+        {/* Independent Validation Metrics */}
         <div
           className="grid grid-cols-1 sm:grid-cols-3 gap-8 pt-4 transition-all duration-700 ease-out"
           style={{
@@ -130,20 +130,20 @@ export const ScientificPipeline: React.FC = () => {
           }}
         >
           {VALIDATION_METRICS.map((metric) => (
-            <div key={metric.label} className="space-y-2 p-5 rounded-xl bg-[#060d1a]/50 border border-white/5 backdrop-blur-sm hover:border-[#00f0ff]/20 transition-all">
-              <div className="text-[#48627e] text-xs font-mono tracking-wider uppercase flex items-center justify-between">
+            <div key={metric.label} className="space-y-2 p-5 rounded-xl bg-white border border-[rgba(11,20,32,0.08)] shadow-sm hover:border-[#0E7C74]/30 transition-all">
+              <div className="text-[#5B6B74] text-xs font-mono tracking-wider uppercase flex items-center justify-between">
                 <span>{metric.label}</span>
                 {metric.isPlaceholder && (
-                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/5 text-[#00dbe9] border border-white/10">
+                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#0E7C74]/10 text-[#0E7C74] border border-[#0E7C74]/20">
                     BENCHMARK
                   </span>
                 )}
               </div>
-              <div className="text-4xl sm:text-5xl font-['Space_Grotesk'] font-bold text-[#dbfcff] font-mono flex items-baseline gap-1">
+              <div className="text-4xl sm:text-5xl font-['Space_Grotesk'] font-bold text-[#0B1420] font-mono flex items-baseline gap-1">
                 <span>{metric.value}</span>
-                <span className="text-xl font-normal text-[#00f0ff]">{metric.unit}</span>
+                <span className="text-xl font-normal text-[#0E7C74]">{metric.unit}</span>
               </div>
-              <div className="text-xs text-[#94a9be] font-light leading-relaxed">
+              <div className="text-xs text-[#5B6B74] font-light leading-relaxed">
                 {metric.description}
               </div>
             </div>

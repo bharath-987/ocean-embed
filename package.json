@@ -4,10 +4,18 @@
   "description": "Satellite-derived ocean temperature depth profiles for the north Indian Ocean.",
   "scripts": {
     "dev": "serve . --listen 5500",
-    "build": "npx esbuild src/index.tsx --bundle --outfile=dist/kyogre-app.js --loader:.tsx=tsx --loader:.ts=ts --format=iife --global-name=KyogreApp --external:react --external:react-dom --external:react-dom/client \"--banner:js=var require = function(m) { if (m==='react') return window.React; if (m==='react-dom/client'||m==='react-dom') return window.ReactDOM; throw new Error('Cannot find module ' + m); };\""
+    "build": "node build.js"
   },
   "devDependencies": {
+    "@react-three/drei": "^9.122.0",
+    "@react-three/fiber": "^8.18.0",
+    "@types/react": "^18.3.1",
+    "@types/react-dom": "^18.3.1",
+    "@types/three": "^0.160.0",
     "esbuild": "^0.25.0",
-    "serve": "^14.2.3"
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "serve": "^14.2.3",
+    "three": "^0.160.1"
   }
 }

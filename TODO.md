@@ -4,6 +4,156 @@
 > **MANDATORY PROTOCOL**: This file **MUST** be updated after **EVERY SINGLE TASK** without exception or user reminder.
 > Record status, files changed, and verification evidence for every item.
 
+- [x] **Task: Push White Theme Landing Page & 3D Ocean Viewport to `main` and `ui-sample` (Zero Push to `master`)** `[Completed 2026-09-22 10:31]`
+  - **Item 1: Rigorous Pre-Commit Verification Matrix Passed**:
+    - Build: `npm run build` compiled production bundle `dist/kyogre-app.js` in 128ms with zero errors.
+    - Landing Page Verification: `verify_landing_page.js` passed 41/41 assertions (100%).
+    - ARGO Dashboard Verification: `test_argo_page.js` passed 149/149 assertions (100%).
+    - Stat Cards Verification: `test_stat_card_outputs.js` passed 100%.
+    - Backend Verification: FastAPI endpoints (`/predict`, `/temperature-grid`, `/parameter-grid`) all responding HTTP 200 OK.
+  - **Item 2: Branch Safety Directives Enforced**:
+    - Strictly avoided pushing to `master` branch per explicit user directive.
+    - Staged and committed changes on `ui-sample`.
+    - Pushed `ui-sample` branch to `origin/ui-sample`.
+    - Merged changes cleanly into `main` and pushed to `origin/main`.
+
+- [x] **Task: Switch Landing Page from Dark Theme to White Background Theme (Hero & Screen 02 Foundation)** `[Completed 2026-09-22 10:27]`
+  - **Item 1: Theme Tokens & Global Scale in `index.html`**:
+    - Changed `<html class="dark" ...>` to `<html class="light" ...>` and configured `:root` CSS custom variables: `--abyss: #FAFAFA`, `--foam: #0B1420`, `--foam-dim: #5B6B74`, `--border: rgba(11,20,32,0.08)`, `--teal: #0E7C74`, `--cyan: #00f0ff`.
+    - Updated Tailwind configuration colors for light theme: `background: #FAFAFA`, `surface: #FFFFFF`, `primary: #0B1420`, `on-surface: #0B1420`, `on-surface-variant: #5B6B74`, `outline: rgba(11,20,32,0.12)`, `outline-variant: rgba(11,20,32,0.08)`, `teal: #0E7C74`, `cyan: #00f0ff`.
+    - Body updated to `bg-[#FAFAFA] text-[#0B1420] selection:bg-[#0E7C74]/20 selection:text-[#0B1420]`.
+  - **Item 2: MinimalNav Clean-Up in `MinimalNav.tsx`**:
+    - Removed the small cyan circle/dot before `KYOGRE` brandmark per Requirement 4.
+    - Updated wordmark to `#0B1420` (Space Grotesk, bold), hover state to `#0E7C74`.
+    - Nav links (`EXPLORE`, `ARGO`, `ABOUT`) updated to `#5B6B74` with hover transition to `#0E7C74`.
+    - Refined navigation bar backdrop to `bg-[#FAFAFA]/80 backdrop-blur-md border-b border-[rgba(11,20,32,0.06)]` with responsive gap `gap-4 sm:gap-10`.
+  - **Item 3: Hero Section Redesign in `HeroSection.tsx`**:
+    - Deleted the `SIH26066 // SUBSURFACE RECONSTRUCTION` badge above the headline per Requirement 5; headline is now the first content element.
+    - Flipped headline contrast: `SEE WHAT'S` in `#0B1420`, `HIDDEN` in dark teal `#0E7C74`, `BENEATH` in `#5B6B74`, `THE OCEAN.` in `#0B1420`.
+    - Body copy recolored to `#5B6B74` (contrast ratio 4.9:1, WCAG AA pass).
+    - Primary CTA button styled in solid `#0E7C74` with white text and teal elevation glow; secondary CTA styled in white card with dark alpha border.
+    - Screen switcher pills updated to white card container with `#0E7C74` active pill styling.
+    - Telemetry bar restyled with `#0E7C74` prefix labels and `#5B6B74` values over a subtle dark alpha divider.
+  - **Item 4: 3D Ocean Canvas Viewport Framing in `OceanScene.tsx` & `HeroSection.tsx`**:
+    - Removed hardcoded solid black background from Canvas, enabling transparent clearing.
+    - Added `isContained` mode to `OceanScene.tsx`: centers 3D regional mesh with subtle interactive pointer parallax and authentic bathymetric colormap inside a dedicated viewport.
+    - Framed 3D canvas inside an intentional scientific viewport card (`rounded-2xl sm:rounded-3xl bg-[#030914] border border-[rgba(11,20,32,0.12)] shadow-[0_20px_50px_rgba(11,20,32,0.10)]`) with integrated header badge (`REGIONAL MODEL VIEWPORT // IDLE DOMAIN | 5°N–30°N, 45°E–105°E`), completely eliminating the "stray floating dark rectangle" issue per Requirement 6.
+    - Preserved bright cyan (`#00f0ff`) strictly inside the 3D canvas for ARGO float beacons, pulsing radar rings, and domain perimeter frame per Requirement 3.
+  - **Item 5: Screen 02 (Problem) Section in `App.tsx`**:
+    - Styled on `#FAFAFA` with section badge `text-[#0E7C74]`, `bg-[#0E7C74]` indicator dot, and headline `The Ocean Depth Blindspot` in `#0B1420`.
+    - Added 3 structured problem observation cards (Surface Skin Trap, Extreme Spatial Gaps, Thermal Barrier) with `bg-white`, `border-[rgba(11,20,32,0.08)]`, and high-contrast typography.
+  - **Item 6: Downstream Screens Prepared (`ApplicationsGrid.tsx`, `ScientificPipeline.tsx`, `FinalCTA.tsx`)**:
+    - Propagated white theme tokens, dark alpha borders `border-[rgba(11,20,32,0.08)]`, `#0E7C74` accents, and `#5B6B74` secondary text to the pipeline chain, use-case grid cells, and institutional footer per Requirement 1.
+  - **Item 7: Verification Matrix**:
+    - `npm run build`: **PASS (dist/kyogre-app.js compiled in 128ms with NODE_ENV=production)**.
+    - `node verify_landing_page.js`: **PASS (41/41 assertions passed, 100%)**.
+    - `node test_argo_page.js`: **PASS (149/149 assertions passed, 100%)**.
+    - `node test_stat_card_outputs.js`: **PASS (100% clean)**.
+    - Backend endpoints (`/predict`, `/temperature-grid`, `/parameter-grid`): **PASS (All responding HTTP 200)**.
+    - Visual inspection (desktop 1920×1080 and mobile 390×844): Verified clean layout balance, WCAG contrast compliance, and seamless viewport card integration.
+
+- [x] **Task: Replace Hero Globe with Regional Ocean Mesh (5°N–30°N, 45°E–105°E) for Screens 1-4 Progression** `[Completed 2026-09-21 22:38]`
+  - **Item 1: Regional Mesh Geometry in `RegionalOceanMesh.tsx`**:
+    - Replaced the procedural sphere, atmosphere rim, and orbital particle swarm with a single curved plane ($6.4 \times 2.67$ world units, $128 \times 64$ subdivisions) representing the model domain (**5°N–30°N, 45°E–105°E**, Arabian Sea + Bay of Bengal).
+    - Parabolic convex planetary curvature arching downward towards domain edges: $z(x, y) = -(x^2/18.0 + y^2/10.0)$.
+    - Gentle animated wave displacement on ocean vertices (`isOcean > 0.45`) with stable continental landmasses.
+    - Added cyan perimeter frame tracking the curved edges of the domain.
+  - **Item 2: Scientific Temperature Colormap Shading**:
+    - Scientific palette: Deep navy abyss (`#030d1f`) -> Marine blue (`#06213b`) -> Marine teal (`#0d4d5c`) -> Epipelagic cyan (`#1c737d`) -> Warm copper anomaly highlight (`#d17033`).
+    - Authentic ocean thermal structure: Southeastern Arabian Sea warm pool, Bay of Bengal warm pool, upwelling off Oman/Somalia, and meso-scale eddies.
+    - Muted dark slate continental landmass (`#070b10`) traced from Natural Earth 50m coastline rings (`COASTLINE_RINGS`) with crisp anti-aliased shoreline contouring in green channel. Zero bloom post-processing, no bright rim light.
+    - Coordinate graticules ($5^\circ$ parallels & meridians) across the marine domain.
+  - **Item 3: Multi-Screen State & Uniforms (`uSparseFactor` & `uTransition`)**:
+    - **Screen 1 (Idle State)**: `uSparseFactor = 0.0` — Smooth continuous ocean surface, full temperature gradient field across the basin, gentle wave displacement.
+    - **Screen 2 (Sparse Data State)**: `uSparseFactor = 1.0` — Active temperature telemetry and pulsing radar rings strictly localized around 18 real ARGO floats. Everywhere else, the ocean desaturates into a dark observation void with visible coordinate graticules, clearly exposing the observation gaps.
+    - **Screen 3 Uniform**: `uTransition` uniform ($0.0 \to 1.0$) wired and ready to drive gap reconstruction fill-in.
+  - **Item 4: In-Situ ARGO Profilers in `RegionalArgoMarkers.tsx`**:
+    - Plotted 18 real ARGO floats across the Arabian Sea, Gulf of Oman, Gulf of Aden, Bay of Bengal, and Andaman Sea directly onto the curved 3D mesh coordinates.
+    - Interactive beacon dot, pulsing radar halo, subsurface vertical CTD profiling stem line, and hover tooltip displaying WMO ID, coordinates, depth, and SST.
+  - **Item 5: Hero Stats Update & Interactive Mode Switcher in `HeroSection.tsx`**:
+    - Replaced `"1,809 ARGO profiles"` with `VALIDATION: 41 BASIN ARGO PROFILES`.
+    - Added interactive screen switcher pill (`[SCREEN 1: IDLE DOMAIN]` vs `[SCREEN 2: SPARSE ARGO GAPS]`).
+    - Wired URL search param support (`?screen=1` and `?screen=2`) and exposed `window.setKyogreScreenState`.
+  - **Item 6: Verification Matrix**:
+    - `node build.js`: **PASS (dist/kyogre-app.js compiled cleanly with NODE_ENV=production in 122ms)**.
+    - `node test_argo_page.js`: **PASS (149/149 assertions passed, 100%)**.
+    - `node test_stat_card_outputs.js`: **PASS (100% clean)**.
+    - Visual inspection (desktop 1920×1080 & mobile 390×844): Verified both Screen 1 (continuous domain) and Screen 2 (sparse float observation pools and desaturated gaps) with zero clipping, clean typography clearance, and fluid layout.
+
+- [x] **Task: Build Cinematic 3D Hero Section & ARGO Float Markers (Milestone 3)** `[Completed 2026-09-21 22:08]`
+  - **Item 1: Interactive ARGO Float Markers in `ArgoMarkers.tsx`**:
+    - Created [src/3d/ArgoMarkers.tsx](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/src/3d/ArgoMarkers.tsx) with 8 realistic ocean observation floats (`#2902271`, `#1901897`, etc.) mapped via spherical coordinates directly onto the globe surface.
+    - Added subtle cyan beacon core (`0.032` radius), outer pulsing halo ring, and hover-triggered minimal scientific tooltip displaying WMO ID, Lat/Lon coordinates, profile depth (up to 2000 m), SST reading, and status.
+    - Integrated markers into [src/3d/OceanGlobe.tsx](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/src/3d/OceanGlobe.tsx) to rotate with planetary axial motion.
+  - **Item 2: Scene Composition & Smooth Parallax in `OceanScene.tsx`**:
+    - Scaled globe to exactly 52vh of viewport height with camera `z: 12.2`, `fov: 42`, positioned on right 65% (`x: 3.3`), providing left column clearance for editorial typography with no clipping of the atmospheric envelope or particles.
+    - Implemented velvety smooth pointer parallax interpolation (`lerpSpeed = Math.min(delta * 2.8, 0.1)`) for subtle rotation (`0.25`) and pitch (`0.20`), automatically disabled on touch devices and when `prefers-reduced-motion` is active.
+  - **Item 3: Clean Navigation & Editorial Typography in `MinimalNav.tsx` & `HeroSection.tsx`**:
+    - Built [src/components/landing/MinimalNav.tsx](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/src/components/landing/MinimalNav.tsx) with glowing Kyogre brandmark and clean navigation links (`EXPLORE`, `ARGO`, `ABOUT`).
+    - Built [src/components/landing/HeroSection.tsx](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/src/components/landing/HeroSection.tsx) featuring large high-contrast Space Grotesk headline ("SEE WHAT'S HIDDEN BENEATH THE OCEAN."), concise AI description, premium CTA button with hover micro-motion, and restrained scientific telemetry indicators (System, Grid, and 1,809 ARGO profiles).
+    - Added floating live reconstruction status badge in bottom-right.
+    - Anchored CTA toward `#problem` (ready for future Section 02).
+  - **Item 4: App Integration in `App.tsx` & Dev UI Clean Up**:
+    - Replaced temporary development toggle pill with the polished Hero landing page while safely retaining classic mode behind `?view=classic`.
+  - **Item 5: Verification**:
+    - `npm run build`: **PASS (dist/kyogre-app.js compiled cleanly with NODE_ENV=production in 124ms)**.
+    - Verified desktop viewport (`1920x1080`): zero clipping, clean two-column editorial balance, globe centered vertically on right.
+    - Verified mobile viewport (`390x844`): intelligent vertical stack, headline first, globe below, zero horizontal overflow.
+    - `node test_argo_page.js`: **PASS (149 / 149 assertions, 100%)**.
+
+- [x] **Task: Fix Runtime R3F Mount & Polish 3D Ocean Globe Illumination (Milestone 1)** `[Completed 2026-09-21 21:55]`
+  - **Item 1: Root-Cause Investigation & Resolution of Black Screen**:
+    - Identified that `index.html` was loading production React 18 from CDN (`react.production.min.js`), while esbuild without `NODE_ENV="production"` bundled the development version of `react-reconciler` inside `@react-three/fiber`.
+    - Development reconciler expected `ReactCurrentActQueue` inside `React.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED`, throwing `Cannot read properties of undefined (reading 'current')` and aborting R3F canvas mount.
+    - Created dedicated [build.js](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/build.js) configuring `process.env.NODE_ENV: '"production"'` and updated `package.json` build script.
+    - Production reconciler now resolves cleanly with CDN React 18.
+  - **Item 2: Globe Shader & Atmospheric Illumination Tuning**:
+    - In [OceanGlobe.tsx](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/src/3d/OceanGlobe.tsx): Rich 5-tier oceanic stratification (deep abyss, bathypelagic, open ocean, continental shelf, sunlit epipelagic), dynamic fBm multi-scale bathymetric ridges, Half-Lambert wrap lighting (`diffuse * 1.55`), sharp specular highlight, and night radiance separating the sphere from background `#02060d`.
+    - In [OceanAtmosphere.tsx](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/src/3d/OceanAtmosphere.tsx): Scaled outer envelope to 2.70 radius (1.8% over globe) with soft exponential decay (`pow(limb, 2.5)`) and sunlight angle modulation, eliminating hard banding lines.
+    - In [OceanScene.tsx](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/src/3d/OceanScene.tsx): Adjusted perspective camera (`fov: 45`, `z: 6.8`) and centered globe cluster (`position: [0.75, 0.0, 0]`).
+  - **Item 3: Verification**:
+    - Headless Chrome screenshot verified: **272 KB rendered image displaying fully illuminated, rotating 3D Ocean Globe with atmospheric cyan mantle, glowing bathymetric shelves, specular sun reflection, and telemetry badge**.
+    - `node test_argo_page.js`: **PASS (149/149 assertions passed, 100%)**.
+    - `npm run build`: **PASS (dist/kyogre-app.js compiled in 118ms)**.
+
+- [x] **Task: Refine 3D Ocean Globe Visual Clarity, Lighting & Contrast (Milestone 1 Refinement)** `[Completed 2026-09-21 21:35]`
+  - **Item 1: Material & Tonal Contrast Enhancement in `OceanGlobe.tsx`**:
+    - Re-tuned 4-tier oceanic gradient: Abyssal deeps (`vec3(0.012, 0.045, 0.11)`), bathypelagic mid-ocean (`vec3(0.028, 0.115, 0.24)`), epipelagic shelf (`vec3(0.055, 0.220, 0.40)`), and illuminated surface highlights (`vec3(0.08, 0.32, 0.52)`).
+    - Added large-scale continental/ocean basin structure noise + micro-shelf fBm layering.
+    - Softened terminator transition via wrap diffuse lighting (`smoothstep(-0.25, 0.85, NdotL)`) with subtle night-side ambient radiance (`vec3(0.008, 0.025, 0.06)`) and secondary back-light rim on the dark limb to clearly separate the sphere from black space.
+    - Increased globe radius to 2.65 with 12° axial tilt and slightly faster, elegant axial rotation (`delta * 0.065`).
+  - **Item 2: Atmospheric Limb Refinement in `OceanAtmosphere.tsx`**:
+    - Re-engineered limb shader to peak at the silhouette grazing angle (`1.0 - abs(NdotV)`) with sunlight angle modulation.
+    - Tightened radius to 2.76 for a thin, soft, restrained cyan-blue envelope without overblown bloom.
+  - **Item 3: Lighting Rig & Data Particle Tuning in `OceanScene.tsx` & `OceanParticles.tsx`**:
+    - Configured directional key light from upper-left/front (`[-5, 4, 4.5]`, intensity 2.2) and cool blue fill (`[4, -2.5, -2]`, intensity 0.35).
+    - Reduced particle count to 220, scaled opacity down to 0.38, and stratified distance to 3.1–4.8 radius to prevent occlusion.
+  - **Item 4: Verification**:
+    - `npm run build`: **PASS (dist/kyogre-app.js compiled in 133ms)**.
+    - `node test_argo_page.js`: **PASS (149/149, 100%)**.
+    - `node test_stat_card_outputs.js`: **PASS (100%)**.
+
+- [x] **Task: Build Standalone 3D Ocean Globe Foundation with React Three Fiber (Milestone 1)** `[Completed 2026-09-21 21:30]`
+  - **Item 1: Dependency Installation & React 18 Compatibility**:
+    - Installed `@react-three/fiber@^8.18.0`, `@react-three/drei@^9.122.0`, `three@^0.160.1`, `react@18.3.1`, `react-dom@18.3.1`, `@types/three`, and `@types/react`.
+    - Verified `esbuild` bundles R3F and Three.js seamlessly into `dist/kyogre-app.js` (2.1 MB).
+  - **Item 2: Procedural 3D Components Created**:
+    - [OceanGlobe.tsx](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/src/3d/OceanGlobe.tsx): Procedural sphere geometry (radius 2.5) with custom GLSL shaders, 3D fractal Brownian motion (fBm) oceanic/bathymetric depth variation (abyssal trenches `#020a17` to epipelagic shelves `#0a2540`), specular gloss, and slow continuous axial rotation.
+    - [OceanAtmosphere.tsx](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/src/3d/OceanAtmosphere.tsx): Procedural Rayleigh/Mie scattering atmosphere rim with soft Fresnel grazing-angle falloff.
+    - [OceanParticles.tsx](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/src/3d/OceanParticles.tsx): Sparse 350-particle oceanic data swarm suspended in stratified orbital shells with subtle counter-rotation.
+    - [OceanScene.tsx](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/src/3d/OceanScene.tsx): Responsive full-screen R3F Canvas container with perspective camera (fov: 42), directional key + cool fill lighting, positioned slightly right (x: 1.35) occupying 40–50% viewport with negative space preserved for hero typography.
+  - **Item 3: Integration & Gating in `App.tsx`**:
+    - Integrated clean view-switcher pill permitting instant toggling between new 3D Milestone 1 view and previous classic view.
+  - **Item 4: Verification Matrix**:
+    - `npm run build`: **PASS (dist/kyogre-app.js compiled in 133ms)**
+    - `node test_argo_page.js`: **PASS (149 / 149 assertions passed, 100%)**
+    - `node test_stat_card_outputs.js`: **PASS (100% clean)**
+    - Local server response: **HTTP 200 OK on http://localhost:5500/**
+
+- [x] **Protocol: Active Working Branch Switched to `ui-sample`** `[Completed 2026-09-21 21:03]`
+  - Switched local tracking branch to `ui-sample`.
+  - Directive registered: Work exclusively on `ui-sample` branch and push only to `ui-sample`. No push to `master` without explicit prior confirmation from the user.
+
 - [x] **Task: Remove 14-Year Model Banner from Fisheries Mode and ARGO Comparison Pages** `[Completed 2026-09-21 20:10]`
   - **Item 1: Markup Removal**:
     - Removed `<div class="ky-model-window-banner">` completely from [fisheries.html](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/fisheries.html).

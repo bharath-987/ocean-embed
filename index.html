@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html class="dark" lang="en">
+<html class="light" lang="en">
 <head>
   <meta charset="utf-8" />
   <meta content="width=device-width, initial-scale=1.0" name="viewport" />
@@ -11,6 +11,24 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600&family=JetBrains+Mono:wght@300;400;500;600&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
 
+  <!-- Global Error Logger for Diagnostic Visibility -->
+  <script>
+    window.addEventListener('error', function(e) {
+      var d = document.createElement('div');
+      d.id = 'BROWSER_DIAGNOSTIC_ERROR';
+      d.style.cssText = 'position:fixed;top:0;left:0;right:0;background:rgba(200,0,0,0.95);color:white;z-index:999999;padding:16px;font-family:monospace;font-size:14px;white-space:pre-wrap;border-bottom:2px solid red;';
+      d.textContent = 'WINDOW ERROR: ' + (e.message || e.toString()) + ' at ' + (e.filename || '') + ':' + (e.lineno || '') + ':' + (e.colno || '') + '\n' + (e.error ? e.error.stack : '');
+      document.body ? document.body.appendChild(d) : document.documentElement.appendChild(d);
+    });
+    window.addEventListener('unhandledrejection', function(e) {
+      var d = document.createElement('div');
+      d.id = 'BROWSER_DIAGNOSTIC_REJECTION';
+      d.style.cssText = 'position:fixed;top:80px;left:0;right:0;background:rgba(220,100,0,0.95);color:white;z-index:999999;padding:16px;font-family:monospace;font-size:14px;white-space:pre-wrap;border-bottom:2px solid orange;';
+      d.textContent = 'PROMISE REJECTION: ' + (e.reason ? (e.reason.stack || e.reason) : 'Unknown');
+      document.body ? document.body.appendChild(d) : document.documentElement.appendChild(d);
+    });
+  </script>
+
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
   <script>
@@ -19,19 +37,21 @@
       theme: {
         extend: {
           colors: {
-            "background": "#02060d",
-            "surface": "#060d1a",
-            "primary": "#dbfcff",
-            "primary-container": "#00f0ff",
-            "surface-tint": "#00dbe9",
-            "surface-container": "#0a1324",
-            "surface-container-high": "#111f38",
-            "surface-container-lowest": "#010409",
-            "on-surface": "#dde2f3",
-            "on-surface-variant": "#94a9be",
-            "outline": "#48627e",
-            "outline-variant": "#1c2d47",
-            "error": "#ffb4ab"
+            "background": "#FAFAFA",
+            "surface": "#FFFFFF",
+            "primary": "#0B1420",
+            "primary-container": "#0E7C74",
+            "surface-tint": "#0E7C74",
+            "surface-container": "#FFFFFF",
+            "surface-container-high": "#F1F5F9",
+            "surface-container-lowest": "#FFFFFF",
+            "on-surface": "#0B1420",
+            "on-surface-variant": "#5B6B74",
+            "outline": "rgba(11, 20, 32, 0.12)",
+            "outline-variant": "rgba(11, 20, 32, 0.08)",
+            "error": "#b91c1c",
+            "teal": "#0E7C74",
+            "cyan": "#00f0ff"
           },
           fontFamily: {
             "display": ["'Space Grotesk'", "sans-serif"],
@@ -45,31 +65,39 @@
 
   <style>
     *, *::before, *::after { box-sizing: border-box; }
-    html { scroll-behavior: auto !important; background: #02060d; color: #dde2f3; }
-    body { font-family: 'Inter', sans-serif; overflow-x: hidden; background: #02060d; }
-
-    /* Clean glow effects conforming to Abyssal Precision design */
-    .cyan-halo {
-      text-shadow: 0 0 40px rgba(0, 240, 255, 0.45);
+    :root {
+      --abyss: #FAFAFA;
+      --foam: #0B1420;
+      --foam-dim: #5B6B74;
+      --border: rgba(11, 20, 32, 0.08);
+      --teal: #0E7C74;
+      --cyan: #00f0ff;
     }
+    html { scroll-behavior: auto !important; background: var(--abyss); color: var(--foam); }
+    body { font-family: 'Inter', sans-serif; overflow-x: hidden; background: var(--abyss); color: var(--foam); }
+
+    /* Clean subtle shadow and translucent hairline effects for light theme */
     .glass-hairline {
-      background: rgba(4, 10, 22, 0.65);
+      background: rgba(255, 255, 255, 0.75);
       backdrop-filter: blur(16px);
       -webkit-backdrop-filter: blur(16px);
-      border: 1px solid rgba(0, 240, 255, 0.12);
+      border: 1px solid rgba(11, 20, 32, 0.08);
     }
   </style>
 
   <!-- External Libraries: React 18, GSAP 3, Lenis 1.1.14 -->
-  <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
-  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
-  <script src="https://unpkg.com/lenis@1.1.14/dist/lenis.min.js"></script>
+  <script crossorigin="anonymous" src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+  <script crossorigin="anonymous" src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+  <script crossorigin="anonymous" src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script crossorigin="anonymous" src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+  <script crossorigin="anonymous" src="https://unpkg.com/lenis@1.1.14/dist/lenis.min.js"></script>
 </head>
-<body class="bg-[#02060d] text-[#dde2f3] antialiased selection:bg-[#00f0ff] selection:text-[#02060d] relative overflow-x-hidden">
+<body class="bg-[#FAFAFA] text-[#0B1420] antialiased selection:bg-[#0E7C74]/20 selection:text-[#0B1420] relative overflow-x-hidden">
   <!-- React Mount Point -->
   <div id="root"></div>
+
+  <!-- High-Resolution Natural Earth 50m Coastline Rings for Regional Land Mask -->
+  <script src="coastline.js"></script>
 
   <!-- Compiled React/TypeScript Application Bundle -->
   <script src="dist/kyogre-app.js"></script>

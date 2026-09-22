@@ -52,10 +52,10 @@ export const ApplicationsGrid: React.FC = () => {
     >
       <div className="max-w-6xl mx-auto w-full space-y-12">
         <div className="space-y-4">
-          <div className="font-mono text-xs tracking-widest text-[#00f0ff]">
+          <div className="font-mono text-xs tracking-widest text-[#0E7C74]">
             NATIONAL OCEAN APPLICATIONS
           </div>
-          <h2 className="text-3xl sm:text-5xl font-['Space_Grotesk'] font-medium tracking-tight text-[#dbfcff]">
+          <h2 className="text-3xl sm:text-5xl font-['Space_Grotesk'] font-medium tracking-tight text-[#0B1420]">
             A BETTER VIEW OF THE OCEAN BELOW THE SURFACE.
           </h2>
         </div>
@@ -64,17 +64,17 @@ export const ApplicationsGrid: React.FC = () => {
           {APPLICATIONS.map((app, idx) => (
             <div
               key={app.id}
-              className={`space-y-2 border-t border-white/10 pt-4 group hover:border-[#00f0ff]/40 transition-colors ${
+              className={`space-y-2 border-t border-[rgba(11,20,32,0.1)] pt-4 group hover:border-[#0E7C74]/40 transition-colors ${
                 idx === 4 ? 'sm:col-span-2 lg:col-span-2' : ''
               }`}
             >
-              <div className="text-[#00f0ff] font-mono text-xs uppercase tracking-wider">
+              <div className="text-[#0E7C74] font-mono text-xs uppercase tracking-wider">
                 {app.code}
               </div>
-              <div className="text-lg font-['Space_Grotesk'] font-medium text-[#dbfcff] group-hover:text-[#00dbe9] transition-colors">
+              <div className="text-lg font-['Space_Grotesk'] font-medium text-[#0B1420] group-hover:text-[#0E7C74] transition-colors">
                 {app.title}
               </div>
-              <p className="text-xs text-[#94a9be] font-light leading-relaxed">
+              <p className="text-xs text-[#5B6B74] font-light leading-relaxed">
                 {app.description}
               </p>
             </div>
