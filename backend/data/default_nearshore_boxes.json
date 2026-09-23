@@ -1,0 +1,1247 @@
+[
+  {
+    "id": "box_1_3",
+    "row": 1,
+    "col": 3,
+    "center_lat": 6.0,
+    "center_lon": 49.5,
+    "bounds": [
+      48.75,
+      5.5,
+      50.25,
+      6.5
+    ],
+    "distance_to_coast_km": 165.9,
+    "pfz_score": 0.23
+  },
+  {
+    "id": "box_1_35",
+    "row": 1,
+    "col": 35,
+    "center_lat": 6.0,
+    "center_lon": 97.5,
+    "bounds": [
+      96.75,
+      5.5,
+      98.25,
+      6.5
+    ],
+    "distance_to_coast_km": 111.2,
+    "pfz_score": 0.2
+  },
+  {
+    "id": "box_1_36",
+    "row": 1,
+    "col": 36,
+    "center_lat": 6.0,
+    "center_lon": 99.0,
+    "bounds": [
+      98.25,
+      5.5,
+      99.75,
+      6.5
+    ],
+    "distance_to_coast_km": 165.9,
+    "pfz_score": 0.44
+  },
+  {
+    "id": "box_1_39",
+    "row": 1,
+    "col": 39,
+    "center_lat": 6.0,
+    "center_lon": 103.5,
+    "bounds": [
+      102.75,
+      5.5,
+      104.25,
+      6.5
+    ],
+    "distance_to_coast_km": 165.9,
+    "pfz_score": 0.69
+  },
+  {
+    "id": "box_2_23",
+    "row": 2,
+    "col": 23,
+    "center_lat": 7.0,
+    "center_lon": 79.5,
+    "bounds": [
+      78.75,
+      6.5,
+      80.25,
+      7.5
+    ],
+    "distance_to_coast_km": 165.5,
+    "pfz_score": 0.27
+  },
+  {
+    "id": "box_2_25",
+    "row": 2,
+    "col": 25,
+    "center_lat": 7.0,
+    "center_lon": 82.5,
+    "bounds": [
+      81.75,
+      6.5,
+      83.25,
+      7.5
+    ],
+    "distance_to_coast_km": 165.5,
+    "pfz_score": 0.26
+  },
+  {
+    "id": "box_2_36",
+    "row": 2,
+    "col": 36,
+    "center_lat": 7.0,
+    "center_lon": 99.0,
+    "bounds": [
+      98.25,
+      6.5,
+      99.75,
+      7.5
+    ],
+    "distance_to_coast_km": 111.2,
+    "pfz_score": 0.14
+  },
+  {
+    "id": "box_3_4",
+    "row": 3,
+    "col": 4,
+    "center_lat": 8.0,
+    "center_lon": 51.0,
+    "bounds": [
+      50.25,
+      7.5,
+      51.75,
+      8.5
+    ],
+    "distance_to_coast_km": 165.2,
+    "pfz_score": 0.21
+  },
+  {
+    "id": "box_3_22",
+    "row": 3,
+    "col": 22,
+    "center_lat": 8.0,
+    "center_lon": 78.0,
+    "bounds": [
+      77.25,
+      7.5,
+      78.75,
+      8.5
+    ],
+    "distance_to_coast_km": 111.2,
+    "pfz_score": 0.52
+  },
+  {
+    "id": "box_3_23",
+    "row": 3,
+    "col": 23,
+    "center_lat": 8.0,
+    "center_lon": 79.5,
+    "bounds": [
+      78.75,
+      7.5,
+      80.25,
+      8.5
+    ],
+    "distance_to_coast_km": 165.2,
+    "pfz_score": 0.32
+  },
+  {
+    "id": "box_3_25",
+    "row": 3,
+    "col": 25,
+    "center_lat": 8.0,
+    "center_lon": 82.5,
+    "bounds": [
+      81.75,
+      7.5,
+      83.25,
+      8.5
+    ],
+    "distance_to_coast_km": 165.2,
+    "pfz_score": 0.55
+  },
+  {
+    "id": "box_3_35",
+    "row": 3,
+    "col": 35,
+    "center_lat": 8.0,
+    "center_lon": 97.5,
+    "bounds": [
+      96.75,
+      7.5,
+      98.25,
+      8.5
+    ],
+    "distance_to_coast_km": 165.2,
+    "pfz_score": 0.1
+  },
+  {
+    "id": "box_4_4",
+    "row": 4,
+    "col": 4,
+    "center_lat": 9.0,
+    "center_lon": 51.0,
+    "bounds": [
+      50.25,
+      8.5,
+      51.75,
+      9.5
+    ],
+    "distance_to_coast_km": 164.7,
+    "pfz_score": 0.34
+  },
+  {
+    "id": "box_4_35",
+    "row": 4,
+    "col": 35,
+    "center_lat": 9.0,
+    "center_lon": 97.5,
+    "bounds": [
+      96.75,
+      8.5,
+      98.25,
+      9.5
+    ],
+    "distance_to_coast_km": 164.7,
+    "pfz_score": 0.25
+  },
+  {
+    "id": "box_4_37",
+    "row": 4,
+    "col": 37,
+    "center_lat": 9.0,
+    "center_lon": 100.5,
+    "bounds": [
+      99.75,
+      8.5,
+      101.25,
+      9.5
+    ],
+    "distance_to_coast_km": 164.7,
+    "pfz_score": 0.18
+  },
+  {
+    "id": "box_4_39",
+    "row": 4,
+    "col": 39,
+    "center_lat": 9.0,
+    "center_lon": 103.5,
+    "bounds": [
+      102.75,
+      8.5,
+      104.25,
+      9.5
+    ],
+    "distance_to_coast_km": 164.7,
+    "pfz_score": 0.16
+  },
+  {
+    "id": "box_5_20",
+    "row": 5,
+    "col": 20,
+    "center_lat": 10.0,
+    "center_lon": 75.0,
+    "bounds": [
+      74.25,
+      9.5,
+      75.75,
+      10.5
+    ],
+    "distance_to_coast_km": 164.3,
+    "pfz_score": 0.58
+  },
+  {
+    "id": "box_5_35",
+    "row": 5,
+    "col": 35,
+    "center_lat": 10.0,
+    "center_lon": 97.5,
+    "bounds": [
+      96.75,
+      9.5,
+      98.25,
+      10.5
+    ],
+    "distance_to_coast_km": 164.3,
+    "pfz_score": 0.14
+  },
+  {
+    "id": "box_5_37",
+    "row": 5,
+    "col": 37,
+    "center_lat": 10.0,
+    "center_lon": 100.5,
+    "bounds": [
+      99.75,
+      9.5,
+      101.25,
+      10.5
+    ],
+    "distance_to_coast_km": 164.3,
+    "pfz_score": 0.45
+  },
+  {
+    "id": "box_6_5",
+    "row": 6,
+    "col": 5,
+    "center_lat": 11.0,
+    "center_lon": 52.5,
+    "bounds": [
+      51.75,
+      10.5,
+      53.25,
+      11.5
+    ],
+    "distance_to_coast_km": 163.7,
+    "pfz_score": 0.53
+  },
+  {
+    "id": "box_6_20",
+    "row": 6,
+    "col": 20,
+    "center_lat": 11.0,
+    "center_lon": 75.0,
+    "bounds": [
+      74.25,
+      10.5,
+      75.75,
+      11.5
+    ],
+    "distance_to_coast_km": 163.7,
+    "pfz_score": 0.87
+  },
+  {
+    "id": "box_6_24",
+    "row": 6,
+    "col": 24,
+    "center_lat": 11.0,
+    "center_lon": 81.0,
+    "bounds": [
+      80.25,
+      10.5,
+      81.75,
+      11.5
+    ],
+    "distance_to_coast_km": 163.7,
+    "pfz_score": 0.52
+  },
+  {
+    "id": "box_6_32",
+    "row": 6,
+    "col": 32,
+    "center_lat": 11.0,
+    "center_lon": 93.0,
+    "bounds": [
+      92.25,
+      10.5,
+      93.75,
+      11.5
+    ],
+    "distance_to_coast_km": 111.2,
+    "pfz_score": 0.16
+  },
+  {
+    "id": "box_6_35",
+    "row": 6,
+    "col": 35,
+    "center_lat": 11.0,
+    "center_lon": 97.5,
+    "bounds": [
+      96.75,
+      10.5,
+      98.25,
+      11.5
+    ],
+    "distance_to_coast_km": 163.7,
+    "pfz_score": 0.49
+  },
+  {
+    "id": "box_6_37",
+    "row": 6,
+    "col": 37,
+    "center_lat": 11.0,
+    "center_lon": 100.5,
+    "bounds": [
+      99.75,
+      10.5,
+      101.25,
+      11.5
+    ],
+    "distance_to_coast_km": 163.7,
+    "pfz_score": 0.1
+  },
+  {
+    "id": "box_7_2",
+    "row": 7,
+    "col": 2,
+    "center_lat": 12.0,
+    "center_lon": 48.0,
+    "bounds": [
+      47.25,
+      11.5,
+      48.75,
+      12.5
+    ],
+    "distance_to_coast_km": 111.2,
+    "pfz_score": 0.36
+  },
+  {
+    "id": "box_7_3",
+    "row": 7,
+    "col": 3,
+    "center_lat": 12.0,
+    "center_lon": 49.5,
+    "bounds": [
+      48.75,
+      11.5,
+      50.25,
+      12.5
+    ],
+    "distance_to_coast_km": 111.2,
+    "pfz_score": 0.81
+  },
+  {
+    "id": "box_7_20",
+    "row": 7,
+    "col": 20,
+    "center_lat": 12.0,
+    "center_lon": 75.0,
+    "bounds": [
+      74.25,
+      11.5,
+      75.75,
+      12.5
+    ],
+    "distance_to_coast_km": 111.2,
+    "pfz_score": 0.92
+  },
+  {
+    "id": "box_7_24",
+    "row": 7,
+    "col": 24,
+    "center_lat": 12.0,
+    "center_lon": 81.0,
+    "bounds": [
+      80.25,
+      11.5,
+      81.75,
+      12.5
+    ],
+    "distance_to_coast_km": 163.1,
+    "pfz_score": 0.41
+  },
+  {
+    "id": "box_7_31",
+    "row": 7,
+    "col": 31,
+    "center_lat": 12.0,
+    "center_lon": 91.5,
+    "bounds": [
+      90.75,
+      11.5,
+      92.25,
+      12.5
+    ],
+    "distance_to_coast_km": 163.1,
+    "pfz_score": 0.13
+  },
+  {
+    "id": "box_7_33",
+    "row": 7,
+    "col": 33,
+    "center_lat": 12.0,
+    "center_lon": 94.5,
+    "bounds": [
+      93.75,
+      11.5,
+      95.25,
+      12.5
+    ],
+    "distance_to_coast_km": 163.1,
+    "pfz_score": 0.12
+  },
+  {
+    "id": "box_7_37",
+    "row": 7,
+    "col": 37,
+    "center_lat": 12.0,
+    "center_lon": 100.5,
+    "bounds": [
+      99.75,
+      11.5,
+      101.25,
+      12.5
+    ],
+    "distance_to_coast_km": 163.1,
+    "pfz_score": 0.17
+  },
+  {
+    "id": "box_7_38",
+    "row": 7,
+    "col": 38,
+    "center_lat": 12.0,
+    "center_lon": 102.0,
+    "bounds": [
+      101.25,
+      11.5,
+      102.75,
+      12.5
+    ],
+    "distance_to_coast_km": 111.2,
+    "pfz_score": 0.22
+  },
+  {
+    "id": "box_8_1",
+    "row": 8,
+    "col": 1,
+    "center_lat": 13.0,
+    "center_lon": 46.5,
+    "bounds": [
+      45.75,
+      12.5,
+      47.25,
+      13.5
+    ],
+    "distance_to_coast_km": 111.2,
+    "pfz_score": 0.78
+  },
+  {
+    "id": "box_8_19",
+    "row": 8,
+    "col": 19,
+    "center_lat": 13.0,
+    "center_lon": 73.5,
+    "bounds": [
+      72.75,
+      12.5,
+      74.25,
+      13.5
+    ],
+    "distance_to_coast_km": 162.5,
+    "pfz_score": 0.58
+  },
+  {
+    "id": "box_8_24",
+    "row": 8,
+    "col": 24,
+    "center_lat": 13.0,
+    "center_lon": 81.0,
+    "bounds": [
+      80.25,
+      12.5,
+      81.75,
+      13.5
+    ],
+    "distance_to_coast_km": 162.5,
+    "pfz_score": 0.4
+  },
+  {
+    "id": "box_8_35",
+    "row": 8,
+    "col": 35,
+    "center_lat": 13.0,
+    "center_lon": 97.5,
+    "bounds": [
+      96.75,
+      12.5,
+      98.25,
+      13.5
+    ],
+    "distance_to_coast_km": 162.5,
+    "pfz_score": 0.16
+  },
+  {
+    "id": "box_9_3",
+    "row": 9,
+    "col": 3,
+    "center_lat": 14.0,
+    "center_lon": 49.5,
+    "bounds": [
+      48.75,
+      13.5,
+      50.25,
+      14.5
+    ],
+    "distance_to_coast_km": 111.2,
+    "pfz_score": 0.87
+  },
+  {
+    "id": "box_9_19",
+    "row": 9,
+    "col": 19,
+    "center_lat": 14.0,
+    "center_lon": 73.5,
+    "bounds": [
+      72.75,
+      13.5,
+      74.25,
+      14.5
+    ],
+    "distance_to_coast_km": 161.8,
+    "pfz_score": 0.27
+  },
+  {
+    "id": "box_9_24",
+    "row": 9,
+    "col": 24,
+    "center_lat": 14.0,
+    "center_lon": 81.0,
+    "bounds": [
+      80.25,
+      13.5,
+      81.75,
+      14.5
+    ],
+    "distance_to_coast_km": 161.8,
+    "pfz_score": 0.49
+  },
+  {
+    "id": "box_9_35",
+    "row": 9,
+    "col": 35,
+    "center_lat": 14.0,
+    "center_lon": 97.5,
+    "bounds": [
+      96.75,
+      13.5,
+      98.25,
+      14.5
+    ],
+    "distance_to_coast_km": 161.8,
+    "pfz_score": 0.18
+  },
+  {
+    "id": "box_10_19",
+    "row": 10,
+    "col": 19,
+    "center_lat": 15.0,
+    "center_lon": 73.5,
+    "bounds": [
+      72.75,
+      14.5,
+      74.25,
+      15.5
+    ],
+    "distance_to_coast_km": 161.1,
+    "pfz_score": 0.86
+  },
+  {
+    "id": "box_10_24",
+    "row": 10,
+    "col": 24,
+    "center_lat": 15.0,
+    "center_lon": 81.0,
+    "bounds": [
+      80.25,
+      14.5,
+      81.75,
+      15.5
+    ],
+    "distance_to_coast_km": 111.2,
+    "pfz_score": 0.61
+  },
+  {
+    "id": "box_10_33",
+    "row": 10,
+    "col": 33,
+    "center_lat": 15.0,
+    "center_lon": 94.5,
+    "bounds": [
+      93.75,
+      14.5,
+      95.25,
+      15.5
+    ],
+    "distance_to_coast_km": 111.2,
+    "pfz_score": 0.19
+  },
+  {
+    "id": "box_10_35",
+    "row": 10,
+    "col": 35,
+    "center_lat": 15.0,
+    "center_lon": 97.5,
+    "bounds": [
+      96.75,
+      14.5,
+      98.25,
+      15.5
+    ],
+    "distance_to_coast_km": 161.1,
+    "pfz_score": 0.38
+  },
+  {
+    "id": "box_11_6",
+    "row": 11,
+    "col": 6,
+    "center_lat": 16.0,
+    "center_lon": 54.0,
+    "bounds": [
+      53.25,
+      15.5,
+      54.75,
+      16.5
+    ],
+    "distance_to_coast_km": 111.2,
+    "pfz_score": 0.96
+  },
+  {
+    "id": "box_11_25",
+    "row": 11,
+    "col": 25,
+    "center_lat": 16.0,
+    "center_lon": 82.5,
+    "bounds": [
+      81.75,
+      15.5,
+      83.25,
+      16.5
+    ],
+    "distance_to_coast_km": 160.3,
+    "pfz_score": 0.64
+  },
+  {
+    "id": "box_11_32",
+    "row": 11,
+    "col": 32,
+    "center_lat": 16.0,
+    "center_lon": 93.0,
+    "bounds": [
+      92.25,
+      15.5,
+      93.75,
+      16.5
+    ],
+    "distance_to_coast_km": 160.3,
+    "pfz_score": 0.13
+  },
+  {
+    "id": "box_12_7",
+    "row": 12,
+    "col": 7,
+    "center_lat": 17.0,
+    "center_lon": 55.5,
+    "bounds": [
+      54.75,
+      16.5,
+      56.25,
+      17.5
+    ],
+    "distance_to_coast_km": 111.2,
+    "pfz_score": 0.98
+  },
+  {
+    "id": "box_12_18",
+    "row": 12,
+    "col": 18,
+    "center_lat": 17.0,
+    "center_lon": 72.0,
+    "bounds": [
+      71.25,
+      16.5,
+      72.75,
+      17.5
+    ],
+    "distance_to_coast_km": 159.5,
+    "pfz_score": 0.39
+  },
+  {
+    "id": "box_12_32",
+    "row": 12,
+    "col": 32,
+    "center_lat": 17.0,
+    "center_lon": 93.0,
+    "bounds": [
+      92.25,
+      16.5,
+      93.75,
+      17.5
+    ],
+    "distance_to_coast_km": 159.5,
+    "pfz_score": 0.14
+  },
+  {
+    "id": "box_13_8",
+    "row": 13,
+    "col": 8,
+    "center_lat": 18.0,
+    "center_lon": 57.0,
+    "bounds": [
+      56.25,
+      17.5,
+      57.75,
+      18.5
+    ],
+    "distance_to_coast_km": 111.2,
+    "pfz_score": 0.61
+  },
+  {
+    "id": "box_13_18",
+    "row": 13,
+    "col": 18,
+    "center_lat": 18.0,
+    "center_lon": 72.0,
+    "bounds": [
+      71.25,
+      17.5,
+      72.75,
+      18.5
+    ],
+    "distance_to_coast_km": 158.6,
+    "pfz_score": 0.55
+  },
+  {
+    "id": "box_13_26",
+    "row": 13,
+    "col": 26,
+    "center_lat": 18.0,
+    "center_lon": 84.0,
+    "bounds": [
+      83.25,
+      17.5,
+      84.75,
+      18.5
+    ],
+    "distance_to_coast_km": 111.2,
+    "pfz_score": 0.38
+  },
+  {
+    "id": "box_13_32",
+    "row": 13,
+    "col": 32,
+    "center_lat": 18.0,
+    "center_lon": 93.0,
+    "bounds": [
+      92.25,
+      17.5,
+      93.75,
+      18.5
+    ],
+    "distance_to_coast_km": 158.6,
+    "pfz_score": 0.13
+  },
+  {
+    "id": "box_14_9",
+    "row": 14,
+    "col": 9,
+    "center_lat": 19.0,
+    "center_lon": 58.5,
+    "bounds": [
+      57.75,
+      18.5,
+      59.25,
+      19.5
+    ],
+    "distance_to_coast_km": 157.7,
+    "pfz_score": 0.79
+  },
+  {
+    "id": "box_14_18",
+    "row": 14,
+    "col": 18,
+    "center_lat": 19.0,
+    "center_lon": 72.0,
+    "bounds": [
+      71.25,
+      18.5,
+      72.75,
+      19.5
+    ],
+    "distance_to_coast_km": 157.7,
+    "pfz_score": 0.54
+  },
+  {
+    "id": "box_14_27",
+    "row": 14,
+    "col": 27,
+    "center_lat": 19.0,
+    "center_lon": 85.5,
+    "bounds": [
+      84.75,
+      18.5,
+      86.25,
+      19.5
+    ],
+    "distance_to_coast_km": 111.2,
+    "pfz_score": 0.55
+  },
+  {
+    "id": "box_14_32",
+    "row": 14,
+    "col": 32,
+    "center_lat": 19.0,
+    "center_lon": 93.0,
+    "bounds": [
+      92.25,
+      18.5,
+      93.75,
+      19.5
+    ],
+    "distance_to_coast_km": 157.7,
+    "pfz_score": 0.23
+  },
+  {
+    "id": "box_15_9",
+    "row": 15,
+    "col": 9,
+    "center_lat": 20.0,
+    "center_lon": 58.5,
+    "bounds": [
+      57.75,
+      19.5,
+      59.25,
+      20.5
+    ],
+    "distance_to_coast_km": 111.2,
+    "pfz_score": 0.61
+  },
+  {
+    "id": "box_15_17",
+    "row": 15,
+    "col": 17,
+    "center_lat": 20.0,
+    "center_lon": 70.5,
+    "bounds": [
+      69.75,
+      19.5,
+      71.25,
+      20.5
+    ],
+    "distance_to_coast_km": 111.2,
+    "pfz_score": 0.43
+  },
+  {
+    "id": "box_15_18",
+    "row": 15,
+    "col": 18,
+    "center_lat": 20.0,
+    "center_lon": 72.0,
+    "bounds": [
+      71.25,
+      19.5,
+      72.75,
+      20.5
+    ],
+    "distance_to_coast_km": 156.7,
+    "pfz_score": 0.37
+  },
+  {
+    "id": "box_15_28",
+    "row": 15,
+    "col": 28,
+    "center_lat": 20.0,
+    "center_lon": 87.0,
+    "bounds": [
+      86.25,
+      19.5,
+      87.75,
+      20.5
+    ],
+    "distance_to_coast_km": 156.7,
+    "pfz_score": 0.29
+  },
+  {
+    "id": "box_16_10",
+    "row": 16,
+    "col": 10,
+    "center_lat": 21.0,
+    "center_lon": 60.0,
+    "bounds": [
+      59.25,
+      20.5,
+      60.75,
+      21.5
+    ],
+    "distance_to_coast_km": 155.7,
+    "pfz_score": 0.6
+  },
+  {
+    "id": "box_16_16",
+    "row": 16,
+    "col": 16,
+    "center_lat": 21.0,
+    "center_lon": 69.0,
+    "bounds": [
+      68.25,
+      20.5,
+      69.75,
+      21.5
+    ],
+    "distance_to_coast_km": 155.7,
+    "pfz_score": 0.57
+  },
+  {
+    "id": "box_16_31",
+    "row": 16,
+    "col": 31,
+    "center_lat": 21.0,
+    "center_lon": 91.5,
+    "bounds": [
+      90.75,
+      20.5,
+      92.25,
+      21.5
+    ],
+    "distance_to_coast_km": 155.7,
+    "pfz_score": 0.45
+  },
+  {
+    "id": "box_18_10",
+    "row": 18,
+    "col": 10,
+    "center_lat": 23.0,
+    "center_lon": 60.0,
+    "bounds": [
+      59.25,
+      22.5,
+      60.75,
+      23.5
+    ],
+    "distance_to_coast_km": 153.5,
+    "pfz_score": 0.88
+  },
+  {
+    "id": "box_18_15",
+    "row": 18,
+    "col": 15,
+    "center_lat": 23.0,
+    "center_lon": 67.5,
+    "bounds": [
+      66.75,
+      22.5,
+      68.25,
+      23.5
+    ],
+    "distance_to_coast_km": 111.2,
+    "pfz_score": 0.32
+  },
+  {
+    "id": "box_19_14",
+    "row": 19,
+    "col": 14,
+    "center_lat": 24.0,
+    "center_lon": 66.0,
+    "bounds": [
+      65.25,
+      23.5,
+      66.75,
+      24.5
+    ],
+    "distance_to_coast_km": 152.4,
+    "pfz_score": 0.86
+  },
+  {
+    "id": "box_20_8",
+    "row": 20,
+    "col": 8,
+    "center_lat": 25.0,
+    "center_lon": 57.0,
+    "bounds": [
+      56.25,
+      24.5,
+      57.75,
+      25.5
+    ],
+    "distance_to_coast_km": 111.2,
+    "pfz_score": 0.51
+  },
+  {
+    "id": "box_20_9",
+    "row": 20,
+    "col": 9,
+    "center_lat": 25.0,
+    "center_lon": 58.5,
+    "bounds": [
+      57.75,
+      24.5,
+      59.25,
+      25.5
+    ],
+    "distance_to_coast_km": 111.2,
+    "pfz_score": 0.62
+  },
+  {
+    "id": "box_20_10",
+    "row": 20,
+    "col": 10,
+    "center_lat": 25.0,
+    "center_lon": 60.0,
+    "bounds": [
+      59.25,
+      24.5,
+      60.75,
+      25.5
+    ],
+    "distance_to_coast_km": 111.2,
+    "pfz_score": 0.88
+  },
+  {
+    "id": "box_20_11",
+    "row": 20,
+    "col": 11,
+    "center_lat": 25.0,
+    "center_lon": 61.5,
+    "bounds": [
+      60.75,
+      24.5,
+      62.25,
+      25.5
+    ],
+    "distance_to_coast_km": 111.2,
+    "pfz_score": 0.79
+  },
+  {
+    "id": "box_20_12",
+    "row": 20,
+    "col": 12,
+    "center_lat": 25.0,
+    "center_lon": 63.0,
+    "bounds": [
+      62.25,
+      24.5,
+      63.75,
+      25.5
+    ],
+    "distance_to_coast_km": 111.2,
+    "pfz_score": 0.98
+  },
+  {
+    "id": "box_20_13",
+    "row": 20,
+    "col": 13,
+    "center_lat": 25.0,
+    "center_lon": 64.5,
+    "bounds": [
+      63.75,
+      24.5,
+      65.25,
+      25.5
+    ],
+    "distance_to_coast_km": 111.2,
+    "pfz_score": 0.96
+  },
+  {
+    "id": "box_20_14",
+    "row": 20,
+    "col": 14,
+    "center_lat": 25.0,
+    "center_lon": 66.0,
+    "bounds": [
+      65.25,
+      24.5,
+      66.75,
+      25.5
+    ],
+    "distance_to_coast_km": 111.2,
+    "pfz_score": 0.98
+  },
+  {
+    "id": "box_21_6",
+    "row": 21,
+    "col": 6,
+    "center_lat": 26.0,
+    "center_lon": 54.0,
+    "bounds": [
+      53.25,
+      25.5,
+      54.75,
+      26.5
+    ],
+    "distance_to_coast_km": 111.2,
+    "pfz_score": 0.47
+  },
+  {
+    "id": "box_21_8",
+    "row": 21,
+    "col": 8,
+    "center_lat": 26.0,
+    "center_lon": 57.0,
+    "bounds": [
+      56.25,
+      25.5,
+      57.75,
+      26.5
+    ],
+    "distance_to_coast_km": 111.2,
+    "pfz_score": 0.74
+  },
+  {
+    "id": "box_22_4",
+    "row": 22,
+    "col": 4,
+    "center_lat": 27.0,
+    "center_lon": 51.0,
+    "bounds": [
+      50.25,
+      26.5,
+      51.75,
+      27.5
+    ],
+    "distance_to_coast_km": 148.6,
+    "pfz_score": 0.47
+  },
+  {
+    "id": "box_22_5",
+    "row": 22,
+    "col": 5,
+    "center_lat": 27.0,
+    "center_lon": 52.5,
+    "bounds": [
+      51.75,
+      26.5,
+      53.25,
+      27.5
+    ],
+    "distance_to_coast_km": 111.2,
+    "pfz_score": 0.81
+  },
+  {
+    "id": "box_23_3",
+    "row": 23,
+    "col": 3,
+    "center_lat": 28.0,
+    "center_lon": 49.5,
+    "bounds": [
+      48.75,
+      27.5,
+      50.25,
+      28.5
+    ],
+    "distance_to_coast_km": 111.2,
+    "pfz_score": 0.27
+  },
+  {
+    "id": "box_23_4",
+    "row": 23,
+    "col": 4,
+    "center_lat": 28.0,
+    "center_lon": 51.0,
+    "bounds": [
+      50.25,
+      27.5,
+      51.75,
+      28.5
+    ],
+    "distance_to_coast_km": 111.2,
+    "pfz_score": 0.36
+  },
+  {
+    "id": "box_24_3",
+    "row": 24,
+    "col": 3,
+    "center_lat": 29.0,
+    "center_lon": 49.5,
+    "bounds": [
+      48.75,
+      28.5,
+      50.25,
+      29.5
+    ],
+    "distance_to_coast_km": 145.9,
+    "pfz_score": 0.28
+  }
+]

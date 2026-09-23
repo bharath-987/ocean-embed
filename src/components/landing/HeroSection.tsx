@@ -61,7 +61,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onExploreClick }) => {
 
           {/* Supporting Copy */}
           <p className="font-['Inter'] text-sm sm:text-base lg:text-lg text-[#5B6B74] font-normal leading-relaxed mb-6 sm:mb-8">
-            AI-powered subsurface ocean temperature reconstruction and in-situ ARGO validation from satellite altimetry alone across 5°N–30°N, 45°E–105°E.
+            Satellite inputs; network trained on the GLORYS reanalysis, then on real Argo floats across 5°N–30°N, 45°E–105°E.
           </p>
 
           {/* Premium Product Interaction CTA */}

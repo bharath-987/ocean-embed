@@ -31,24 +31,6 @@
         <div class="ky-header__brand-title">Kyogre</div>
       </div>
 
-      <!-- Centered search bar -->
-      <div class="ky-header__search">
-        <div class="map-search-wrap">
-          <svg class="map-search__icon" width="16" height="16" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="11" cy="11" r="8"></circle>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-          </svg>
-          <input type="text" id="map-search-input" class="map-search__input"
-            placeholder="Search location (e.g. Andaman Sea, 10°N 95°E)..."
-            autocomplete="off" spellcheck="false" aria-label="Search location or coordinates" />
-          <span class="ky-search-kbd">Ctrl K</span>
-          <button type="button" id="map-search-clear" class="map-search__clear"
-            aria-label="Clear search" style="display:none;">&times;</button>
-          <div id="map-search-results" class="map-search__dropdown" style="display:none;" role="listbox"></div>
-        </div>
-      </div>
-
       <!-- Right controls: Date picker & Live indicator -->
       <div class="ky-header__right">
         <div class="ky-date-picker-wrap">
@@ -62,7 +44,7 @@
               <polyline points="6,9 12,15 18,9"/>
             </svg>
           </button>
-          <input type="date" id="native-date-picker" min="2023-01-10" max="2023-12-31" value="" class="ky-hidden-date-input" aria-label="Choose date" />
+          <input type="date" id="native-date-picker" min="2023-01-01" max="2023-12-31" value="" class="ky-hidden-date-input" aria-label="Choose date" />
         </div>
 
         <div class="ky-live-indicator">
@@ -114,7 +96,7 @@
                 <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>
               </svg>
             </span>
-            <span class="ky-nav-item__label">Marine Ecology &amp; Heatwave Mode</span>
+            <span class="ky-nav-item__label">Heatwave Mode</span>
           </button>
 
           <button class="ky-nav-item" data-nav="argo" onclick="window.location.href='argo.html'">
@@ -362,15 +344,6 @@
                 <button type="button" class="ky-tvd-toggle__btn" id="btn-view-graph">Graph</button>
               </div>
 
-              <!-- Coordinate Bar directly below tabs -->
-              <div class="ky-tvd-coord-bar">
-                <div style="display: flex; align-items: center; gap: 6px;">
-                  <span class="ky-tvd-coord-label">Selected Location</span>
-                  <span class="ky-tvd-loc-inline" id="selected-loc-coord">—</span>
-                </div>
-                <span id="fisheries-model-badge" class="ky-provenance-pill ky-provenance-pill--model" style="display: none; font-size: 10px;">14-Year Model</span>
-              </div>
-
               <!-- EMPTY state (shown until both location and date are selected) -->
               <div id="tvd-empty-view" class="ky-tvd-empty" style="display:flex;">
                 <svg class="ky-tvd-empty__icon" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
@@ -381,14 +354,13 @@
                 <p class="ky-tvd-empty__text" id="tvd-empty-text">No location selected yet — click the map or search above</p>
               </div>
 
-              <!-- 3-Column Table View (Depth, Temperature, Nutrient) -->
+              <!-- 2-Column Table View (Depth, Temperature (°C)) -->
               <div id="tvd-table-view" class="ky-tvd-table-wrap" style="display:none;">
                 <table class="ky-tvd-table">
                   <thead>
                     <tr>
                       <th>Depth (m)</th>
-                      <th>Temperature (°C) <span class="ky-tbl-tag ky-tbl-tag--model">Model</span></th>
-                      <th>Chlorophyll proxy (mg/m³) — est.</th>
+                      <th>Temperature (°C)</th>
                     </tr>
                   </thead>
                   <tbody id="tvd-table-body">
@@ -416,17 +388,6 @@
         </div>
         <!-- end two-column grid -->
 
-        <!-- Operational Caveat Banner: Thermocline-Depth Skill (100–200m) & PFZ Index Directional Usage -->
-        <div class="ky-fisheries-operational-caveat">
-          <svg class="ky-fisheries-caveat-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="12" y1="8" x2="12" y2="12"></line>
-            <line x1="12" y1="16" x2="12.01" y2="16"></line>
-          </svg>
-          <span class="ky-fisheries-caveat-text">
-            <strong>Operational Note:</strong> Thermocline-depth accuracy (100–200m) shows measured skill below the climatological baseline in ARGO validation (vs monthly climatology baseline, n=41 Argo profiles); treat PFZ Index as a directional indicator, not a precise forecast. Full validation breakdown available on the <a href="argo.html" class="ky-fisheries-caveat-link">ARGO Validation page</a>.
-          </span>
-        </div>
 
       </main>
     </div>

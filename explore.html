@@ -33,16 +33,17 @@
 
       <!-- Centered search bar -->
       <div class="ky-header__search">
-        <div class="map-search-wrap">
-          <svg class="map-search__icon" width="16" height="16" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="11" cy="11" r="8"></circle>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        <div class="map-search-wrap group">
+          <svg class="map-search__icon search-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <g>
+              <path
+                d="M21.53 20.47l-3.66-3.66C19.195 15.24 20 13.214 20 11c0-4.97-4.03-9-9-9s-9 4.03-9 9 4.03 9 9 9c2.215 0 4.24-.804 5.808-2.13l3.66 3.66c.147.146.34.22.53.22s.385-.073.53-.22c.295-.293.295-.767.002-1.06zM3.5 11c0-4.135 3.365-7.5 7.5-7.5s7.5 3.365 7.5 7.5-3.365 7.5-7.5 7.5-7.5-3.365-7.5-7.5z"
+              ></path>
+            </g>
           </svg>
-          <input type="text" id="map-search-input" class="map-search__input"
+          <input type="text" id="map-search-input" class="map-search__input input"
             placeholder="Search location (e.g. Andaman Sea, 10°N 95°E)..."
             autocomplete="off" spellcheck="false" aria-label="Search location or coordinates" />
-          <span class="ky-search-kbd">Ctrl K</span>
           <button type="button" id="map-search-clear" class="map-search__clear"
             aria-label="Clear search" style="display:none;">&times;</button>
           <div id="map-search-results" class="map-search__dropdown" style="display:none;" role="listbox"></div>
@@ -62,11 +63,10 @@
               <polyline points="6,9 12,15 18,9"/>
             </svg>
           </button>
-          <input type="date" id="native-date-picker" min="2023-01-10" max="2023-12-31" value="" class="ky-hidden-date-input" aria-label="Choose date" />
+          <input type="date" id="native-date-picker" min="2023-01-01" max="2023-12-31" value="" class="ky-hidden-date-input" aria-label="Choose date" />
         </div>
 
         <div class="ky-live-indicator">
-          <span class="ky-live-dot ky-live-dot--reanalysis"></span>
           <div class="ky-live-text">
             <div class="ky-live-title">Historical Reanalysis</div>
             <div class="ky-live-sub">Reconstructed Data</div>
@@ -112,7 +112,7 @@
                 <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>
               </svg>
             </span>
-            <span class="ky-nav-item__label">Marine Ecology</span>
+            <span class="ky-nav-item__label">Heatwave Mode</span>
           </button>
 
           <button class="ky-nav-item" data-nav="argo" onclick="window.location.href='argo.html'">
@@ -127,10 +127,9 @@
           </button>
         </nav>
 
-        <!-- Sidebar footer note and copyright -->
+        <!-- Sidebar footer note -->
         <div class="ky-sidebar__footer">
           <p class="ky-sidebar__note"><em>Reconstructed from real satellite data for the selected date — not a forecast.</em></p>
-          <p class="ky-sidebar__copy">© 2025 Kyogre. All rights reserved.</p>
         </div>
       </aside>
 
@@ -303,18 +302,6 @@
                   <div class="ky-map-legend__caption" id="map-legend-caption" style="display:none;"></div>
                 </div>
 
-                <!-- 4: Bottom-Right Scale Indicator -->
-                <div class="ky-map-scale-bar">
-                  <div class="ky-scale-ticks">
-                    <div class="ky-scale-line"></div>
-                    <div class="ky-scale-labels">
-                      <span>0</span>
-                      <span>500</span>
-                      <span>1,000</span>
-                    </div>
-                  </div>
-                  <span class="ky-scale-total">2,000 km</span>
-                </div>
               </div>
 
               <!-- Hidden elements preserved for app.js functionality without inline controls -->
@@ -456,15 +443,10 @@
               <!-- Header -->
               <div class="ky-tvd-card__header">
                 <h2 class="ky-tvd-card__title">Temperature vs Depth</h2>
-                <button class="ky-tvd-expand" aria-label="Expand">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
-                  </svg>
-                </button>
               </div>
 
               <!-- Toggle (Table / Graph - Table active by default) -->
-              <div class="ky-tvd-toggle">
+              <div class="ky-tvd-toggle" data-active="table">
                 <button class="ky-tvd-toggle__btn ky-tvd-toggle__btn--active" id="tvd-btn-table">Table</button>
                 <button class="ky-tvd-toggle__btn" id="tvd-btn-graph">Graph</button>
               </div>
@@ -548,6 +530,19 @@
 
               </div>
               <!-- end result-content -->
+
+              <!-- Static NetCDF Download Section -->
+              <div class="ky-tvd-download-section">
+                <a href="https://huggingface.co/datasets/bharath-987/ocean-embed-data/resolve/main/oceanembed_v6_satswap_anom_14yr_2023.nc" download="oceanembed_v6_satswap_anom_14yr_2023.nc" target="_blank" rel="noopener noreferrer" class="ky-tvd-download-btn" id="btn-download-netcdf">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                  <span id="btn-download-netcdf-text">↓ Download NetCDF</span>
+                </a>
+
+              </div>
 
             </div>
           </div>

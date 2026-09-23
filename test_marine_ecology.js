@@ -172,7 +172,7 @@ async function runTests() {
   assert(fs.existsSync(htmlPath), 'marine-ecology.html exists');
   const html = fs.readFileSync(htmlPath, 'utf8');
 
-  assert(html.includes('Kyogre — Marine Ecology &amp; Heatwave Mode'), 'Title is correct');
+  assert(html.includes('Kyogre — Heatwave Mode'), 'Title is correct');
   assert(html.includes('Historical Reanalysis'), 'Historical Reanalysis badge title present');
   assert(html.includes('Reconstructed Data'), 'Reconstructed Data subtitle present');
   assert(!html.includes('Live Data'), 'Does NOT contain contradicted Live Data badge');

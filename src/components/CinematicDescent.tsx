@@ -347,7 +347,7 @@ export const CinematicDescent: React.FC<CinematicDescentProps> = ({
           </h2>
 
           <p className="text-lg sm:text-xl text-[#94a9be] font-light max-w-2xl leading-relaxed">
-            AI-powered reconstruction of subsurface ocean temperature fields from satellite remote sensing observations alone.
+            Satellite inputs; network trained on the GLORYS reanalysis, then on real Argo floats.
           </p>
         </div>
 

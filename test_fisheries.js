@@ -7,7 +7,7 @@
  * 4. Top 4 Stat Cards: Provenance pills (Model Gradient, Estimated Heuristic), removal of fake trend badges (↓12%, ↑+28%, ↑+35%).
  * 5. Map & Chlorophyll-a Legend: Honest proxy title, illustrative seasonal pattern subnote.
  * 6. Two-Column Layout Structure & PFZ Outlines.
- * 7. Right Panel: 3-column table with "Chlorophyll proxy (mg/m³) — est.", Model tag on Temperature.
+ * 7. Right Panel: 2-column Depth | Temperature table. Chlorophyll-by-depth and MLD/Front rows removed. Single Distance from coast summary row.
  * 8. Persistent INCOIS Validation Disclaimer.
  * 9. Upwelling Index Inversion Fix: Proves upwelling increases as T0-T50 gap decreases.
  * 10. Dynamic PFZ Advisory Tiers: Tests Elevated, Moderate, and Low score tiers.
@@ -85,12 +85,11 @@ assert(!html.includes('↓ 12%'), 'Fake badge ↓ 12% must be removed from HTML'
 assert(!html.includes('↑ +28%'), 'Fake badge ↑ +28% must be removed from HTML');
 assert(!html.includes('↑ +35%'), 'Fake badge ↑ +35% must be removed from HTML');
 
-// Verify operational range caveat banner connecting thermocline skill to PFZ
-assert(html.includes('ky-fisheries-operational-caveat'), 'Operational caveat banner must exist below stat cards');
-assert(html.includes('Thermocline-depth accuracy (100–200m) shows measured skill below the climatological baseline in ARGO validation'), 'Caveat text explicitly states thermocline 100-200m measured skill below climatology');
-assert(html.includes('href="argo.html"') && html.includes('ARGO Validation page'), 'Caveat links to ARGO Validation page');
+// Verify operational range caveat banner is completely removed from fisheries.html
+assert(!html.includes('ky-fisheries-operational-caveat'), 'Operational caveat banner must be removed from fisheries.html');
 
-console.log('   ✓ All 4 stat cards carry honest provenance pills and operational range caveat banner verified.');
+console.log('   ✓ All 4 stat cards carry honest provenance pills and operational note banner confirmed removed.');
+
 
 // 5. Map & Chlorophyll-a Legend (Stripped to Zoom Controls Only)
 console.log('5. Verifying Map, Zoom-Only Controls & Honest Chlorophyll-a Legend...');
@@ -128,26 +127,38 @@ assert(html.includes('ky-fisheries-map-wrap'), 'Map wrap container must exist');
 assert(!html.includes('ky-param-tile'), 'ky-param-tile should not be in fisheries.html');
 console.log('   ✓ Two-column grid structure verified without Ocean Parameters.');
 
-// 7. Right Panel: 3-column table, INCOIS Disclaimer Only (Advisory & Insights Removed from DOM)
-console.log('7. Verifying Vertical Profile Panel, Coordinate Bar & Single INCOIS Disclaimer...');
+// 7. Right Panel: 2-column Depth | Temperature table, INCOIS Disclaimer Only
+console.log('7. Verifying Vertical Profile Panel, Coordinate Bar Cleanup & Single INCOIS Disclaimer...');
 assert(!html.includes('ky-tvd-panel__header'), 'Vertical profile panel header must be removed');
 assert(!html.includes('Vertical Profile at Selected Location'), 'Redundant panel title must be removed');
 assert(!html.includes('id="pfz-advisory-box"'), 'PFZ advisory callout box removed from right panel DOM');
 assert(!html.includes('class="ky-insights"'), 'Key insights section removed from right panel DOM');
 
-assert(html.includes('ky-tvd-coord-bar'), 'Coordinate bar below tabs must exist');
-assert(html.includes('id="selected-loc-coord"'), 'Inline coordinate element must exist');
-assert(html.includes('Depth (m)'), 'Table Column 1: Depth');
-assert(html.includes('Temperature (°C)'), 'Table Column 2: Temperature');
-assert(html.includes('ky-tbl-tag--model'), 'Table Temperature must be tagged as Model');
-assert(html.includes('Chlorophyll proxy (mg/m³) — est.'), 'Table Column 3: Chlorophyll proxy (mg/m³) — est.');
+// "Selected Location" label and 14-YEAR MODEL badge removed from table panel
+assert(!html.includes('id="selected-loc-coord"'), 'Selected location coordinate element must be removed from table panel');
+assert(!html.includes('id="fisheries-model-badge"'), '14-Year Model badge must be removed from table panel');
+assert(!html.includes('ky-tvd-coord-bar'), 'Coordinate bar container must be removed from table panel');
+
+assert(html.includes('<th>Depth (m)</th>'), 'Table Column 1: Depth (m)');
+assert(html.includes('<th>Temperature (°C)</th>'), 'Table Column 2: Temperature (°C) restored');
+// Chlorophyll by depth must NOT be present in table
+assert(!html.includes('Chlorophyll proxy (mg/m³) — est.'), 'Chlorophyll proxy by depth must not be in table header');
+
+// Verify scalar row types in JS renderTable: single Distance from coast row
+const fisheriesJsCheck = fs.readFileSync(path.join(__dirname, 'fisheries.js'), 'utf-8');
+assert(fisheriesJsCheck.includes('Distance from coast'), 'renderTable must include Distance from coast row');
+assert(!fisheriesJsCheck.includes('Mixed Layer Depth (MLD)'), 'renderTable must NOT include MLD row');
+assert(!fisheriesJsCheck.includes('Thermal Front Strength (0–1)'), 'renderTable must NOT include Thermal Front Strength row');
+
 assert(html.includes('btn-view-table'), 'Table view toggle button verified');
 assert(html.includes('btn-view-graph'), 'Graph view toggle button verified');
 
 // Single INCOIS disclaimer box retained
 assert(html.includes('ky-pfz-disclaimer'), 'Persistent INCOIS disclaimer container must exist');
 assert(html.includes("INCOIS's operational PFZ advisories"), 'INCOIS disclaimer text verified');
-console.log('   ✓ 3-column table, graph toggle with coordinate bar, and single INCOIS disclaimer verified.');
+console.log('   ✓ 2-column Depth/Temperature table, coordinate bar removed, and single INCOIS disclaimer verified.');
+
+
 
 // 8. Script Logic & JS Verification (Preserved Underlying Calculation Functions)
 console.log('8. Verifying fisheries.js Logic & Preserved Advisory Functions...');
@@ -440,8 +451,8 @@ console.log('16. Verifying Dynamic PFZ Grid Endpoint, Cluster Grouping & Fish Ce
       }
     }
   }
-  assert(validScoreCount > 100, `Expected substantial ocean coverage in pfz_scores, got ${validScoreCount}`);
-  assert(landNullCount > 500, `Expected >500 land-masked null cells in pfz_scores, got ${landNullCount}`);
+  assert(validScoreCount >= 50, `Expected substantial nearshore ocean coverage in pfz_scores, got ${validScoreCount}`);
+  assert(landNullCount > 900, `Expected >900 land & offshore-masked null cells in pfz_scores, got ${landNullCount}`);
 
   // Test specific geographic land vs ocean points in grid
   // Riyadh (25.0°N, 46.5°E) -> row 20, col 1
@@ -450,9 +461,13 @@ console.log('16. Verifying Dynamic PFZ Grid Endpoint, Cluster Grouping & Fish Ce
   assert.strictEqual(grid.pfz_scores[10][0], null, 'Sana\'a land coordinate must return null');
   // Nagpur (21.0°N, 79.5°E) -> row 16, col 23
   assert.strictEqual(grid.pfz_scores[16][23], null, 'Nagpur Central India land coordinate must return null');
-  // Central Arabian Sea (15.0°N, 64.5°E) -> row 10, col 13
-  assert(typeof grid.pfz_scores[10][13] === 'number', 'Central Arabian Sea ocean coordinate must return numeric score');
-  console.log(`      ✓ /pfz-grid land mask verified: 617 land cells return null, 449 ocean cells scored.`);
+  // Central Arabian Sea (15.0°N, 64.5°E) -> row 10, col 13 (offshore: must be excluded / null)
+  assert.strictEqual(grid.pfz_scores[10][13], null, 'Central Arabian Sea offshore coordinate must return null (excluded from candidate zones)');
+  // Nearshore Malabar Coast cell (12.0°N, 75.0°E) -> row 7, col 20 (nearshore: must have valid numeric score)
+  const r12 = grid.lats.indexOf(12.0);
+  const c75 = grid.lons.indexOf(75.0);
+  assert(typeof grid.pfz_scores[r12][c75] === 'number', 'Nearshore ocean coordinate (12.0°N, 75.0°E) must return numeric score');
+  console.log(`      ✓ /pfz-grid nearshore mask verified: land + offshore cells return null (${landNullCount}), nearshore cells scored (${validScoreCount}).`);
 
   // (B) 3-Cell Minimum Defragmentation Filter Assertion (Synthetic Grid)
   console.log('   (B) Verifying cluster flood-fill, 3-cell defragmentation & sizing on synthetic grid...');
@@ -562,12 +577,14 @@ console.log('16. Verifying Dynamic PFZ Grid Endpoint, Cluster Grouping & Fish Ce
   assert(popup5.includes('Low index (0.35)'), 'Must show 0.35 score badge');
   console.log('      ✓ Popup card HTML verified across all scenarios with zero TypeError / toFixed crashes.');
 
-  // (E) Map Click Listener, Smooth Zoom & FlyTo Verification
-  console.log('   (E) Verifying Map Click Listener, Smooth Zoom & FlyTo Behavior...');
+  // (E) Nearshore Box Click Listener, Smooth Zoom & FlyTo Verification
+  console.log('   (E) Verifying Nearshore Box Click Listener, Smooth Zoom & FlyTo Behavior...');
   assert(!js.includes("map.on('click', 'pfz-zones-fill'"),
     'pfz-zones-fill click listener must be removed to avoid overriding clicked coordinates or double-triggering');
-  assert(js.includes("selectLocation(e.lngLat.lat, e.lngLat.lng, true)"),
-    'map.on click must pass clicked coordinates e.lngLat.lat, e.lngLat.lng with zoomTo=true');
+  assert(js.includes("map.on('click', 'nearshore-boxes-fill'"),
+    'nearshore-boxes-fill click listener must be active to select discrete nearshore zones');
+  assert(js.includes("selectNearshoreBox(targetBox, true)"),
+    'nearshore-boxes-fill click must pass selected nearshore box to selectNearshoreBox');
   assert(js.includes("selectLocation(z.centroidLat, z.centroidLon, true)"),
     'Fish marker click listener must retain centroid selection with zoomTo=true');
   assert(js.includes("map.flyTo({"),
@@ -639,7 +656,7 @@ console.log('16. Verifying Dynamic PFZ Grid Endpoint, Cluster Grouping & Fish Ce
   // (A) Static HTML Empty/Prompt State Assertions
   assert(html.includes('<span id="date-display-header">Select date</span>'), 'Date display header must show placeholder "Select date"');
   assert(
-    html.includes('id="native-date-picker"') && html.includes('value=""') && (html.includes('min="2023-01-10"') || html.includes('min="2023-06-01"') || html.includes('min="2021-01-11"')),
+    html.includes('id="native-date-picker"') && html.includes('value=""') && (html.includes('min="2023-01-01"') || html.includes('min="2023-01-10"') || html.includes('min="2023-06-01"') || html.includes('min="2021-01-11"')),
     'Native date picker value must be empty on load'
   );
 
@@ -656,13 +673,15 @@ console.log('16. Verifying Dynamic PFZ Grid Endpoint, Cluster Grouping & Fish Ce
   assert(html.includes('<span class="ky-stat-card__val" id="stat-nutrient-val">—</span>'), 'Stat 4: Surface Chlorophyll-a Proxy value must be "—" on load');
   assert(html.includes('<div class="ky-stat-card__note" id="stat-nutrient-note">Select a location and date</div>'), 'Stat 4: Note must prompt "Select a location and date"');
 
-  assert(html.includes('<span class="ky-tvd-loc-inline" id="selected-loc-coord">—</span>'), 'Coordinate bar must show placeholder "—" on initial load');
+  // Coordinate bar removed from TVD panel
+  assert(!html.includes('id="selected-loc-coord"'), 'Coordinate bar element must be removed from TVD panel');
 
   assert(html.includes('id="tvd-empty-view" class="ky-tvd-empty" style="display:flex;"'), 'TVD empty placeholder view must be displayed (flex) on load');
   assert(html.includes('No location selected yet — click the map or search above'), 'TVD empty text prompt must match Dashboard empty pattern');
   assert(html.includes('id="tvd-table-view" class="ky-tvd-table-wrap" style="display:none;"'), 'TVD table view must be hidden (display:none) on load');
   assert(html.includes('id="tvd-graph-view" class="ky-tvd-chart-wrap" style="display:none;"'), 'TVD graph view must be hidden (display:none) on load');
-  console.log('      ✓ Static HTML initial empty/prompt state verified across date picker, stat cards, coordinate bar, and TVD panel.');
+  console.log('      ✓ Static HTML initial empty/prompt state verified across date picker, stat cards, and TVD panel.');
+
 
   // (B) JS State Initialization & No Auto-Load Assertions
   assert(js.includes('let currentCoord = null;'), 'currentCoord must initialize to null in fisheries.js');
@@ -1112,14 +1131,11 @@ console.log('16. Verifying Dynamic PFZ Grid Endpoint, Cluster Grouping & Fish Ce
   // 21. Verifying Candidate Zone Highlighting Consistency, Single Source of Truth & Layout Placement
   console.log('\n21. Verifying Highlighting Consistency, Single Source of Truth & Operational Note Relocation...');
 
-  // (A) Operational Caveat Relocation below .ky-fisheries-content-row
-  console.log('   (A) Verifying Operational Note Banner is Relocated Below Map & Profile Content Row...');
-  const contentRowIdx = html.indexOf('ky-fisheries-content-row');
-  const caveatIdx = html.indexOf('ky-fisheries-operational-caveat');
-  assert(contentRowIdx !== -1, 'Content row must exist in HTML');
-  assert(caveatIdx !== -1, 'Operational caveat banner must exist in HTML');
-  assert(caveatIdx > contentRowIdx, 'Operational caveat banner must be positioned below .ky-fisheries-content-row');
-  console.log('      ✓ Operational Note banner DOM position verified below content row.');
+  // (A) Operational Caveat Removal from HTML
+  console.log('   (A) Verifying Operational Note Banner is Completely Removed from Page...');
+  assert(!html.includes('ky-fisheries-operational-caveat'), 'Operational caveat banner must be removed from fisheries.html');
+  console.log('      ✓ Operational Note banner confirmed completely removed from fisheries.html.');
+
 
   // (B) Single Source of Truth for Zone Score Parity
   console.log('   (B) Verifying Single Source of Truth for Candidate Zone Score (No 0.10 vs 0.89 discrepancy)...');
@@ -1167,19 +1183,22 @@ console.log('16. Verifying Dynamic PFZ Grid Endpoint, Cluster Grouping & Fish Ce
   assert(matchedPopupHtml.includes('Central Arabian Sea Elevated'), 'Popup subtext must include zone name');
   console.log('      ✓ Single source of truth verified: Candidate zone score (0.84) overrides point mismatch in stat cards and popup.');
 
-  // (C) Arbitrary Non-Candidate Ocean Coordinate Selection
-  console.log('   (C) Verifying Arbitrary Non-Candidate Click (No dashed outline, no pulsing marker, plain pin only)...');
-  // Click arbitrary ocean coordinate outside any candidate zone (e.g. 18.0°N, 67.0°E)
-  await selectLocation(18.0, 67.0, false);
+  // (C) Rejection of Clicks Outside Nearshore Boxes (Offshore Points Beyond 185km or Land)
+  console.log('   (C) Verifying Rejection of Clicks Outside Nearshore Boxes (Offshore & Land)...');
+  // Attempt to select an arbitrary ocean coordinate outside any nearshore box (e.g. 18.0°N, 67.0°E, distance > 185km)
+  const rejectedOffshore = await selectLocation(18.0, 67.0, false);
+  assert.strictEqual(rejectedOffshore, false, 'Selecting offshore point outside nearshore boxes must return false / be rejected');
+
+  // Attempt to select a land coordinate
+  const rejectedLand = await selectLocation(20.0, 78.0, false);
+  assert.strictEqual(rejectedLand, false, 'Selecting land point must return false / be rejected');
+
   global.fetch = origFetch;
 
-  // Features and pulsing markers on map must remain unchanged (no dashed circle or pulsing fish added)
-  assert.strictEqual(mockSourceData.features.length, currentFeaturesCount, 'Selecting arbitrary ocean point must not add polygon features');
-  assert.strictEqual(mockMarkers.length, currentMarkersCount, 'Selecting arbitrary ocean point must not add pulsing fish markers');
-  // Arbitrary point correctly consumes /predict score (0.10)
-  assert.strictEqual(mockDOM['stat-pfz-val'].textContent, '0.10', 'Stat card displays /predict score for non-candidate coordinate');
-  assert.strictEqual(mockDOM['stat-pfz-badge'].textContent, 'Low', 'Stat card badge shows Low for 0.10 score');
-  console.log('      ✓ Arbitrary ocean point click verified: Only neutral pin placed, zero new map polygons or pulsing markers added.');
+  // Features and markers on map must remain unchanged
+  assert.strictEqual(mockSourceData.features.length, currentFeaturesCount, 'Rejected clicks must not add polygon features');
+  assert.strictEqual(mockMarkers.length, currentMarkersCount, 'Rejected clicks must not add markers');
+  console.log('      ✓ Clicks outside nearshore boxes (offshore open water and land) strictly rejected with zero prediction requests.');
 
   // (D) Live Backend Shelf Cliff Elimination in /pfz-grid
   console.log('   (D) Verifying Live Backend /pfz-grid Filters 4.0°C Shelf Cliff Cells...');

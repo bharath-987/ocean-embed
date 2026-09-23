@@ -3,13 +3,13 @@
  *
  * Provides a floating calendar popover that reveals with a smooth sliding
  * animation, circular day buttons, month navigation, and model date bounds
- * (2023-01-10 to 2023-12-31).
+ * (2023-01-01 to 2023-12-31).
  */
 
 (function () {
   'use strict';
 
-  const MIN_DATE = new Date('2023-01-10T00:00:00');
+  const MIN_DATE = new Date('2023-01-01T00:00:00');
   const MAX_DATE = new Date('2023-12-31T23:59:59');
   const MONTH_NAMES = [
     'January', 'February', 'March', 'April', 'May', 'June',

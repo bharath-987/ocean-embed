@@ -560,7 +560,7 @@ body.kyogre-page {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
 }
 
-/* Centered Search Bar */
+/* Centered Search Bar (Uiverse Modern White Shrink/Rebound Design) */
 .ky-header__search {
   flex: 1;
   max-width: 540px;
@@ -568,71 +568,116 @@ body.kyogre-page {
   justify-content: center;
 }
 
-.map-search-wrap {
+@keyframes searchBarShrinkBounce {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(0.96);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.map-search-wrap,
+.map-search-wrap.group {
   position: relative;
   width: 100%;
   display: flex;
   align-items: center;
+  transform-origin: center center;
+  transition: transform 0.25s cubic-bezier(0.19, 1, 0.22, 1);
+  will-change: transform;
 }
 
-.map-search__icon {
+.map-search-wrap:focus-within {
+  animation: searchBarShrinkBounce 0.38s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+.map-search-wrap:active {
+  transform: scale(0.96);
+  transition: transform 0.12s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+.map-search__icon,
+.search-icon {
   position: absolute;
   left: 14px;
+  width: 16px;
+  height: 16px;
+  fill: #94A3B8;
   color: #94A3B8;
   pointer-events: none;
+  transition: fill 0.25s cubic-bezier(0.19, 1, 0.22, 1), color 0.25s cubic-bezier(0.19, 1, 0.22, 1);
+  z-index: 2;
 }
 
-.map-search__input {
+.map-search-wrap:focus-within .map-search__icon,
+.map-search-wrap:focus-within .search-icon {
+  fill: #2563EB;
+  color: #2563EB;
+}
+
+.map-search__input,
+.map-search__input.input {
   width: 100%;
-  height: 40px;
-  padding: 0 76px 0 40px;
-  background: #F4F8FC;
-  border: 1px solid #E2EBF6;
+  height: 42px;
+  padding: 0 38px 0 42px;
+  background-color: #FFFFFF;
+  border: 0;
   border-radius: 12px;
-  color: #334155;
-  font-family: 'Inter', system-ui, sans-serif;
+  color: #1E293B;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
   font-size: 13.5px;
   outline: none;
-  transition: all 0.15s ease;
+  box-shadow: 0 0 0 1.5px #E2EBF6, 0 2px 12px -4px rgba(15, 23, 42, 0.06);
+  transition: all 0.25s cubic-bezier(0.19, 1, 0.22, 1);
+  cursor: text;
+  z-index: 1;
 }
 
 .map-search__input::placeholder {
   color: #94A3B8;
   font-size: 13px;
+  transition: color 0.2s ease;
+}
+
+.map-search__input:hover {
+  box-shadow: 0 0 0 1.5px #CBD5E1, 0 4px 16px -4px rgba(15, 23, 42, 0.08);
 }
 
 .map-search__input:focus {
-  background: #FFFFFF;
-  border-color: #2563EB;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  background-color: #FFFFFF;
+  box-shadow: 0 0 0 2px #2563EB, 0 4px 20px -4px rgba(37, 99, 235, 0.16);
+  color: #0F172A;
 }
 
 .ky-search-kbd {
-  position: absolute;
-  right: 12px;
-  font-size: 11px;
-  font-weight: 600;
-  color: #94A3B8;
-  background: #FFFFFF;
-  border: 1px solid #E2E8F0;
-  padding: 2px 7px;
-  border-radius: 6px;
-  pointer-events: none;
+  display: none !important;
 }
 
 .map-search__clear {
   position: absolute;
-  right: 56px;
+  right: 12px;
   background: transparent;
   color: #94A3B8;
-  font-size: 16px;
+  font-size: 18px;
   border: none;
   cursor: pointer;
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   display: flex;
   align-items: center;
   justify-content: center;
+  border-radius: 50%;
+  transition: all 0.15s ease;
+  z-index: 2;
+}
+
+.map-search__clear:hover {
+  background: #F1F5F9;
+  color: #334155;
 }
 
 .map-search__dropdown {
@@ -1114,6 +1159,7 @@ body.kyogre-page {
   gap: 16px;
   border: 1px solid rgba(226, 235, 246, 0.8);
   position: relative;
+  overflow: hidden;
 }
 
 .ky-stat-card__icon {
@@ -1205,6 +1251,133 @@ body.kyogre-page {
   0% { opacity: 0.35; }
   50% { opacity: 0.75; }
   100% { opacity: 0.35; }
+}
+
+/* ── KPI Stat Cards: Subtle Premium Data-Scan Reveal ─────── */
+
+/* Soft light-blue/white scan line sweep */
+.ky-stat-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -80px;
+  width: 55px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(219, 234, 254, 0.12) 20%,
+    rgba(191, 219, 254, 0.42) 46%,
+    rgba(255, 255, 255, 0.95) 50%,
+    rgba(191, 219, 254, 0.42) 54%,
+    rgba(219, 234, 254, 0.12) 80%,
+    transparent 100%
+  );
+  pointer-events: none;
+  opacity: 0;
+  z-index: 5;
+}
+
+.ky-stat-card.ky-stat-card--scanning::after {
+  animation: kyDataScanSweep 0.62s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+@keyframes kyDataScanSweep {
+  0% {
+    left: -75px;
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.85;
+  }
+  80% {
+    opacity: 0.85;
+  }
+  100% {
+    left: calc(100% + 30px);
+    opacity: 0;
+  }
+}
+
+/* KPI Icon Micro-movements on scan arrival */
+@keyframes kyScanWave {
+  0% { transform: translateY(0); }
+  30% { transform: translateY(-2px); }
+  65% { transform: translateY(1.5px); }
+  100% { transform: translateY(0); }
+}
+
+@keyframes kyScanHeat {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.10); }
+  100% { transform: scale(1); }
+}
+
+@keyframes kyScanDepth {
+  0% { transform: translateY(0); }
+  40% { transform: translateY(2.5px); }
+  100% { transform: translateY(0); }
+}
+
+.ky-stat-card--scanning .ky-stat-card__icon--teal svg {
+  animation: kyScanWave 0.42s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.ky-stat-card--scanning .ky-stat-card__icon--red svg {
+  animation: kyScanHeat 0.42s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.ky-stat-card--scanning .ky-stat-card__icon--blue svg,
+.ky-stat-card--scanning .ky-stat-card__icon--indigo svg {
+  animation: kyScanDepth 0.42s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+/* Fast Blur-to-Sharp Value Reveal (Strictly NO count-up/count-down) */
+@keyframes kyScanValueReveal {
+  0% {
+    opacity: 0.25;
+    filter: blur(3px);
+    transform: translateY(-1px);
+  }
+  65% {
+    opacity: 0.9;
+    filter: blur(0.4px);
+  }
+  100% {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0);
+  }
+}
+
+.ky-stat-card__val--revealing {
+  animation: kyScanValueReveal 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: opacity, filter, transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ky-stat-card::after,
+  .ky-stat-card.ky-stat-card--scanning::after,
+  .ky-stat-card--scanning .ky-stat-card__icon svg,
+  .ky-stat-card__val--revealing,
+  .ky-param-tile::after,
+  .ky-param-tile.ky-param-tile--scanning::after,
+  .ky-param-tile--scanning .ky-param-tile__icon svg,
+  .ky-param-tile__val--revealing,
+  .ky-param-tile--activating::before,
+  .ky-param-tile--activating .ky-param-tile__arrow,
+  .ky-param-tile__arrow,
+  .ky-tvd-table--refreshing tbody,
+  .ky-tvd-table tbody tr,
+  .ky-tvd-val--updated,
+  .ky-tvd-val-inner,
+  .ky-tvd-view--crossfade {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+    filter: none !important;
+    opacity: 1 !important;
+  }
 }
 
 #stat-svad-sub {
@@ -1777,17 +1950,21 @@ body.kyogre-page {
   cursor: pointer;
   transition: all 0.15s ease;
   font-family: inherit;
+  position: relative;
+  overflow: hidden;
 }
 
 .ky-param-tile:hover {
-  border-color: #93C5FD;
-  background: #F8FAFC;
+  /* Strictly no hover animations or hover shifts */
+  border-color: #E5E7EB;
+  background: #FFFFFF;
 }
 
-.ky-param-tile--active {
+.ky-param-tile--active,
+.ky-param-tile--active:hover {
   background: #EFF6FF;
-  border-color: #3B82F6;
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+  border-color: #2563EB;
+  box-shadow: 0 0 0 1.5px #2563EB, 0 2px 8px rgba(37, 99, 235, 0.12);
 }
 
 .ky-param-tile__icon {
@@ -1828,10 +2005,28 @@ body.kyogre-page {
 .ky-param-tile__arrow {
   color: #9CA3AF;
   flex-shrink: 0;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), color 0.2s ease;
+}
+
+@keyframes kyArrowSelect {
+  0% {
+    transform: translateX(0);
+  }
+  45% {
+    transform: translateX(4px) scaleX(1.15);
+  }
+  100% {
+    transform: translateX(2px) scaleX(1);
+  }
+}
+
+.ky-param-tile--activating .ky-param-tile__arrow {
+  animation: kyArrowSelect 0.36s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 .ky-param-tile--active .ky-param-tile__arrow {
   color: #2563EB;
+  transform: translateX(2px);
 }
 
 .ky-param-tile--wide {
@@ -1853,6 +2048,251 @@ body.kyogre-page {
 .ky-param-tile--active .ky-param-tile__icon--shield {
   background: #059669;
   color: #FFFFFF;
+}
+
+/* ── Ocean Parameters Subtle Data-Refresh Animation ──────── */
+
+.ky-param-tile__val {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0F172A;
+  margin-top: 2px;
+  line-height: 1.2;
+}
+
+/* Subtle scan beam for parameter tiles */
+.ky-param-tile::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -80px;
+  width: 50px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(219, 234, 254, 0.12) 20%,
+    rgba(191, 219, 254, 0.42) 46%,
+    rgba(255, 255, 255, 0.95) 50%,
+    rgba(191, 219, 254, 0.42) 54%,
+    rgba(219, 234, 254, 0.12) 80%,
+    transparent 100%
+  );
+  pointer-events: none;
+  opacity: 0;
+  z-index: 5;
+}
+
+.ky-param-tile.ky-param-tile--scanning::after {
+  animation: kyDataScanSweep 0.58s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+/* Parameter-specific icon micro-animations */
+@keyframes kyParamPulseSST {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.10); }
+  100% { transform: scale(1); }
+}
+
+@keyframes kyParamWaveSSH {
+  0% { transform: translateX(0); }
+  35% { transform: translateX(2.5px); }
+  70% { transform: translateX(-1.5px); }
+  100% { transform: translateX(0); }
+}
+
+@keyframes kyParamRippleSSS {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.08) translateY(-1px); }
+  70% { transform: scale(0.96) translateY(0.5px); }
+  100% { transform: scale(1) translateY(0); }
+}
+
+@keyframes kyParamBarSLA {
+  0% { transform: translateY(0); }
+  40% { transform: translateY(-2px); }
+  100% { transform: translateY(0); }
+}
+
+@keyframes kyParamFlowCurrent {
+  0% { transform: rotate(0deg); }
+  50% { transform: rotate(18deg) scale(1.04); }
+  100% { transform: rotate(0deg) scale(1); }
+}
+
+@keyframes kyParamSweepWind {
+  0% { transform: translateX(0); }
+  35% { transform: translateX(3px); }
+  100% { transform: translateX(0); }
+}
+
+.ky-param-tile--scanning[data-param="sst"] .ky-param-tile__icon svg {
+  animation: kyParamPulseSST 0.42s cubic-bezier(0.25, 1, 0.5, 1);
+}
+.ky-param-tile--scanning[data-param="ssh"] .ky-param-tile__icon svg {
+  animation: kyParamWaveSSH 0.42s cubic-bezier(0.25, 1, 0.5, 1);
+}
+.ky-param-tile--scanning[data-param="sss"] .ky-param-tile__icon svg {
+  animation: kyParamRippleSSS 0.42s cubic-bezier(0.25, 1, 0.5, 1);
+}
+.ky-param-tile--scanning[data-param="sla"] .ky-param-tile__icon svg {
+  animation: kyParamBarSLA 0.42s cubic-bezier(0.25, 1, 0.5, 1);
+}
+.ky-param-tile--scanning[data-param="current"] .ky-param-tile__icon svg {
+  animation: kyParamFlowCurrent 0.45s cubic-bezier(0.25, 1, 0.5, 1);
+}
+.ky-param-tile--scanning[data-param="wind"] .ky-param-tile__icon svg {
+  animation: kyParamSweepWind 0.42s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+/* ── Selected Parameter Activation: Border Accent Line Sweep ── */
+@property --ky-border-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes kyBorderTrace {
+  0% {
+    --ky-border-angle: 0deg;
+    opacity: 0.95;
+  }
+  85% {
+    opacity: 0.95;
+  }
+  100% {
+    --ky-border-angle: 360deg;
+    opacity: 0;
+  }
+}
+
+.ky-param-tile--activating::before {
+  content: '';
+  position: absolute;
+  inset: -1.5px;
+  border-radius: 14px;
+  padding: 1.5px;
+  background: conic-gradient(
+    from var(--ky-border-angle, 0deg),
+    transparent 0deg,
+    transparent 280deg,
+    rgba(59, 130, 246, 0.25) 320deg,
+    #2563EB 350deg,
+    #93C5FD 360deg
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+  animation: kyBorderTrace 0.62s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+  z-index: 10;
+}
+
+/* Zero-Layout-Shift Value Transition (250-400ms optical refocus) */
+@keyframes kyParamValueReveal {
+  0% {
+    opacity: 0.25;
+    filter: blur(2.5px);
+  }
+  60% {
+    opacity: 0.85;
+    filter: blur(0.5px);
+  }
+  100% {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+.ky-param-tile__val--revealing {
+  animation: kyParamValueReveal 0.32s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: opacity, filter;
+}
+
+/* Initial Page Load Parameter Tile Sequential Entrance */
+@keyframes kyParamTileEntrance {
+  0% {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* TVD Table Subtle Optical Refresh Transition */
+@keyframes kyTableRefreshFade {
+  0% {
+    opacity: 0.35;
+    filter: blur(1.5px);
+  }
+  100% {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+.ky-tvd-table--refreshing tbody {
+  animation: kyTableRefreshFade 0.26s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* TVD Table Rows Sequential Entrance (subtle fade-in + 3px upward settle) */
+@keyframes kyTableRowEntrance {
+  0% {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* TVD Changed Temperature Cell Value: Quick optical blur/fade */
+@keyframes kyTableCellValFade {
+  0% {
+    opacity: 0.35;
+    filter: blur(1.5px);
+  }
+  100% {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+/* TVD Changed Temperature Cell: Extremely subtle background transition (~300ms) */
+@keyframes kyTableCellHighlight {
+  0% {
+    background-color: rgba(37, 99, 235, 0.08);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.ky-tvd-val--updated {
+  animation: kyTableCellHighlight 0.30s ease-out forwards;
+}
+
+.ky-tvd-val--updated .ky-tvd-val-inner {
+  display: inline-block;
+  animation: kyTableCellValFade 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Table <-> Graph View Crossfade (150-200ms) */
+@keyframes kyTvdViewCrossfade {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.ky-tvd-view--crossfade {
+  animation: kyTvdViewCrossfade 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 /* ============================================================
@@ -1893,33 +2333,48 @@ body.kyogre-page {
 }
 
 .ky-tvd-expand {
-  background: transparent;
-  border: none;
-  color: #94A3B8;
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: none !important;
 }
 
-.ky-tvd-expand:hover {
-  background: #F1F5F9;
-  color: #2563EB;
-}
-
-/* Table / Graph Pill Toggle */
+/* Table / Graph Sliding Pill Toggle */
 .ky-tvd-toggle {
+  position: relative;
   display: flex;
   background: #F1F5F9;
   border-radius: 12px;
   padding: 3px;
   margin: 0 18px 12px;
   flex-shrink: 0;
+  isolation: isolate;
+  user-select: none;
+}
+
+/* Sliding active pill highlight */
+.ky-tvd-toggle::before {
+  content: '';
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc(50% - 3px);
+  background: #1D64F2;
+  border-radius: 9px;
+  box-shadow: 0 2px 8px rgba(29, 100, 242, 0.32);
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  transform: translateX(0);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.ky-tvd-toggle:has(#tvd-btn-graph.ky-tvd-toggle__btn--active)::before,
+.ky-tvd-toggle:has(#btn-view-graph.ky-tvd-toggle__btn--active)::before,
+.ky-tvd-toggle[data-active="graph"]::before {
+  transform: translateX(100%);
 }
 
 .ky-tvd-toggle__btn {
+  position: relative;
+  z-index: 2;
   flex: 1;
   padding: 6px 0;
   font-size: 12.5px;
@@ -1927,10 +2382,11 @@ body.kyogre-page {
   border-radius: 9px;
   border: none;
   cursor: pointer;
-  background: transparent;
+  background: transparent !important;
   color: #64748B;
-  transition: all 0.15s ease;
+  transition: color 0.22s ease;
   font-family: inherit;
+  box-shadow: none !important;
 }
 
 .ky-tvd-toggle__btn:hover {
@@ -1938,9 +2394,9 @@ body.kyogre-page {
 }
 
 .ky-tvd-toggle__btn--active {
-  background: #1D64F2;
   color: #FFFFFF !important;
-  box-shadow: 0 2px 6px rgba(29, 100, 242, 0.3);
+  background: transparent !important;
+  box-shadow: none !important;
 }
 
 .ky-tvd-content,
@@ -2128,6 +2584,26 @@ body.kyogre-page {
   color: #94A3B8 !important;
   font-weight: 400 !important;
 }
+
+.ky-tvd-table-row--coast-distance td {
+  background: #F8FAFC !important;
+  font-size: 11.5px;
+  border-bottom: 1.5px solid #E2E8F0;
+  padding: 7px 12px;
+}
+.ky-tvd-table-row--coast-distance td:first-child {
+  font-weight: 600;
+  color: #475569;
+  width: 55%;
+}
+.ky-tvd-table-row--coast-distance td:nth-child(2) {
+  font-weight: 600;
+  color: #1D4ED8;
+  text-align: right;
+  padding-right: 14px;
+  width: 45%;
+}
+
 
 /* Empty placeholder state for TVD panel */
 .ky-tvd-empty {
@@ -2821,17 +3297,42 @@ body.kyogre-page {
 }
 
 .ky-tvd-panel .ky-tvd-toggle {
+  position: relative;
   display: flex;
   background: #F1F5F9;
   border-radius: 10px;
   padding: 3px;
-  gap: 4px;
   margin: 0 0 10px 0;
   width: 100%;
   box-sizing: border-box;
+  isolation: isolate;
+  user-select: none;
+}
+
+.ky-tvd-panel .ky-tvd-toggle::before {
+  content: '';
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc(50% - 3px);
+  background: #1D64F2;
+  border-radius: 7px;
+  box-shadow: 0 2px 8px rgba(29, 100, 242, 0.32);
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  transform: translateX(0);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.ky-tvd-panel .ky-tvd-toggle:has(#btn-view-graph.ky-tvd-toggle__btn--active)::before,
+.ky-tvd-panel .ky-tvd-toggle[data-active="graph"]::before {
+  transform: translateX(100%);
 }
 
 .ky-tvd-panel .ky-tvd-toggle__btn {
+  position: relative;
+  z-index: 2;
   flex: 1;
   padding: 6px 14px;
   font-size: 12.5px;
@@ -2839,11 +3340,12 @@ body.kyogre-page {
   border-radius: 7px;
   border: none;
   cursor: pointer;
-  background: transparent;
+  background: transparent !important;
   color: #64748B;
-  transition: all 0.15s ease;
+  transition: color 0.22s ease;
   font-family: inherit;
   text-align: center;
+  box-shadow: none !important;
 }
 
 .ky-tvd-panel .ky-tvd-toggle__btn:hover {
@@ -2851,9 +3353,9 @@ body.kyogre-page {
 }
 
 .ky-tvd-panel .ky-tvd-toggle__btn--active {
-  background: #1D64F2;
   color: #FFFFFF !important;
-  box-shadow: 0 2px 6px rgba(29, 100, 242, 0.25);
+  background: transparent !important;
+  box-shadow: none !important;
 }
 
 .ky-tvd-coord-bar {
@@ -5024,6 +5526,132 @@ body.ky-argo-body-theme {
   line-height: 1.25;
   margin-top: 2px;
 }
+
+/* Static NetCDF Dataset Download Section */
+.ky-tvd-download-section {
+  padding: 12px 16px 14px;
+  background: #F8FAFC;
+  border-top: 1px solid #E2E8F0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.ky-tvd-download-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 16px;
+  background: #FFFFFF;
+  border: 1px solid #CBD5E1;
+  border-radius: 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #1D4ED8;
+  text-decoration: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: all 0.15s ease;
+  user-select: none;
+  box-sizing: border-box;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.ky-tvd-download-btn:hover {
+  background: #EFF6FF;
+  border-color: #93C5FD;
+  color: #1E40AF;
+  box-shadow: 0 2px 4px rgba(29, 78, 216, 0.08);
+}
+
+.ky-tvd-download-btn svg {
+  color: #2563EB;
+  flex-shrink: 0;
+  transition: transform 0.15s ease, color 0.15s ease;
+}
+
+.ky-tvd-download-btn:hover svg {
+  transform: translateY(1px);
+}
+
+/* Downloading in-progress state: subtle progress/shimmer sweep */
+.ky-tvd-download-btn.is-downloading {
+  cursor: wait;
+  pointer-events: none;
+  background: #EFF6FF;
+  border-color: #93C5FD;
+  color: #1D4ED8;
+}
+
+.ky-tvd-download-btn.is-downloading::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(219, 234, 254, 0.45) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: kyDownloadShimmer 1.8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes kyDownloadShimmer {
+  0% {
+    left: -100%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+/* Downloaded & Disabled state: subdued, non-interactive */
+.ky-tvd-download-btn.is-downloaded,
+.ky-tvd-download-btn:disabled,
+.ky-tvd-download-btn[aria-disabled="true"] {
+  background: #F1F5F9;
+  border-color: #E2E8F0;
+  color: #64748B;
+  box-shadow: none;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.ky-tvd-download-btn.is-downloaded svg,
+.ky-tvd-download-btn:disabled svg,
+.ky-tvd-download-btn[aria-disabled="true"] svg {
+  color: #059669;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ky-tvd-download-btn.is-downloading::after {
+    animation: none;
+    opacity: 0;
+  }
+  .ky-tvd-download-btn,
+  .ky-tvd-download-btn svg {
+    transition: none;
+  }
+}
+
+.ky-tvd-download-note {
+  font-size: 11px;
+  line-height: 1.45;
+  color: #64748B;
+  margin: 0;
+  padding: 0 2px;
+}
+
+
 
 
 

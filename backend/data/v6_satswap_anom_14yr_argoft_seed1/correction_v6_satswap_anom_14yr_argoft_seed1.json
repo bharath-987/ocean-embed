@@ -1,0 +1,57 @@
+{
+  "model": "v6_satswap_anom_14yr_argoft_seed1",
+  "kind": "argo_depth_bias",
+  "depths": [
+    0,
+    5,
+    10,
+    20,
+    30,
+    50,
+    75,
+    100,
+    125,
+    150,
+    200,
+    300,
+    500,
+    700,
+    1000
+  ],
+  "depth_bias": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "depth_bias_applies": "subtract from the temperature profile",
+  "mld": "compute from the RAW profile, not the corrected one",
+  "tchp": {
+    "rule": "raw",
+    "offset": 0.0,
+    "rmse_band": 11.615818180312283,
+    "bias": -0.625627174883604,
+    "how": "tchp(raw profile)"
+  },
+  "fit": {
+    "fit_profiles": 4939,
+    "fit_floats": 96,
+    "fit_dates": "2021-01-01 .. 2022-12-31",
+    "scored_profiles": 2910,
+    "scored_from": "2023-01-01",
+    "scored_floats": 92,
+    "note": "Argo fine-tuned model (Phase F): served RAW, depth_bias is all zeros by decision (a depth correction on top gained only +0.005 degC, below the 0.02 materiality bar)",
+    "rule": "Phase F keep rule, fixed 2026-09-23"
+  }
+}

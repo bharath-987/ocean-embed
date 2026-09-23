@@ -21,9 +21,9 @@ ARGO_DEPTH_BIAS = np.array([
     0.39556680, -0.35816629, -0.39205419, 0.31647621, 0.61763212
 ], dtype=np.float32)
 
-# Post-processing empirical TCHP adjustment constants (v6_satswap_anom_14yr)
-TCHP_OFFSET = 2.47      # kJ/cm², added after computing TCHP from the corrected profile
-TCHP_BAND = 11.8        # kJ/cm², new empirical error band (±11.8 kJ/cm², updated from ±15.7)
+# Post-processing empirical TCHP adjustment constants (v6_satswap_anom_14yr_argoft_seed1)
+TCHP_OFFSET = 0.0       # Direct model output used without manual offset
+TCHP_BAND = 11.6        # kJ/cm², empirical error band (±11.6 kJ/cm² error, ±17.8 90% band)
 
 
 def correct_profile(raw_profile: Union[np.ndarray, List[float]]) -> np.ndarray:

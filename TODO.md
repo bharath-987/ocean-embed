@@ -4,6 +4,545 @@
 > **MANDATORY PROTOCOL**: This file **MUST** be updated after **EVERY SINGLE TASK** without exception or user reminder.
 > Record status, files changed, and verification evidence for every item.
 
+- [x] **Task: Full Model Swap to Argo-Fine-Tuned Field (argoft_seed1) & Truth Page Recompute** `[Completed 2026-09-23 21:50 IST]`
+  - **1. Unpack and Wire In New Model**:
+    - Transferred all 7 source files from `C:\Users\Asus\Downloads\latest files` into isolated directory `backend/data/v6_satswap_anom_14yr_argoft_seed1/`.
+    - Unpacked `field`, `products`, and `embeddings` `.npz` files into `unpacked/` subfolder.
+    - Preserved previous model directory `backend/data/v6_satswap_anom_14yr/` untouched as a reliable fallback.
+    - Pointed `ServingData` in [`backend/v6_adapter.py`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/backend/v6_adapter.py) to `v6_satswap_anom_14yr_argoft_seed1`, with `CORRECTION_FILE = "correction_v6_satswap_anom_14yr_argoft_seed1.json"`, `BANDS_FILE = "bands_v6_satswap_anom_14yr_argoft_seed1.json"`, and `MODEL_NAME = "model_v6_satswap_anom_14yr_argoft_seed1"`.
+  - **2. Remove Raw/Corrected Toggle Everywhere**:
+    - Completely removed the `#toggle-argo-corrected` checkbox from [`argo.html`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/argo.html) and removed its event listener in [`argo.js`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/argo.js).
+    - Removed `#btn-raw-profile-toggle` and raw note sync logic from [`app.js`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/app.js) and [`explore.html`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/explore.html).
+    - Replaced all labels and tooltips claiming "(raw)" or "(corrected)" with single unified "Temperature (°C)" or "Model Value".
+  - **3. Remove Leftover TCHP Offsets**:
+    - Removed manual offset `TCHP_OFFSET = 0.0` in [`backend/products.py`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/backend/products.py).
+    - Removed `- 2.47` subtraction in [`backend/api_server.py`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/backend/api_server.py). Model TCHP is now directly consumed.
+  - **4. Update Date Range in All Places**:
+    - Updated `WINDOW_START = "2023-01-01"` in [`backend/v6_adapter.py`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/backend/v6_adapter.py).
+    - Updated datepickers, notices, and guards in [`explore.html`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/explore.html), [`fisheries.html`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/fisheries.html), [`fingerprint.html`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/fingerprint.html), [`datepicker.js`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/datepicker.js), and [`fisheries.js`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/fisheries.js) from `2023-01-10` to `2023-01-01`.
+  - **5. Update Error-Band Documentation**:
+    - Updated documentation and UI callouts to 90% confidence bands: $\pm 0.65^\circ\text{C}$ at 5m, $\pm 1.60^\circ\text{C}$ at 50m, $\pm 1.79^\circ\text{C}$ at 100m, $\pm 0.37^\circ\text{C}$ at 1000m.
+    - Updated TCHP error band: $\pm 11.6\text{ kJ/cm}^2$ (RMSE), $\pm 17.8\text{ kJ/cm}^2$ (90% band).
+  - **6. Recompute ARGO Validation Truth Page**:
+    - Recomputed all metrics using strictly 2023 test set rows ($N = 2,910$ profiles, 92 floats, 38,769 depth points):
+      - **Model (new)**: All $0.801^\circ\text{C}$, 5m $0.471^\circ\text{C}$, 50m $1.029^\circ\text{C}$, 100m $1.180^\circ\text{C}$, 200m $0.740^\circ\text{C}$, 500m $0.332^\circ\text{C}$
+      - **GLORYS12**: All $0.886^\circ\text{C}$, 5m $0.453^\circ\text{C}$, 50m $1.088^\circ\text{C}$, 100m $1.634^\circ\text{C}$, 200m $0.935^\circ\text{C}$, 500m $0.519^\circ\text{C}$
+      - **Previous model**: All $0.941^\circ\text{C}$, 5m $0.504^\circ\text{C}$, 50m $1.138^\circ\text{C}$, 100m $1.752^\circ\text{C}$, 200m $0.951^\circ\text{C}$, 500m $0.490^\circ\text{C}$
+    - 100% exact match across all specified depths.
+    - Rendered clean 3-row truth benchmark table in [`argo.html`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/argo.html).
+    - Removed pooled correlation from the truth page.
+  - **7. Update Training Narrative**:
+    - Replaced all claims of "satellite remote sensing observations alone" and "beating GLORYS with satellites alone" with:
+      *"Satellite inputs; network trained on the GLORYS reanalysis, then on real Argo floats."*
+    - Updated [`src/components/DescentNarrative.tsx`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/src/components/DescentNarrative.tsx), [`src/components/CinematicDescent.tsx`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/src/components/CinematicDescent.tsx), [`src/components/landing/HeroSection.tsx`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/src/components/landing/HeroSection.tsx), [`index.html`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/index.html), and rebuilt `dist/kyogre-app.js`.
+  - **8. Retired Code Confirmation**:
+    - Verified that `_temp_target_clim` is completely bypassed for all 2023 dates. All 2023 dates route through `v6_adapter` slicing directly from `argoft_seed1` field array with zero corrupted seabed zeros.
+  - **9. Re-Run Prior Diagnostics**:
+    - **83-Box Coastal Shelf Audit**: All 83 nearshore boxes checked across 6 dates (498 profiles). Zero temperatures $< 4.0^\circ\text{C}$, zero cliffs, zero crashes.
+    - **Fishing Grounds Check**:
+      - *Kerala/Karnataka Upwelling*: SW Monsoon PFZ $= 0.64 - 0.65$ (Moderate), thermocline shoals to $62.5\text{m}$, upwelling $= 0.63 - 0.83$ vs non-monsoon PFZ $= 0.15 - 0.24$, thermocline $= 87.5 - 112.5\text{m}$, upwelling $= 0.00 - 0.07$.
+      - *Wadge Bank*: SW Monsoon PFZ $= 0.63 - 0.64$ (Moderate), thermal front $= 1.00$ vs non-monsoon PFZ $= 0.21 - 0.33$, front $= 0.47 - 0.63$.
+      - *Andaman Sea*: Low PFZ ($0.10 - 0.26$) and weak fronts ($0.08 - 0.23$) throughout.
+  - **10. Full Test Suite Verification**:
+    - `python test_nearshore_filter.py`: **100% PASS**
+    - `node test_nearshore_filter.js`: **100% PASS**
+    - `node test_fisheries.js`: **100% PASS**
+    - `node test_argo_page.js`: **148 / 148 PASS (100%)**
+    - `node test_marine_ecology.js`: **157 / 157 PASS (100%)**
+    - `node test_stat_card_outputs.js`: **100% PASS**
+    - `node test_netcdf_interaction.js`: **100% PASS**
+    - `node test_argo_skill_score.js`: **54 / 54 PASS (100%)**
+    - `node test_argo_metric_verify.js`: **50 / 50 PASS (100%)**
+    - `node verify_landing_page.js`: **41 / 41 PASS (100%)**
+    - `python test_argo_summary_regression.py`: **23 / 23 PASS (100%)**
+
+- [x] **Task: Rename Marine Ecology & Heatwave Mode to Heatwave Mode** `[Completed 2026-09-23 20:53 IST]`
+  - **Scope & Changes**:
+    - Renamed navigation label and page title to `"Heatwave Mode"` strictly without touching any underlying functionality, data attributes (`data-nav="ecology"`), routes, or CSS styling.
+    - Updated [`marine-ecology.html`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/marine-ecology.html):
+      - Page title updated to `<title>Kyogre — Heatwave Mode</title>`.
+      - Sidebar active nav item label updated to `<span class="ky-nav-item__label">Heatwave Mode</span>`.
+    - Updated navigation bars across all platform pages to ensure seamless site-wide parity:
+      - [`explore.html`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/explore.html): `<span class="ky-nav-item__label">Heatwave Mode</span>`
+      - [`fisheries.html`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/fisheries.html): `<span class="ky-nav-item__label">Heatwave Mode</span>`
+      - [`argo.html`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/argo.html): `<span class="ky-nav-item__label">Heatwave Mode</span>`
+      - [`fingerprint.html`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/fingerprint.html): `<span class="ky-nav-item__label">Heatwave Mode</span>`
+    - Updated [`test_marine_ecology.js`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/test_marine_ecology.js) assertion for page title.
+  - **Verification Matrix**:
+    - `node test_marine_ecology.js`: **PASS (157/157)**
+    - `node test_argo_page.js`: **PASS (148/148)**
+    - `node test_nearshore_filter.js`: **PASS (100%)**
+    - `node test_fisheries.js`: **PASS (100%)**
+    - `node test_netcdf_interaction.js`: **PASS (100%)**
+    - `node test_stat_card_outputs.js`: **PASS (100%)**
+    - `node verify_landing_page.js`: **PASS (41/41)**
+
+- [x] **Task: Update NetCDF Download Button Interaction & Session Gating** `[Completed 2026-09-23 23:45 IST]`
+  - **Requirement 1 — Default State**:
+    - Retained clean button text `"↓ Download NetCDF"` via `<span id="btn-download-netcdf-text">↓ Download NetCDF</span>` in [`explore.html`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/explore.html).
+    - Preserved existing layout position inside `.ky-tvd-download-section` directly beneath the TVD panel without altering surrounding UI or card hierarchy.
+  - **Requirement 2 — On Click (In-Progress Micro-Interaction)**:
+    - On click, label instantly updates to `"↓ Downloading..."`.
+    - Added subtle, high-performance shimmer sweep animation (`@keyframes kyDownloadShimmer 1.8s ease-in-out infinite`) via class `.ky-tvd-download-btn.is-downloading` in [`style.css`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/style.css).
+    - Avoided fake percentage numbers, bouncy springs, ripples, or flashy glowing effects.
+    - Disabled button interaction during download (`isDownloading` guard, `cursor: wait; pointer-events: none;`) to prevent duplicate clicks.
+    - Fully respected `@media (prefers-reduced-motion: reduce)` by disabling shimmer sweep for accessible user preferences.
+  - **Requirement 3 — After Successful Download**:
+    - Seamlessly transitions text to `"✓ Downloaded"`.
+    - Transformed download arrow icon to clean checkmark SVG (`polyline points="20 6 9 17 4 12"`).
+    - After ~700ms, transitions smoothly to subdued disabled state:
+      - Class: `.is-downloaded`
+      - Accessibility: `aria-disabled="true"`, `tabindex="-1"`
+      - Security/DOM: Removed `href`, `download`, `target`, and `rel` attributes, set `pointer-events: none` and `cursor: not-allowed`
+      - Subdued theme styling: `background: #F1F5F9; border-color: #E2E8F0; color: #64748B;`
+      - Final disabled text: `"✓ Already Downloaded"`
+  - **Requirement 4 — One Download Only (Session Gating)**:
+    - Fixed dataset architecture: 2023 3D volume NetCDF is invariant across all coordinates and dates.
+    - Persisted completion state in browser session: `sessionStorage.setItem('kyogre_netcdf_downloaded', 'true')`.
+    - On page load / view initialization, `initNetCDFDownloadLink()` in [`app.js`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/app.js) checks `sessionStorage` and immediately sets disabled `"✓ Already Downloaded"` state if previously downloaded.
+    - Invariant across user interactions: Changing coordinate pins, dates, ocean parameters, or Table/Graph views never resets or re-enables the button.
+  - **Requirement 5 — Rigorous Verification Evidence**:
+    - `node test_netcdf_download.js`: **PASS (100%)** — verified local 173.7 MB binary parity, local static server HTTP 200 resolution, and Hugging Face direct HTTPS resolution.
+    - `node test_netcdf_interaction.js`: **PASS (100%)** — verified button lifecycle states (Default -> Downloading -> Downloaded -> Already Downloaded), `sessionStorage` locking, CSS keyframes, and reduced-motion handling.
+    - `node test_stat_card_outputs.js`: **PASS (100%)**
+    - `node test_nearshore_filter.js`: **PASS (100%)**
+    - `node test_fisheries.js`: **PASS (100%)**
+    - `node test_argo_page.js`: **PASS (148/148)**
+    - `node test_marine_ecology.js`: **PASS (157/157)**
+    - `node verify_landing_page.js`: **PASS (41/41)**
+
+- [x] **Task: Fisheries Mode Table Correction & Final Cleanup — Hackathon Demo** `[Completed 2026-09-23 22:30 IST]`
+  - **Item 1: Data-Correctness Fix — Remove Subsurface Chlorophyll Column & Restore Temperature**:
+    - Removed depth-varying "Chlorophyll proxy (mg/m³) — est." column from the right-side vertical profile table. Subsurface chlorophyll was physically ungrounded since chlorophyll is a surface-only metric.
+    - Restored `Temperature (°C)` as the second column in [`fisheries.html`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/fisheries.html) (`Depth (m)` | `Temperature (°C)`).
+    - Updated `renderTable()` in [`fisheries.js`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/fisheries.js) to render model-reconstructed temperatures per depth level.
+    - Chlorophyll-a legitimately remains exclusively in the top Surface Chlorophyll-a Proxy stat card.
+  - **Item 2: Coordinate Bar and Model Badge Removal**:
+    - Removed `<div class="ky-tvd-coord-bar">` containing `Selected Location` (`#selected-loc-coord`) and the `14-Year Model` badge (`#fisheries-model-badge`) from [`fisheries.html`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/fisheries.html).
+    - Cleaned up conditional element lookups in [`fisheries.js`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/fisheries.js) to avoid null reference issues.
+  - **Item 3: Remove MLD and Thermal Front Rows from Table**:
+    - Removed `Mixed Layer Depth` and `Thermal Front Strength` table rows from `renderTable()`.
+    - Retained `Distance from coast` as the single summary row above the Depth/Temperature table.
+    - Preserved existing 4 top stat cards (Thermocline Depth, Upwelling Index, PFZ Index, Chlorophyll Proxy) without additions.
+  - **Item 4: Consistent Red Border Color for All Boxes**:
+    - Diagnosed cause: `renderNearshoreBoxes()` contained tier-based color branch overrides (`score >= 0.70` set `fillColor = '#F97316'` orange-500 and `lineColor = '#EA580C'` orange-600; `score < 0.40` set `#B91C1C`).
+    - Replaced all score-based color branching with a single uniform red style (`lineColor = '#DC2626'`, `fillColor = '#DC2626'`, `fillOpacity = 0.18`, `lineWidth = 2.5`).
+    - Selected active box gets bright red fill (`#EF4444`) and white border (`#FFFFFF`, `lineWidth = 4.0`).
+  - **Item 5: Remove Operational Note Banner**:
+    - Completely removed `<div class="ky-fisheries-operational-caveat">` from [`fisheries.html`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/fisheries.html).
+  - **Item 6: Verification & Testing Matrix**:
+    - `node test_nearshore_filter.js`: **ALL 10 TESTS PASS (100%)**.
+    - `node test_fisheries.js`: **ALL 21 SECTIONS PASS (100%)**.
+    - `python test_nearshore_filter.py`: **ALL 6 TESTS PASS (100%)**.
+    - `node test_argo_page.js`: **PASS (148/148)**.
+    - `node test_marine_ecology.js`: **PASS (157/157)**.
+    - `node verify_landing_page.js`: **PASS (41/41)**.
+    - Scope constraints strictly honored: ARGO Validation, Marine Ecology, PFZ scoring formula, and Graph toggle untouched.
+
+- [x] **Task: Final Fisheries Mode Polish Pass (Steps 2–5) — Hackathon Demo** `[Completed 2026-09-23 22:00 IST]`
+  - **Step 1 (chlorophyll provenance — completed prior session)**: Confirmed badge is dynamically accurate, not hardcoded. Live `/predict` returns `satellite` for clear-sky coastal points and `climatology` for cloud-obscured points. No fix needed.
+  - **Step 2 — Box Size Increase**:
+    - Increased default line width from 1.2→2.5, active from 2.6→4.0. Fill opacity: 0.14→0.18 default, 0.40→0.45 active.
+    - Elevated PFZ zones (score ≥ 0.70): line width 1.6→3.0, opacity 0.24→0.28.
+    - MapLibre layer defaults updated: `fill-opacity` 0.14→0.18, `line-width` 1.2→2.5, `line-opacity` 0.85→0.90.
+  - **Step 3 — Red Box Color**:
+    - Changed all box colors from blue/teal (`#0284C7`/`#2563EB`) to red palette: `#DC2626` (red-600) default, `#EF4444` (red-500) selected, `#B91C1C` (red-700) low-score.
+    - Elevated zones (PFZ ≥ 0.70): orange-red `#F97316` (orange-500) with `#EA580C` border to distinguish from ordinary boxes.
+    - Selected active state: bright `#EF4444` fill, white `#FFFFFF` border for maximum contrast.
+    - MapLibre layer defaults updated to `#DC2626`.
+    - **Visual note**: Red boxes will be clearly visible against the blue/teal chlorophyll overlay. High-chlorophyll zones (orange/red at the top of the gradient) may blend slightly; elevated zones are differentiated by orange-red color and thicker border.
+  - **Step 4 — Table Changes**:
+    - **Temperature column removed**: `fisheries.html` table header reduced from 3 columns → 2 columns (Depth, Chlorophyll proxy). `renderTable()` in `fisheries.js` no longer renders temperature `<td>` per depth row.
+    - **Field inventory from backend `indices`**: Confirmed real fields present — `mld`, `thermocline_depth`, `d20`, `d26`, `thermal_front_strength`, `upwelling_index`, `pfz`, `distance_to_coast_km`, `chlorophyll_a`, `tchp`, `ohc300`, `data_quality_flag`.
+    - **MLD row added**: `indices.mld` (Mixed Layer Depth in metres) — shallower MLD concentrates nutrients near surface, drawing forage fish up. Labels "Shallow — high productivity" if ≤ 25 m.
+    - **Thermal Front Strength row added**: `indices.thermal_front_strength` (0–1 normalized) — fronts aggregate baitfish along thermal boundaries. Labels "Strong front" (≥ 0.70), "Moderate front" (≥ 0.40), "Weak / none".
+    - Both scalar rows share `.ky-tvd-table-row--coast-distance` CSS styling (slate label left, royal blue value right).
+    - `renderTable()` signature: added `mldVal = null` and `frontStrength = null` params. Both call sites updated.
+    - CSS updated for 2-column layout: `.ky-tvd-table-row--coast-distance td:first-child` width 55%, second cell 45%.
+  - **Step 5 — Testing & Verification**:
+    - `node test_nearshore_filter.js`: **ALL 10 TESTS PASS** — new test 2 verifies 12-row table (coast+MLD+front+9 depth), no temperature in depth rows, correct row ordering and labeling.
+    - `node test_fisheries.js`: **ALL 21 SECTIONS PASS** — section 7 updated to assert Temperature removed, MLD/front rows in JS, chlorophyll proxy column present.
+    - `python test_nearshore_filter.py`: **ALL 6 TESTS PASS**.
+    - `node test_stat_card_outputs.js`: **PASS (100%)**
+    - `node test_argo_page.js`: **PASS (148/148)**
+    - `node test_marine_ecology.js`: **PASS (157/157)**
+    - `node verify_landing_page.js`: **PASS (41/41)**
+    - Live API `/predict` for Mumbai nearshore (18.0°N, 72.0°E, 2023-09-04): `mld=29.17`, `thermal_front_strength=0.31`, `distance_to_coast_km=158.6` — all surfaced correctly.
+    - Backend endpoints `/predict`, `/temperature-grid`, `/parameter-grid`, `/nearshore-boxes`, `/health`: all HTTP 200 OK.
+  - **Files modified**:
+    - `fisheries.js`: `renderNearshoreBoxes` colors → red, line widths increased; `renderTable` signature + MLD/front rows; both renderTable call sites updated.
+    - `fisheries.html`: table header reduced to 2 columns (Temperature `<th>` removed).
+    - `style.css`: `.ky-tvd-table-row--coast-distance` CSS widths adjusted for 2-column layout.
+    - `test_nearshore_filter.js`: Test 1 + Test 2 assertions fully updated for new table structure.
+    - `test_fisheries.js`: Section 7 assertions updated.
+  - **Scope constraints honored**: ARGO Validation, Marine Ecology, PFZ scoring formula, and Graph toggle untouched.
+
+- [x] **Task: Replace Free-Click Prediction in Fisheries Mode with Discrete Nearshore Zone Boxes & Remove Search Bar** `[Completed 2026-09-23 16:05]`
+  - **Item 1: Discrete Nearshore Zone Boxes Overlay**:
+    - Serialized `nearshore_boxes` in `compute_pfz_grid` and added `GET /nearshore-boxes` endpoint in `backend/api_server.py`.
+    - Rendered nearshore ocean cells (`distance_to_coast_km <= NEARSHORE_MAX_KM = 185.0`) as discrete GeoJSON polygon boxes on the map (`nearshore-boxes` source, `nearshore-boxes-fill` and `nearshore-boxes-line` layers) with pointer cursor and active selection highlights.
+    - Reused existing 26x41 grid resolution and `pfz_land_mask.npy` with zero new masks or grids introduced.
+  - **Item 2: Disable Free-Click Map Selection & Remove Search Bar**:
+    - Removed free-form click anywhere on the map that called `/predict` with arbitrary lat/lon. Clicking is strictly restricted to nearshore boxes (`nearshore-boxes-fill` click listener and boundary containment check).
+    - Clicks outside nearshore boxes (offshore open water >185 km or land) are cleanly rejected (`selectLocation` returns `false`) with zero prediction requests fired.
+    - Removed `<div class="ky-header__search">` completely from `fisheries.html`.
+  - **Item 3: Box Selection & Live Date Synchronization**:
+    - Selecting a nearshore box snaps to that box's exact grid cell center coordinates and calls `/predict` with the selected date.
+    - Populates right-side Table view (depth/temperature rows, distance-from-coast row) and top 4 stat cards (thermocline depth, upwelling index, PFZ index, chlorophyll proxy).
+    - When changing date while a box is selected, cleanly re-fetches `/predict` and updates all panel values without leftover stale data.
+  - **Item 4: Testing & Verification**:
+    - Extended `test_nearshore_filter.js` to 10 automated test suites covering search bar removal, rejection of offshore clicks (>185km and 344.7km), land rejection, discrete box coordinate snapping (Mumbai 18.0°N 72.0°E, Kerala 11.0°N 75.0°E), date change re-fetching (zero stale data), and `/nearshore-boxes` endpoint validation.
+    - Updated `test_fisheries.js` section 16(E) and 21(C) to verify nearshore box click listeners and rejection of non-nearshore coordinates.
+    - Ran full platform regression matrix:
+      - `node test_nearshore_filter.js`: **PASS (100% across all 10 tests)**.
+      - `python test_nearshore_filter.py`: **PASS (100%)**.
+      - `node test_fisheries.js`: **PASS (100% across all 21 sections)**.
+      - `node test_tvd_animation_polish.js`: **PASS (100%)**.
+      - `node test_param_micro_interactions.js`: **PASS (100%)**.
+      - `node test_data_refresh_system.js`: **PASS (100%)**.
+      - `node test_stat_scan_animation.js`: **PASS (100%)**.
+      - `node test_stat_card_outputs.js`: **PASS (100%)**.
+      - `node test_d20_card.js` & `test_d26_card.js`: **PASS (100%)**.
+      - `node test_search_bar_effect.js`: **PASS (100%)**.
+      - `node test_datepicker.js`: **PASS (100%)**.
+      - `node test_sliding_sidebar.js`: **PASS (100%)**.
+      - `node test_argo_page.js`: **PASS (100%)**.
+      - `node test_marine_ecology.js`: **PASS (100%)**.
+      - `node verify_landing_page.js`: **PASS (100%)**.
+      - `node test_netcdf_download.js`: **PASS (100%)**.
+      - Backend API `/predict`, `/pfz-grid`, and `/nearshore-boxes`: **HTTP 200 OK**.
+
+- [x] **Task: Restrict Fisheries Mode Candidate Zones to Near-Coast & Add Distance to Coast in Detail Table** `[Completed 2026-09-23 15:35]`
+  - **Item 1: Reuse Existing Land/Ocean Mask & Distance Calculation**:
+    - Reused existing Natural Earth land mask `backend/data/pfz_land_mask.npy` (shape `(26, 41)` matching the exact PFZ downsampled grid resolution).
+    - Implemented `compute_distance_to_coast_km(lat, lon)` (with aliases `distance_to_coast_km` and `distance_to_nearest_coast_km`) evaluating vectorized Haversine distance to the nearest land cell center, returning 0.0 km for land points.
+    - Defined `NEARSHORE_MAX_KM = float(os.environ.get("NEARSHORE_MAX_KM", 185.0))` (100 nautical miles / ~185 km): standard boundary for continental shelf and nearshore artisanal/mechanized fleets. On a 1.0° x 1.5° downsampled grid (~111–160 km cell spacing), 185 km includes cells adjacent to the coastline while strictly excluding open-ocean offshore basin cells (>185 km, e.g. Central Arabian Sea at 884.9 km).
+    - Implemented precomputed 26x41 `_get_pfz_coast_dist_grid()` with instant lookups.
+  - **Item 2: Backend Filtering in `compute_pfz_grid` & `/predict` Integration**:
+    - In `compute_pfz_grid`, filtered candidate zones so cells with `coast_dist_grid[r, c] > NEARSHORE_MAX_KM` append `None` to `score_row`. Offshore zones are completely excluded from PFZ candidate scores, while continuous environmental Chlorophyll-a raster is preserved.
+    - In `model_result_to_frontend`, added `"distance_to_coast_km": dist_to_coast_km` at the response root and inside `indices["distance_to_coast_km"]`.
+  - **Item 3: Frontend Detail Table Update (`fisheries.html` / `fisheries.js` / `style.css`)**:
+    - Added "Distance from coast" row (`.ky-tvd-table-row--coast-distance`) to `#tvd-table-body` in `fisheries.js` `renderTable()` displaying formatted distance (e.g. `74.0 km` or `0.0 km (Coastline)`).
+    - Cleanly styled in `style.css` matching Kyogre design tokens (subtle slate background `#F8FAFC`, dark text `#475569`, royal blue value `#1D4ED8`).
+    - Strictly preserved Graph toggle, Chart.js canvas, and dual-axis curve data completely untouched.
+    - Exported `renderTable` in `module.exports` and `window.renderTable`.
+  - **Item 4: Automated Testing & Verification**:
+    - Created `test_nearshore_filter.py` verifying mask resolution (26, 41), `NEARSHORE_MAX_KM` configuration, distance calculation parity, offshore cell exclusion (null), nearshore cell inclusion, and `/predict` integration.
+    - Created `test_nearshore_filter.js` verifying DOM rendering, `renderTable` row generation, null handling, live `/predict` distance, and untouched Graph toggle.
+    - Verified offshore point (15.0°N, 65.0°E): distance is 884.9 km, PFZ grid returns `null` (completely excluded).
+    - Verified nearshore point (18.0°N, 72.8°E near Mumbai): distance is 74.0 km (<= NEARSHORE_MAX_KM), included in nearshore range.
+    - Updated `test_fisheries.js` section 16(A) assertion to verify offshore null exclusion.
+    - Ran full platform regression matrix:
+      - `node test_fisheries.js`: **PASS (100% across all 21 sections)**.
+      - `python test_nearshore_filter.py`: **PASS (100%)**.
+      - `node test_nearshore_filter.js`: **PASS (100%)**.
+      - `node test_tvd_animation_polish.js`: **PASS (100%)**.
+      - `node test_param_micro_interactions.js`: **PASS (100%)**.
+      - `node test_data_refresh_system.js`: **PASS (100%)**.
+      - `node test_stat_scan_animation.js`: **PASS (100%)**.
+      - `node test_stat_card_outputs.js`: **PASS (100%)**.
+      - `node test_d20_card.js` & `test_d26_card.js`: **PASS (100%)**.
+      - `node test_search_bar_effect.js`: **PASS (100%)**.
+      - `node test_datepicker.js`: **PASS (40/40 assertions, 100%)**.
+      - `node test_sliding_sidebar.js`: **PASS (36/36 assertions, 100%)**.
+      - `node test_argo_page.js`: **PASS (148/148 assertions, 100%)**.
+      - `node test_marine_ecology.js`: **PASS (157/157 assertions, 100%)**.
+      - `node verify_landing_page.js`: **PASS (41/41 checks, 100%)**.
+      - `node test_netcdf_download.js`: **PASS (100%)**.
+      - Backend API endpoints `/predict`, `/temperature-grid`, `/parameter-grid`, and `/pfz-grid`: **All HTTP 200 OK**.
+
+- [x] **Task: Restore High-Contrast Vibrant Rainbow Color Gradient Across All Ocean Parameters and All Depths (Matching Reference Pic 5)** `[Completed 2026-09-23 15:12]`
+  - **Item 1: Calibrate Temperature & Parameter Normalization Ranges**:
+    - Tailored `tempToColor`, `generateRealGridCanvas`, and `updateHeatmapLegend` depth ranges so each depth bracket exercises the full dynamic range of `TEMP_LUT` (`ZOOM_EARTH_STOPS`):
+      - `depth < 30`: `minT = 25.5, maxT = 31.5` (ticks: `['25.5', '27.0', '28.5', '30.0', '31.5']`).
+      - `30 <= depth < 50`: `minT = 22.0, maxT = 31.0` (ticks: `['22', '24.2', '26.5', '28.7', '31']`).
+      - `50 <= depth < 100`: `minT = 20.0, maxT = 30.0` (ticks: `['20', '22.5', '25', '27.5', '30']`) — exact match to reference Image 5.
+      - `100 <= depth < 200`: `minT = 14.0, maxT = 26.0` (ticks: `['14', '17', '20', '23', '26']`).
+      - `200 <= depth < 500`: `minT = 10.0, maxT = 20.0` (ticks: `['10', '12.5', '15', '17.5', '20']`).
+      - `500 <= depth < 700`: `minT = 8.0, maxT = 16.0` (ticks: `['8', '10', '12', '14', '16']`).
+      - `depth >= 700`: `minT = 5.0, maxT = 13.0` (ticks: `['5', '7', '9', '11', '13']`).
+    - Standardized all 6 ocean parameters in `paramToColor` to use the smooth `TEMP_LUT` (`ZOOM_EARTH_STOPS`) rainbow palette with tailored ranges:
+      - `sst`: `minV = 25.5, maxV = 31.5`
+      - `ssh`: `minV = 0.20, maxV = 1.00`
+      - `sss`: `minV = 33.00, maxV = 37.00`
+      - `sla`: `minV = -0.20, maxV = +0.20`
+      - `current`: `minV = 0.00, maxV = 1.20`
+      - `wind`: `minV = 0.00, maxV = 12.00`
+    - Updated `PARAM_CONFIG` legend bars to `ZOOM_EARTH_GRADIENT_CSS` and calibrated tick labels.
+  - **Item 2: Restore Full Solid Opacity & Fix Layer Dimming Bug**:
+    - Set `MAX_ALPHA = 255` in both `generateRealGridCanvas` and `generateParamGridCanvas`.
+    - Fixed `fadeMapDataLayer`: guarded `raster-opacity-transition` inside try-catch to prevent browser runtime crashes and ensure `raster-opacity` is restored via `map.setPaintProperty`.
+    - Set default layer raster-opacity to `0.95`.
+  - **Item 3: Verification & Regression Testing Matrix**:
+    - Syntax verification: `node -c app.js` passed clean.
+    - Test suites passed 100%:
+      - `test_tvd_animation_polish.js`: **PASS (100%)**.
+      - `test_param_micro_interactions.js`: **PASS (100%)**.
+      - `test_data_refresh_system.js`: **PASS (100%)**.
+      - `test_stat_scan_animation.js`: **PASS (100%)**.
+      - `test_stat_card_outputs.js`: **PASS (100%)**.
+      - `test_d20_card.js` & `test_d26_card.js`: **PASS (100%)**.
+      - `test_search_bar_effect.js`: **PASS (100%)**.
+      - `test_datepicker.js`: **PASS (40/40 assertions, 100%)**.
+      - `test_sliding_sidebar.js`: **PASS (100%)**.
+      - `test_argo_page.js`: **PASS (148/148 assertions, 100%)**.
+      - `test_fisheries.js`: **PASS (100%)**.
+      - `test_marine_ecology.js`: **PASS (157/157 assertions, 100%)**.
+      - `verify_landing_page.js`: **PASS (41/41 checks, 100%)**.
+      - `test_netcdf_download.js`: **PASS (100%)**.
+    - Backend API verification: `/predict`, `/temperature-grid` (0m, 200m, 1000m), and `/parameter-grid` (sst, ssh, sss, sla, current, wind) all HTTP 200 OK.
+    - Updated [`RESEARCH.md`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/RESEARCH.md) Section 50.
+
+- [x] **Task: Remove Blue Dot from Historical Reanalysis Header Badge** `[Completed 2026-09-23 11:32]`
+  - **Item 1: Remove Blue Dot Element from Explore Header**:
+    - Removed `<span class="ky-live-dot ky-live-dot--reanalysis"></span>` from `.ky-live-indicator` in [`explore.html`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/explore.html).
+    - Preserved institutional typography `"Historical Reanalysis"` and `"Reconstructed Data"`.
+  - **Item 2: Verification**:
+    - Verified `explore.html` tag hierarchy and content integrity.
+    - Full platform regression suite passed: `test_tvd_animation_polish.js`, `test_param_micro_interactions.js`, `test_data_refresh_system.js`, `test_stat_scan_animation.js`, `test_stat_card_outputs.js`, `test_d20_card.js`, `test_d26_card.js`, `test_search_bar_effect.js`, `test_datepicker.js`, `test_sliding_sidebar.js`, `test_argo_page.js`, `verify_landing_page.js` all **PASS (100%)**.
+
+- [x] **Task: Final Minimal Animation Polish to Temperature vs Depth (TVD) Panel** `[Completed 2026-09-23 11:23]`
+  - **Item 1: Remove D20 Annotation Completely**:
+    - Completely removed `referenceDepthLine` plugin, `computeD20Isotherm` call, and all "D20: ... m" annotation text / dashed reference line logic from [`buildChart()` in app.js](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/app.js).
+    - Zero D20 annotations appear on the graph regardless of date, location, or data. No replacement annotation added.
+  - **Item 2: Table Animation on Data Update**:
+    - Implemented sequential row entrance via `@keyframes kyTableRowEntrance` (`opacity: 0; translateY(3px)` $\rightarrow$ `opacity: 1; translateY(0)` over $0.24\text{s}$) with exact $35\text{ms}$ stagger per row in [`updateDepthTable() in app.js`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/app.js).
+    - Optical blur/fade value transition (`@keyframes kyTableCellValFade` over $0.28\text{s}$) for updated cells; zero count-up or count-down.
+    - Extremely subtle background highlight (`@keyframes kyTableCellHighlight`, `rgba(37, 99, 235, 0.08)` $\rightarrow$ `transparent` over $0.30\text{s}$) on `.ky-tvd-val--updated`, automatically stripped after $320\text{ms}$.
+    - Inline row animation styles cleanly stripped after the entrance sequence completes ($\approx 780\text{ms}$).
+  - **Item 3: Graph Progressive Left-to-Right Draw & Point Opacity**:
+    - Implemented `leftToRightCurvePlugin` in [`app.js`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/app.js) hooking `beforeDatasetsDraw` and `afterDatasetsDraw` with dynamic canvas clipping over $600\text{ms}$ ($500\text{--}700\text{ms}$ window).
+    - Synchronized point opacity transition in `pointBackgroundColor` and `pointBorderColor` so points smoothly bloom into view as the sweep line crosses their X coordinates.
+    - Chart options set to `animation: false` avoiding Chart.js default vertical rising or point bouncing; zero pulsing, scaling, or distortion.
+  - **Item 4: Table <-> Graph View Switch Crossfade**:
+    - Added `@keyframes kyTvdViewCrossfade` ($0.18\text{s}$ cubic-bezier crossfade) on `.ky-tvd-view--crossfade` applied in `initTableGraphToggle()`.
+    - Sliding active pill (`.ky-tvd-toggle::before`) and active button states (`#tvd-btn-table`, `#tvd-btn-graph`) 100% preserved.
+  - **Item 5: Verification & Accessibility Evidence**:
+    - Created dedicated verification suite [`test_tvd_animation_polish.js`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/test_tvd_animation_polish.js): **PASS (100%)**.
+    - Ran full platform regression suite:
+      - `test_tvd_animation_polish.js`: **PASS (100%)**.
+      - `test_param_micro_interactions.js`: **PASS (100%)**.
+      - `test_data_refresh_system.js`: **PASS (100%)**.
+      - `test_stat_scan_animation.js`: **PASS (100%)**.
+      - `test_stat_card_outputs.js`: **PASS (100%)**.
+      - `test_d20_card.js` & `test_d26_card.js`: **PASS (100%)**.
+      - `test_search_bar_effect.js`: **PASS (100%)**.
+      - `test_datepicker.js`: **PASS (40/40 assertions, 100%)**.
+      - `test_sliding_sidebar.js`: **PASS (100%)**.
+      - `test_argo_page.js`: **PASS (148/148 assertions, 100%)**.
+      - `verify_landing_page.js`: **PASS (41/41 checks, 100%)**.
+    - Backend API verification: `/predict`, `/temperature-grid`, and `/parameter-grid` live and healthy.
+    - Accessibility: All keyframes and transitions guarded under `@media (prefers-reduced-motion: reduce)`.
+
+- [x] **Task: Ocean Parameters Subtle Premium Micro-Interactions** `[Completed 2026-09-23 01:14]`
+  - **Item 1: Value Transition (Fade/Blur-to-Sharp, 250-400ms, No Layout Shift)**:
+    - Retained exact position, dimensions, line heights, and layout without shift.
+    - Implemented `@keyframes kyParamValueReveal` on `.ky-param-tile__val--revealing` (`opacity: 0.25; filter: blur(2.5px)` $\rightarrow$ `opacity: 1; filter: blur(0)` over $0.32\text{s}$). Zero count-up/down.
+  - **Item 2: Selected Parameter Activation (Border Accent Line Travel)**:
+    - On click, card immediately adds `.ky-param-tile--active` (thin 1.5px royal blue outline `#2563EB`) and `.ky-param-tile--activating` (conic gradient border trace beam traveling 360° once around perimeter via `@keyframes kyBorderTrace` and `@property --ky-border-angle`).
+    - Settles cleanly after $650\text{ms}$ into the persistent active state. Strictly no hover animations or jumps (`.ky-param-tile:hover` border remains `#E5E7EB`).
+  - **Item 3: Parameter -> Map Transition (Layer Fade Out/In, 300-500ms)**:
+    - Implemented `fadeMapDataLayer(targetOpacity, durationMs)` leveraging MapLibre's native `'raster-opacity-transition'` and `'raster-opacity'`.
+    - Tile click dims existing data overlay to `0.2` in $160\text{ms}$; when the new canvas image is set in `updateHeatmapOverlay`, opacity smoothly blooms back to `0.85` in $280\text{ms}$, without reloading or flickering `#map`.
+  - **Item 4: Arrow Icon Micro-Animation**:
+    - Right-arrow chevron (`.ky-param-tile__arrow`) extends forward during activation via `@keyframes kyArrowSelect` (`translateX(4px) scaleX(1.15)`), lengthening from `>` towards `→` before settling cleanly at `translateX(2px)` in royal blue `#2563EB`. No continuous infinite loop.
+  - **Item 5: Initial Page Load Entrance**:
+    - Implemented `initParamTilesEntrance()` in [`app.js`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/app.js) executing sequentially across the 6 cards in exact required order:
+      $$\text{SST} (0\text{ms}) \rightarrow \text{SSH} (60\text{ms}) \rightarrow \text{SSS} (120\text{ms}) \rightarrow \text{SLA} (180\text{ms}) \rightarrow \text{Current} (240\text{ms}) \rightarrow \text{Winds} (300\text{ms})$$
+    - Applies `@keyframes kyParamTileEntrance` (fade-in + 5px upward settle). Runs strictly once on initial page load (`window.__kyParamEntranceRan` guard); completely cleans up inline animation styles after $750\text{ms}$.
+  - **Item 6: Verification & Testing Evidence**:
+    - Created dedicated verification suite [`test_param_micro_interactions.js`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/test_param_micro_interactions.js): **PASS (100%)**.
+    - Ran full test matrix:
+      - `test_param_micro_interactions.js`: **PASS (100%)**.
+      - `test_data_refresh_system.js`: **PASS (100%)**.
+      - `test_stat_scan_animation.js`: **PASS (100%)**.
+      - `test_stat_card_outputs.js`: **PASS (100%)**.
+      - `test_d20_card.js` & `test_d26_card.js`: **PASS (100%)**.
+      - `test_search_bar_effect.js`: **PASS (100%)**.
+      - `test_datepicker.js`: **PASS (40/40 assertions, 100%)**.
+      - `test_sliding_sidebar.js`: **PASS (100%)**.
+      - `test_argo_page.js`: **PASS (148/148 assertions, 100%)**.
+      - `verify_landing_page.js`: **PASS (41/41 checks, 100%)**.
+    - Backend API verification: `/predict`, `/temperature-grid`, and `/parameter-grid` all verified live and healthy.
+
+- [x] **Task: Implement Subtle Premium Data-Refresh Animation System (KPI + Ocean Parameters + Coordinated Data Flow)** `[Completed 2026-09-23 01:03]`
+  - **Item 1: Top 4 KPI Cards Sequential Refresh**:
+    - Triggered in exact required order: `MLD (0ms) -> OHC₃₀₀ (100ms) -> D20 (200ms) -> D26 (300ms)` with 100ms stagger in [`app.js`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/app.js).
+    - Scan-line holographic beam sweep (`.ky-stat-card::after`), parameter-specific icon micro-animations (wave ripple, thermal pulse, depth descent), and fast blur-to-sharp optical refocus (`@keyframes kyScanValueReveal`).
+  - **Item 2: Ocean Parameters (6 Cards) Sequential Refresh**:
+    - Triggered in exact order: `SST -> SSH -> SSS -> SLA -> Surface Ocean Current -> Surface Winds` with 75ms stagger (within 60–100ms window).
+    - Preserved exact layout, dimensions, borders, and typography; added `position: relative; overflow: hidden;` to `.ky-param-tile` in [`style.css`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/style.css).
+    - Integrated parameter-specific icon micro-animations:
+      - **SST**: Tiny thermometer pulse (`@keyframes kyParamPulseSST`, `scale(1.10)`).
+      - **SSH**: Subtle horizontal wave movement (`@keyframes kyParamWaveSSH`, `±2.5px`).
+      - **SSS**: Tiny multi-dot ripple pulse (`@keyframes kyParamRippleSSS`, `scale(1.08)`).
+      - **SLA**: Small vertical movement in bar chart (`@keyframes kyParamBarSLA`, `-2px`).
+      - **Surface Ocean Current**: Circular vortex flow motion (`@keyframes kyParamFlowCurrent`, `18°`).
+      - **Surface Winds**: Short directional sweep (`@keyframes kyParamSweepWind`, `+3px`).
+    - Synchronized optical blur-to-sharp value replacement (`.ky-param-tile__val--revealing`) at ~120ms into each tile's sweep.
+  - **Item 3: Coordinated Scientific Data Flow**:
+    - Structured unified progression in `renderPrediction()`:
+      1. Target coordinates and date header updated immediately.
+      2. Top 4 KPI cards update sequentially starting at $t = 0\text{ms}$.
+      3. 6 Ocean parameter cards update sequentially starting at $t = 240\text{ms}$.
+      4. TVD table rows update with subtle optical blur-to-sharp refresh (`.ky-tvd-table--refreshing` via `@keyframes kyTableRefreshFade`).
+      5. Depth profile chart and ARGO validation rebuild cleanly.
+    - Zero count-up/down animations throughout; pure optical refocusing.
+    - Full clean settlement returning all elements completely to static resting state after scan cycles.
+  - **Item 4: Gating & Accessibility**:
+    - Animations triggered ONLY when date or location changes and new prediction data arrives; never on hover, idle, or empty initial load.
+    - Added `@media (prefers-reduced-motion: reduce)` rules covering `.ky-param-tile` and `.ky-tvd-table--refreshing`.
+    - Tested synchronous Node.js evaluation ensuring headless test compatibility.
+  - **Item 5: Verification & Testing Evidence**:
+    - Created dedicated verification suite [`test_data_refresh_system.js`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/test_data_refresh_system.js): **PASS (100%)**.
+    - Ran full platform regression matrix:
+      - `test_data_refresh_system.js`: **PASS (100%)**.
+      - `test_stat_scan_animation.js`: **PASS (100%)**.
+      - `test_stat_card_outputs.js`: **PASS (100%)**.
+      - `test_d20_card.js` & `test_d26_card.js`: **PASS (100%)**.
+      - `test_search_bar_effect.js`: **PASS (100%)**.
+      - `test_datepicker.js`: **PASS (40/40 assertions, 100%)**.
+      - `test_sliding_sidebar.js`: **PASS (36/36 assertions, 100%)**.
+      - `test_argo_page.js`: **PASS (148/148 assertions, 100%)**.
+      - `test_fisheries.js`: **PASS (100%)**.
+      - `test_marine_ecology.js`: **PASS (157/157 assertions, 100%)**.
+      - `verify_landing_page.js`: **PASS (41/41 assertions, 100%)**.
+      - FastAPI backend endpoints `/predict`, `/temperature-grid`, and `/parameter-grid`: **All HTTP 200 OK**.
+    - Updated [`RESEARCH.md`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/RESEARCH.md) Section 47.
+
+- [x] **Task: Implement Subtle Premium Data-Scan Reveal Animation on 4 KPI Cards** `[Completed 2026-09-23 00:53]`
+  - **Item 1: Card Layout & Soft Light-Blue/White Scan Sweep Beam**:
+    - Preserved exact card layout, dimensions, borders, and margins; added `overflow: hidden;` to `.ky-stat-card` in [`style.css`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/style.css).
+    - Designed soft, holographic light-blue/white gradient beam via pseudo-element `.ky-stat-card::after` (`linear-gradient(90deg, transparent 0%, rgba(219, 234, 254, 0.12) 20%, rgba(191, 219, 254, 0.42) 46%, rgba(255, 255, 255, 0.95) 50%, rgba(191, 219, 254, 0.42) 54%, rgba(219, 234, 254, 0.12) 80%, transparent 100%)`).
+    - Implemented `@keyframes kyDataScanSweep` sweeping smoothly across each card once over `0.62s cubic-bezier(0.25, 1, 0.5, 1)` when `.ky-stat-card--scanning` is applied.
+  - **Item 2: Parameter-Appropriate KPI Icon Micro-Movements**:
+    - MLD (Waves): Gentle ocean wave vertical sway/ripple (`@keyframes kyScanWave`, `translateY(-2px) -> translateY(1.5px)`).
+    - OHC₃₀₀ (Thermometer): Subtle thermal expansion pulse (`@keyframes kyScanHeat`, `scale(1.10)`).
+    - D20 & D26 (Thermometers): Vertical depth probe/descent (`@keyframes kyScanDepth`, `translateY(2.5px)`).
+    - Applied directly to icon SVGs upon scan beam entry (`.ky-stat-card--scanning .ky-stat-card__icon--<color> svg`).
+  - **Item 3: Fast Optical Blur-to-Sharp Value Transition (Strictly NO Count-Up)**:
+    - Replaced values without distracting number rolls or count-up/down animations.
+    - Synchronized value replacement at the exact moment the beam crosses the value area (~140ms into scan), applying `.ky-stat-card__val--revealing`.
+    - Implemented `@keyframes kyScanValueReveal` (`opacity: 0.25; filter: blur(3px); transform: translateY(-1px)` to `opacity: 1; filter: blur(0); transform: translateY(0)` over `0.28s`).
+    - Automatic cleanup: removes all scanning and reveal classes after 650ms, returning cards to normal static state.
+  - **Item 4: Staggered Scheduling & Strict Gating in `app.js`**:
+    - In [`app.js`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/app.js) `updateStatCards(prediction)`:
+      - Triggered ONLY when valid prediction data arrives for a selected location or date.
+      - Never triggers on initial load, hover, or empty/reset states.
+      - Implemented 100ms sequential stagger delay across the 4 cards (Card 0: 0ms, Card 1: 100ms, Card 2: 200ms, Card 3: 300ms).
+      - Added full cancel/reset of pending timeouts if user rapidly changes coordinates or dates.
+      - Headless unit-test environment fallback: Node/mock tests without DOM query engines evaluate synchronously without delays.
+  - **Item 5: Accessibility & Rigorous Verification**:
+    - Added `@media (prefers-reduced-motion: reduce)` in `style.css` and runtime check in `app.js` to immediately update text with zero motion or blur when requested.
+    - Created dedicated verification test [`test_stat_scan_animation.js`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/test_stat_scan_animation.js) simulating the DOM stagger sequence, scan arrival, value reveal, and cleanup: **PASS (100%)**.
+    - Executed full platform regression test matrix:
+      - `test_stat_scan_animation.js`: **PASS (100%)**.
+      - `test_stat_card_outputs.js`: **PASS (100%)**.
+      - `test_d20_card.js`: **PASS (100%)**.
+      - `test_d26_card.js`: **PASS (100%)**.
+      - `test_search_bar_effect.js`: **PASS (100%)**.
+      - `test_datepicker.js`: **PASS (40/40 assertions, 100%)**.
+      - `test_sliding_sidebar.js`: **PASS (36/36 assertions, 100%)**.
+      - `test_argo_page.js`: **PASS (149/149 assertions, 100%)**.
+      - `test_fisheries.js`: **PASS (100%)**.
+      - `test_marine_ecology.js`: **PASS (157/157 assertions, 100%)**.
+      - `verify_landing_page.js`: **PASS (41/41 assertions, 100%)**.
+      - Backend FastAPI endpoints `/predict`, `/temperature-grid`, `/parameter-grid`: **All HTTP 200 OK**.
+    - Updated [`RESEARCH.md`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/RESEARCH.md) Section 46 documenting architecture, kinematics, and stagger schedule.
+
+- [x] **Task: Implement Sliding Highlight on Table/Graph Toggle & Remove TVD Arrow Icon** `[Completed 2026-09-23 00:43]`
+  - **Item 1: Sliding Blue Highlight Pill**:
+    - Re-engineered `.ky-tvd-toggle` and `.ky-tvd-panel .ky-tvd-toggle` in [`style.css`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/style.css) with an active sliding pill pseudo-element (`::before`) animated with `transform: translateX(...)` using spring cubic bezier `cubic-bezier(0.16, 1, 0.3, 1)`.
+    - Added `data-active` attributes and `:has()` selectors so the royal blue indicator slides smoothly between Table and Graph positions.
+    - Updated [`app.js`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/app.js) and [`fisheries.js`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/fisheries.js) to synchronize `data-active` on toggle click.
+  - **Item 2: Remove Arrow Icon from TVD Card**:
+    - Removed `<button class="ky-tvd-expand" aria-label="Expand">` from the Temperature vs Depth header in [`explore.html`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/explore.html).
+    - Set `.ky-tvd-expand { display: none !important; }` in [`style.css`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/style.css).
+
+- [x] **Task: Remove Map Scale Bar, Download Note & Bottom-Left Copyright** `[Completed 2026-09-23 00:38]`
+  - **Item 1: Remove Map Scale Indicator**:
+    - Removed bottom-right map scale bar (`.ky-map-scale-bar`) from [`explore.html`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/explore.html).
+  - **Item 2: Remove Download Note**:
+    - Removed explanatory text (`.ky-tvd-download-note`) below the "Download NetCDF" button from [`explore.html`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/explore.html).
+  - **Item 3: Remove Bottom-Left Copyright Notice**:
+    - Removed copyright string (`.ky-sidebar__copy`) `"© 2025 Kyogre. All rights reserved."` from the sidebar footer in [`explore.html`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/explore.html).
+  - **Item 4: Test Suite Synchronization**:
+    - Updated [`test_netcdf_download.js`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/test_netcdf_download.js) to align with the removed note.
+    - User explicitly specified `dont test only make the changes`.
+
+- [x] **Task: Implement Uiverse Search Bar Shrink/Rebound Effect, White Palette & Remove Ctrl+K** `[Completed 2026-09-23 00:28]`
+  - **Item 1: Search Bar HTML Markup Polish**:
+    - Removed `<span class="ky-search-kbd">Ctrl K</span>` badge across all 4 application pages: [`explore.html`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/explore.html), [`argo.html`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/argo.html), [`fisheries.html`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/fisheries.html), and [`marine-ecology.html`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/marine-ecology.html).
+    - Integrated modern filled search icon SVG from Uiverse with classes `map-search__icon search-icon` and `fill="currentColor"`.
+    - Added `.group` to `.map-search-wrap` and `.input` to `.map-search__input`, while strictly preserving all existing IDs (`map-search-input`, `map-search-clear`, `map-search-results`) to maintain flawless JS event binding.
+  - **Item 2: White Theme Styling & Smooth Shrink/Rebound Interaction**:
+    - Re-engineered dark Uiverse styling to Kyogre light theme in [`style.css`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/style.css):
+      - Crisp pure white background (`background-color: #FFFFFF`).
+      - Modern soft-elevation box shadow (`box-shadow: 0 0 0 1.5px #E2EBF6, 0 2px 12px -4px rgba(15, 23, 42, 0.06)`).
+      - Hover elevation (`box-shadow: 0 0 0 1.5px #CBD5E1, 0 4px 16px -4px rgba(15, 23, 42, 0.08)`).
+      - Focus ring (`box-shadow: 0 0 0 2px #2563EB, 0 4px 20px -4px rgba(37, 99, 235, 0.16)`) with icon color transition to `#2563EB`.
+    - Tactile Shrink/Bounce Interaction:
+      - Active press (`:active`): scales down to `scale(0.96)` with rapid `0.12s` transition for physical click feel.
+      - Focus selection (`:focus-within`): triggers `@keyframes searchBarShrinkBounce` (0% scale(1.0) -> 35% scale(0.96) -> 100% scale(1.0)) over `0.38s` with smooth exponential damping curve `cubic-bezier(0.19, 1, 0.22, 1)`.
+    - Layout optimization: relocated clear button (`#map-search-clear`) to `right: 12px` and adjusted input padding to `0 38px 0 42px`.
+  - **Item 3: Verification & Test Suite**:
+    - Created `test_search_bar_effect.js` verifying markup, absence of `Ctrl K`, and CSS animation/shadow rules: **PASS (100%)**.
+    - Updated `test_argo_page.js` assertion: **PASS (148/148, 100%)**.
+    - Ran full platform test matrix:
+      - `test_search_bar_effect.js`: **PASS (100%)**.
+      - `test_argo_page.js`: **PASS (148/148 assertions, 100%)**.
+      - `test_datepicker.js`: **PASS (40/40 assertions, 100%)**.
+      - `test_sliding_sidebar.js`: **PASS (36/36 assertions, 100%)**.
+      - `test_netcdf_download.js`: **PASS (100%)**.
+      - `test_fisheries.js`: **PASS (100%)**.
+      - `test_marine_ecology.js`: **PASS (157/157 assertions, 100%)**.
+      - `test_stat_card_outputs.js`: **PASS (100%)**.
+      - `verify_landing_page.js`: **PASS (41/41 assertions, 100%)**.
+      - Backend API `/predict`, `/temperature-grid`, `/parameter-grid`: **All HTTP 200 OK**.
+
+- [x] **Task: Host NetCDF Dataset on Hugging Face & Wire Production Download Link** `[Completed 2026-09-23 00:15]`
+  - **Item 1: Hugging Face Dataset Upload & Verification**:
+    - Reused existing Hugging Face dataset repository `bharath-987/ocean-embed-data` authenticated via existing local environment credentials (`HfApi()`).
+    - Uploaded `downloads/oceanembed_v6_satswap_anom_14yr_2023.nc` (173.7 MB) to `oceanembed_v6_satswap_anom_14yr_2023.nc` in `bharath-987/ocean-embed-data`.
+    - Upload commit: `1d0806a0b5e79500c26ccb8ede5fe4253d3f6336`.
+    - Direct HTTPS resolve URL: `https://huggingface.co/datasets/bharath-987/ocean-embed-data/resolve/main/oceanembed_v6_satswap_anom_14yr_2023.nc`.
+    - Downloaded full 173.7 MB stream from HF CDN and verified 100% byte-level and hash match:
+      - Byte size: exactly `173,669,183` bytes.
+      - SHA-256: `b462e9d99fc0e5e9e4e73c0ac8534f6b51fb797a5063c89d3a07d9b48415be47` (exact match to local source).
+  - **Item 2: Explore Page UI Production & Local Fallback Wiring**:
+    - Updated [`explore.html`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/explore.html): `#btn-download-netcdf` statically anchors directly to the public Hugging Face download URL with `target="_blank"`, `rel="noopener noreferrer"`, and `download="oceanembed_v6_satswap_anom_14yr_2023.nc"`. Deployed production sites immediately serve working direct downloads without requiring the 173 MB file in git.
+    - Updated [`app.js`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/app.js): added `initNetCDFDownloadLink()`. On `localhost` or `127.0.0.1`, a lightweight `HEAD` request checks if `downloads/oceanembed_v6_satswap_anom_14yr_2023.nc` exists on the local dev server. If present, it swaps `btn.href` to the local path for instant 0ms access. If absent, it stays pointing to the Hugging Face URL.
+  - **Item 3: Documentation & Verification Matrix**:
+    - Updated [`downloads/README.md`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/downloads/README.md) documenting Hugging Face CDN hosting, byte size, SHA-256 hash, and dual-mode resolution protocol.
+    - Updated [`RESEARCH.md`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/RESEARCH.md) Section 44 with HF dataset repo, commit hash, checksums, and deployment architecture.
+    - Updated [`test_netcdf_download.js`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/test_netcdf_download.js) testing static HTML HF anchor, `app.js` local fallback logic, local file byte parity, local HTTP 200 resolution, and remote HF HTTPS 200/302 resolution with Content-Length `173669183`.
+    - Executed full test matrix:
+      - `test_netcdf_download.js`: **PASS (100%)**.
+      - `test_datepicker.js`: **PASS (40/40 assertions, 100%)**.
+      - `test_sliding_sidebar.js`: **PASS (36/36 assertions, 100%)**.
+      - `test_argo_page.js`: **PASS (149/149 assertions, 100%)**.
+      - `test_fisheries.js`: **PASS (100%)**.
+      - `test_marine_ecology.js`: **PASS (157/157 assertions, 100%)**.
+      - `test_stat_card_outputs.js`: **PASS (100%)**.
+      - `verify_landing_page.js`: **PASS (41/41 assertions, 100%)**.
+      - Backend API `/predict`, `/temperature-grid`, `/parameter-grid`: **All HTTP 200 OK**.
+
+- [x] **Task: Add Static NetCDF (.nc) Download to Explore Page** `[Completed 2026-09-22 23:58]`
+  - **Item 1: Verification & Copy of Source NetCDF**:
+    - Confirmed source file at `C:\Users\Asus\OneDrive\Desktop\2023_model\oceanembed_v6_satswap_anom_14yr_2023.nc` exists, is fully synced (readable from disk), and verified byte size: **173,669,183 bytes** (~173.7 MB).
+    - Copied into project static assets directory `downloads/oceanembed_v6_satswap_anom_14yr_2023.nc`.
+    - Verified exact byte-level match between source and destination (`173669183 === 173669183`, SHA-256: `b462e9d99fc0e5e9e4e73c0ac8534f6b51fb797a5063c89d3a07d9b48415be47`).
+    - Verified NetCDF-4 binary header (`\x89HDF\r\n\x1a\n`) and confirmed dataset variables (`temperature_corrected`, `temperature_raw`, `d20`, `d26`, `tchp`, `mld`, `time`, `depth`, `lat`, `lon`).
+  - **Item 2: Explore Page UI Integration**:
+    - Added "Download NetCDF" button (`#btn-download-netcdf`) inside `.ky-tvd-card` in [`explore.html`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/explore.html) pointing to `downloads/oceanembed_v6_satswap_anom_14yr_2023.nc` with `download` attribute.
+    - Added exact required explanatory text: `"temperature_corrected is the recommended variable for general use; temperature_raw is the uncorrected model output, provided for those who want it specifically."`
+    - Styled in [`style.css`](file:///c:/Users/Asus/OneDrive/Documents/Projects/ocean-embed/style.css) matching Kyogre design tokens (white/ice-blue card footer, subtle border, royal blue accent).
+  - **Item 3: Verification & Hosting Assessment**:
+    - Tested HTTP HEAD/GET resolution on local server (`http://localhost:5500/downloads/oceanembed_v6_satswap_anom_14yr_2023.nc`): **HTTP 200**, `Content-Type: application/x-netcdf`, `Content-Length: 173669183`.
+    - Created and ran `test_netcdf_download.js`: **PASS (100%)**.
+    - Full test suite verified clean (`test_datepicker.js`, `test_sliding_sidebar.js`, `test_argo_page.js`, `test_fisheries.js`, `test_marine_ecology.js`, `test_stat_card_outputs.js`, `verify_landing_page.js`): **100% Passed**.
+    - Confirmed gitignore handling: `*.nc` is ignored by Git in `.gitignore` (line 19), preventing GitHub 100MB hard limit push failures. Documented deployment options (external bucket/HF/persistent volume) in `downloads/README.md`.
+
 - [x] **Task: Polish ARGO Validation Page Basin RMSE (Raw) Label & v6_adapter.py Epoch Clarification** `[Completed 2026-09-22 21:46]`
   - **Item 1: Label Basin RMSE Number as Raw**:
     - Located Basin RMSE stat card on `argo.html`.

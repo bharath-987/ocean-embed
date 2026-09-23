@@ -20,7 +20,7 @@ import numpy as np
 import pandas as pd
 
 # Load serving helper from local folder
-V6_DIR = Path(__file__).parent / "data" / "v6_satswap_anom_14yr"
+V6_DIR = Path(__file__).parent / "data" / "v6_satswap_anom_14yr_argoft_seed1"
 import sys
 if str(V6_DIR) not in sys.path:
     sys.path.insert(0, str(V6_DIR))
@@ -32,19 +32,20 @@ RESOLUTION_DEG = 0.25
 
 STANDARD_DEPTHS = [0, 5, 10, 20, 30, 50, 75, 100, 125, 150, 200, 300, 500, 700, 1000]
 
-MODEL_NAME = "model_v6_satswap_anom_14yr"
-PROVENANCE_NOTE = "Currently serving the 14-year model for 2023 (Jan 10 – Dec 31)."
-WINDOW_START = "2023-01-10"
+MODEL_NAME = "model_v6_satswap_anom_14yr_argoft_seed1"
+PROVENANCE_NOTE = "Currently serving the Argo-fine-tuned 14-year model for 2023 (Jan 1 – Dec 31)."
+WINDOW_START = "2023-01-01"
 WINDOW_END = "2023-12-31"
 
-TCHP_RMSE_BAND = 11.8  # New empirical error band (±11.8 kJ/cm², updated from ±15.7)
+TCHP_RMSE_BAND = 11.6  # Recalibrated error band (±11.6 kJ/cm² error, ±17.8 90% band)
 
 # Paths to unpacked folders and correction
 UNPACKED_DIR = V6_DIR / "unpacked"
 FIELD_DIR = UNPACKED_DIR / "field"
 PRODUCTS_DIR = UNPACKED_DIR / "products"
 EMBEDDINGS_DIR = UNPACKED_DIR / "embeddings"
-CORRECTION_FILE = V6_DIR / "correction_v6_satswap_anom_14yr.json"
+CORRECTION_FILE = V6_DIR / "correction_v6_satswap_anom_14yr_argoft_seed1.json"
+BANDS_FILE = V6_DIR / "bands_v6_satswap_anom_14yr_argoft_seed1.json"
 
 # Guarantee unpacked assets exist idempotently before ServingData loads them
 try:

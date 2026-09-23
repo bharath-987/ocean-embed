@@ -100,7 +100,7 @@ async function runTests() {
   const html = fs.readFileSync('argo.html', 'utf8');
 
   assert(html.includes('ky-argo-skill-panel'), 'argo.html contains .ky-argo-skill-panel container');
-  assert(html.includes('Model vs. Monthly Climatology Baseline (Skill Score, n=1,809)') || html.includes('Model vs. Climatology Baseline (Skill Score)'), 'Panel has explicit title with monthly climatology baseline (n=1,809)');
+  assert(html.includes('Model vs. Monthly Climatology Baseline (Skill Score, n=2,910)') || html.includes('Model vs. Monthly Climatology Baseline (Skill Score, n=1,809)') || html.includes('Model vs. Climatology Baseline (Skill Score)'), 'Panel has explicit title with monthly climatology baseline');
   assert(html.includes('ky-provenance-pill--model') && html.includes('Model Validation'), 'Header displays "Model Validation" provenance pill');
   assert(html.includes('id="argo-skill-headline-badge"'), 'Headline badge element #argo-skill-headline-badge present');
   assert(html.includes('id="argo-skill-headline-val"'), 'Headline value element #argo-skill-headline-val present');

@@ -113,6 +113,8 @@ const PRESET_ZONES = [
   }
 ];
 
+const NEARSHORE_MAX_KM = 185.0;
+
 /* ── State ───────────────────────────────────────────────── */
 
 let currentCoord = null;
@@ -123,11 +125,18 @@ let profileChart = null;
 let pfzLayerVisible = true;
 let currentDynamicZones = [];
 let activeFishMarkers = [];
+let currentNearshoreBoxes = [];
+let currentSelectedBoxId = null;
 
 /* ── Empty State & UI Gating Helpers ─────────────────────── */
 
 function clearDynamicPfzZones() {
   currentDynamicZones = [];
+  currentSelectedBoxId = null;
+  if (currentNearshoreBoxes && currentNearshoreBoxes.length > 0) {
+    currentNearshoreBoxes.forEach(b => { b.pfz_score = null; });
+    renderNearshoreBoxes(currentNearshoreBoxes);
+  }
   if (typeof map !== 'undefined' && map && map.getSource) {
     try {
       const source = map.getSource('pfz-zones');
@@ -714,19 +723,45 @@ async function loadAndRenderDynamicPfzZones(dateStr, customZones) {
   }
   try {
     let zones = [];
+    let gridDataObj = null;
     if (Array.isArray(customZones)) {
       zones = customZones;
+      if (customZones.gridData) gridDataObj = customZones.gridData;
     } else if (Array.isArray(dateStr)) {
       zones = dateStr;
     } else {
-      const resp = await fetch(`http://localhost:8000/pfz-grid?date=${encodeURIComponent(dateStr)}`);
+      const resp = await fetch(`${API_BASE}/pfz-grid?date=${encodeURIComponent(dateStr)}`);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const gridData = await resp.json();
-      zones = identifyPfzClusters(gridData);
-      renderChlaOverlayFromGrid(gridData);
+      gridDataObj = await resp.json();
+      zones = identifyPfzClusters(gridDataObj);
+      renderChlaOverlayFromGrid(gridDataObj);
     }
     if (customZones && customZones.gridData) {
+      gridDataObj = customZones.gridData;
       renderChlaOverlayFromGrid(customZones.gridData);
+    }
+
+    let boxes = getNearshoreBoxesFromGrid(gridDataObj);
+    if ((!boxes || !boxes.length) && Array.isArray(customZones)) {
+      boxes = customZones.map((z, i) => ({
+        id: z.id || `box_cust_${i}`,
+        row: 0,
+        col: i,
+        center_lat: z.centroidLat || z.lat || 12.0,
+        center_lon: z.centroidLon || z.lon || 75.0,
+        bounds: [
+          (z.centroidLon || z.lon || 75.0) - 0.75,
+          (z.centroidLat || z.lat || 12.0) - 0.5,
+          (z.centroidLon || z.lon || 75.0) + 0.75,
+          (z.centroidLat || z.lat || 12.0) + 0.5,
+        ],
+        distance_to_coast_km: 111.2,
+        pfz_score: z.pfz_index ?? z.avgScore ?? 0.70
+      }));
+    }
+    if (boxes && boxes.length > 0) {
+      currentNearshoreBoxes = boxes;
+      renderNearshoreBoxes(currentNearshoreBoxes);
     }
 
     // Ensure all zones have pfz_index, data_quality_flag evaluated
@@ -990,24 +1025,40 @@ function calculateSubsurfaceProfile(lat, lon) {
 
 /* ── UI Update Functions ─────────────────────────────────── */
 
-function renderTable(depths, temps, nutrients, highlightDepth = 100) {
+function renderTable(depths, temps, nutrients, highlightDepth = 100, distanceToCoastKm = null) {
   const tbody = document.getElementById('tvd-table-body');
   if (!tbody) return;
   tbody.innerHTML = '';
 
+  // Single summary row: Distance from coast
+  if (distanceToCoastKm !== null && distanceToCoastKm !== undefined && !isNaN(distanceToCoastKm)) {
+    const coastRow = document.createElement('tr');
+    coastRow.className = 'ky-tvd-table-row--coast-distance';
+    const distNum = Number(distanceToCoastKm);
+    const distText = distNum <= 0.5 ? '0.0 km (Coastline)' : `${distNum.toFixed(1)} km`;
+    coastRow.innerHTML = `
+      <td>Distance from coast</td>
+      <td colspan="1">${distText}</td>
+    `;
+    tbody.appendChild(coastRow);
+  }
+
+  // Depth (m) | Temperature (°C) rows reconstructed by model
   depths.forEach((d, i) => {
     const tr = document.createElement('tr');
     if (d === highlightDepth) {
       tr.className = 'ky-tvd-table-row--highlight';
     }
+    const tempStr = (temps && temps[i] !== undefined && temps[i] !== null) ? temps[i].toFixed(1) : '—';
     tr.innerHTML = `
       <td>${d}</td>
-      <td>${temps[i].toFixed(1)}</td>
-      <td>${nutrients[i].toFixed(2)}</td>
+      <td>${tempStr}</td>
     `;
     tbody.appendChild(tr);
   });
 }
+
+
 
 function renderChart(depths, temps, nutrients) {
   const canvas = document.getElementById('profile-chart');
@@ -1311,9 +1362,145 @@ function updateAdvisory(pfzScore, upwelling, thermocline, zone) {
   }
 }
 
+/* ── Nearshore Zone Boxes Helpers ─────────────────────────── */
+
+function getNearshoreBoxesFromGrid(gridData) {
+  if (!gridData) return [];
+  if (Array.isArray(gridData.nearshore_boxes) && gridData.nearshore_boxes.length > 0) {
+    return gridData.nearshore_boxes;
+  }
+  const boxes = [];
+  if (gridData.lats && gridData.lons && gridData.pfz_scores) {
+    const lats = gridData.lats;
+    const lons = gridData.lons;
+    const scores = gridData.pfz_scores;
+    for (let r = 0; r < lats.length; r++) {
+      for (let c = 0; c < lons.length; c++) {
+        const sc = scores[r] ? scores[r][c] : null;
+        if (sc !== null && sc !== undefined) {
+          const cLat = Number(lats[r].toFixed(2));
+          const cLon = Number(lons[c].toFixed(2));
+          boxes.push({
+            id: `box_${r}_${c}`,
+            row: r,
+            col: c,
+            center_lat: cLat,
+            center_lon: cLon,
+            bounds: [
+              Number((cLon - 0.75).toFixed(3)),
+              Number((cLat - 0.5).toFixed(3)),
+              Number((cLon + 0.75).toFixed(3)),
+              Number((cLat + 0.5).toFixed(3)),
+            ],
+            distance_to_coast_km: 111.2,
+            pfz_score: sc
+          });
+        }
+      }
+    }
+  }
+  return boxes;
+}
+
+function findNearshoreBox(lat, lon) {
+  if (!currentNearshoreBoxes || !currentNearshoreBoxes.length) return null;
+  // 1. Strict bounding box containment: [lonMin, latMin, lonMax, latMax]
+  for (const b of currentNearshoreBoxes) {
+    if (b.bounds && Array.isArray(b.bounds)) {
+      const [w, s, e, n] = b.bounds;
+      if (lon >= w && lon <= e && lat >= s && lat <= n) {
+        return b;
+      }
+    }
+  }
+  // 2. Proximity tolerance (within cell radius: 0.55° lat, 0.80° lon)
+  let best = null;
+  let minDist = Infinity;
+  for (const b of currentNearshoreBoxes) {
+    const dLat = Math.abs(b.center_lat - lat);
+    const dLon = Math.abs(b.center_lon - lon);
+    if (dLat <= 0.55 && dLon <= 0.80) {
+      const dist = Math.hypot(dLat, dLon);
+      if (dist < minDist) {
+        minDist = dist;
+        best = b;
+      }
+    }
+  }
+  return best;
+}
+
+function renderNearshoreBoxes(boxes) {
+  if (!boxes || !Array.isArray(boxes)) return;
+  const activeMap = (typeof map !== 'undefined' && map) || (typeof window !== 'undefined' && window.map) || (typeof global !== 'undefined' && global.map);
+  if (!activeMap || !activeMap.getSource) return;
+  const src = activeMap.getSource('nearshore-boxes');
+  if (!src) return;
+
+  const geojson = {
+    type: 'FeatureCollection',
+    features: boxes.map(b => {
+      const isSelected = (currentSelectedBoxId === b.id) ||
+        (currentCoord && Math.abs(currentCoord.lat - b.center_lat) < 0.25 && Math.abs(currentCoord.lon - b.center_lon) < 0.25);
+      const score = b.pfz_score;
+      // Single consistent RED styling for ALL selectable nearshore boxes regardless of PFZ tier
+      let fillColor = '#DC2626';   // red-600: consistent unselected fill
+      let lineColor = '#DC2626';   // red-600: consistent unselected border
+      let fillOpacity = 0.18;
+      let lineWidth = 2.5;
+
+      if (isSelected) {
+        // Bright white border + deeper red fill when active
+        fillColor = '#EF4444';     // red-500
+        lineColor = '#FFFFFF';
+        fillOpacity = 0.45;
+        lineWidth = 4.0;
+      }
+
+
+      return {
+        type: 'Feature',
+        properties: {
+          id: b.id,
+          row: b.row,
+          col: b.col,
+          center_lat: b.center_lat,
+          center_lon: b.center_lon,
+          distance_to_coast_km: b.distance_to_coast_km,
+          pfz_score: b.pfz_score,
+          isSelected: isSelected,
+          fillColor: fillColor,
+          lineColor: lineColor,
+          fillOpacity: fillOpacity,
+          lineWidth: lineWidth,
+        },
+        geometry: {
+          type: 'Polygon',
+          coordinates: [[
+            [b.bounds[0], b.bounds[1]],
+            [b.bounds[2], b.bounds[1]],
+            [b.bounds[2], b.bounds[3]],
+            [b.bounds[0], b.bounds[3]],
+            [b.bounds[0], b.bounds[1]],
+          ]]
+        }
+      };
+    })
+  };
+
+  src.setData(geojson);
+}
+
+
+function selectNearshoreBox(box, zoomTo = true) {
+  if (!box) return false;
+  currentSelectedBoxId = box.id;
+  return selectLocation(box.center_lat, box.center_lon, zoomTo, box);
+}
+
 /* ── Select Location Handler ─────────────────────────────── */
 
-async function selectLocation(lat, lon, zoomTo = true) {
+async function selectLocation(lat, lon, zoomTo = true, passedBox = null) {
   if (!isCoordInsideNorthIndianOcean(lat, lon)) {
     showNotice('This location is outside our supported region (North Indian Ocean: 5°N–30°N, 45°E–105°E)');
     return false;
@@ -1324,7 +1511,22 @@ async function selectLocation(lat, lon, zoomTo = true) {
     return false;
   }
 
+  // Must match a valid nearshore box (distance <= NEARSHORE_MAX_KM)
+  const targetBox = passedBox || findNearshoreBox(lat, lon);
+  if (!targetBox) {
+    showNotice(`Only nearshore zones within ${NEARSHORE_MAX_KM} km of the coast are selectable.`);
+    console.warn(`[Fisheries] Selection rejected: (${lat}, ${lon}) is outside nearshore zone boxes.`);
+    return false;
+  }
+
+  // Snap to exact box center coordinates
+  lat = targetBox.center_lat;
+  lon = targetBox.center_lon;
   currentCoord = { lat, lon };
+  currentSelectedBoxId = targetBox.id;
+
+  // Re-render nearshore boxes to highlight active selection
+  renderNearshoreBoxes(currentNearshoreBoxes);
 
   // Find if matching one of our dynamic PFZ zones (or preset fallback)
   const matchedZone = (currentDynamicZones && currentDynamicZones.find(z => Math.hypot(z.centroidLat - lat, z.centroidLon - lon) < (z.radiusLat + z.radiusLon) / 2)) ||
@@ -1552,10 +1754,15 @@ async function selectLocation(lat, lon, zoomTo = true) {
     highlightDepth = DEPTH_LEVELS.reduce((prev, curr) =>
       Math.abs(curr - thermocline) < Math.abs(prev - thermocline) ? curr : prev, DEPTH_LEVELS[0]);
 
+    const distToCoast = (data.distance_to_coast_km !== undefined)
+      ? data.distance_to_coast_km
+      : (indices.distance_to_coast_km !== undefined ? indices.distance_to_coast_km : (targetBox.distance_to_coast_km ?? null));
+
     revealTvdPanel();
-    renderTable(DEPTH_LEVELS, temps, nutrients, highlightDepth);
+    renderTable(DEPTH_LEVELS, temps, nutrients, highlightDepth, distToCoast);
+
     renderChart(DEPTH_LEVELS, temps, nutrients);
-    updateStatCards(matchedZone, thermocline, upwelling, pfzScore, surfaceChla, {
+    updateStatCards(matchedZone || targetBox, thermocline, upwelling, pfzScore, surfaceChla, {
       source: indices.chlorophyll_source,
       label: indices.chlorophyll_source_label,
       val: indices.chlorophyll_satellite_val
@@ -1564,7 +1771,7 @@ async function selectLocation(lat, lon, zoomTo = true) {
 
     // Update popup with real probability score
     if (currentPopup) {
-      currentPopup.setHTML(buildPopupHtml(lat, lon, matchedZone, pfzScore));
+      currentPopup.setHTML(buildPopupHtml(lat, lon, matchedZone || targetBox, pfzScore));
     }
 
   } catch (err) {
@@ -1576,22 +1783,25 @@ async function selectLocation(lat, lon, zoomTo = true) {
     temps = fallback.temps;
     nutrients = fallback.nutrients;
     thermocline = matchedZone ? (matchedZone.thermocline ?? 68) : 68;
-    const isFallbackFlagged = Boolean(matchedZone && matchedZone.data_quality_flag);
-    pfzScore = isFallbackFlagged ? null : (matchedZone ? (matchedZone.pfz_index ?? matchedZone.avgScore ?? matchedZone.probScore ?? 0.87) : 0.87);
+    const isFallbackFlagged = Boolean((matchedZone && matchedZone.data_quality_flag) || targetBox.data_quality_flag);
+    pfzScore = isFallbackFlagged ? null : (matchedZone ? (matchedZone.pfz_index ?? matchedZone.avgScore ?? matchedZone.probScore ?? targetBox.pfz_score ?? 0.70) : (targetBox.pfz_score ?? 0.70));
     const surfaceChla = (nutrients && nutrients.length > 0) ? nutrients[0] : (matchedZone ? (matchedZone.nutrient ?? 2.60) : 2.60);
     highlightDepth = matchedZone ? (matchedZone.highlightDepth ?? 100) : 100;
+    const fallbackDistToCoast = targetBox.distance_to_coast_km ?? null;
 
     revealTvdPanel();
-    renderTable(DEPTH_LEVELS, temps, nutrients, highlightDepth);
+    renderTable(DEPTH_LEVELS, temps, nutrients, highlightDepth, fallbackDistToCoast);
+
+
     renderChart(DEPTH_LEVELS, temps, nutrients);
-    updateStatCards(matchedZone, thermocline, upwelling, pfzScore, surfaceChla, {
+    updateStatCards(matchedZone || targetBox, thermocline, upwelling, pfzScore, surfaceChla, {
       source: 'heuristic',
       label: 'Estimated Heuristic'
     });
     // updateAdvisory(pfzScore, upwelling, thermocline, matchedZone); // Intentionally omitted in simplified UI
 
     if (currentPopup) {
-      currentPopup.setHTML(buildPopupHtml(lat, lon, matchedZone, pfzScore));
+      currentPopup.setHTML(buildPopupHtml(lat, lon, matchedZone || targetBox, pfzScore));
     }
   }
 
@@ -1724,13 +1934,83 @@ if (typeof maplibregl !== 'undefined' && typeof document !== 'undefined' && docu
     // 4. Initial Selection: Empty prompt state (no auto-load until user selects location and date)
     updateEmptyStatePrompt();
 
+    // 5. Add Nearshore Zone Boxes Source & Layers
+    map.addSource('nearshore-boxes', {
+      type: 'geojson',
+      data: { type: 'FeatureCollection', features: [] }
+    });
+
+    map.addLayer({
+      id: 'nearshore-boxes-fill',
+      type: 'fill',
+      source: 'nearshore-boxes',
+      paint: {
+        'fill-color': ['coalesce', ['get', 'fillColor'], '#DC2626'],
+        'fill-opacity': ['coalesce', ['get', 'fillOpacity'], 0.18]
+      }
+    });
+
+
+    map.addLayer({
+      id: 'nearshore-boxes-line',
+      type: 'line',
+      source: 'nearshore-boxes',
+      paint: {
+        'line-color': ['coalesce', ['get', 'lineColor'], '#DC2626'],
+        'line-width': ['coalesce', ['get', 'lineWidth'], 2.5],
+        'line-opacity': 0.90
+      }
+    });
+
+
+    // Fetch initial nearshore boxes so they are visible on initial page load
+    fetch(`${API_BASE}/nearshore-boxes`)
+      .then(res => res.json())
+      .then(data => {
+        if (data && Array.isArray(data.boxes) && data.boxes.length > 0) {
+          currentNearshoreBoxes = data.boxes;
+          renderNearshoreBoxes(currentNearshoreBoxes);
+        }
+      })
+      .catch(() => {});
+
     // Force initial resize
     map.resize();
   });
 
-  // Click on map to select location (both inside and outside dynamic PFZ zones)
+  // Pointer cursor on nearshore boxes
+  map.on('mouseenter', 'nearshore-boxes-fill', () => {
+    map.getCanvas().style.cursor = 'pointer';
+  });
+  map.on('mouseleave', 'nearshore-boxes-fill', () => {
+    map.getCanvas().style.cursor = '';
+  });
+
+  // Click on nearshore box layer to select discrete zone
+  map.on('click', 'nearshore-boxes-fill', (e) => {
+    if (!e.features || !e.features.length) return;
+    const feat = e.features[0];
+    const props = feat.properties;
+    const targetBox = currentNearshoreBoxes.find(b => b.id === props.id) || {
+      id: props.id,
+      row: Number(props.row),
+      col: Number(props.col),
+      center_lat: Number(props.center_lat),
+      center_lon: Number(props.center_lon),
+      distance_to_coast_km: Number(props.distance_to_coast_km),
+      pfz_score: (props.pfz_score !== null && props.pfz_score !== undefined) ? Number(props.pfz_score) : null
+    };
+    selectNearshoreBox(targetBox, true);
+  });
+
+  // Map click fallback: ONLY permit selection if clicking on a valid nearshore box
   map.on('click', (e) => {
-    selectLocation(e.lngLat.lat, e.lngLat.lng, true);
+    const box = findNearshoreBox(e.lngLat.lat, e.lngLat.lng);
+    if (box) {
+      selectNearshoreBox(box, true);
+    } else {
+      console.log(`[Fisheries] Click at (${e.lngLat.lat.toFixed(2)}, ${e.lngLat.lng.toFixed(2)}) is outside nearshore zone boxes. No prediction requested.`);
+    }
   });
 
   map.on('mouseenter', 'pfz-zones-fill', () => {
@@ -1794,7 +2074,12 @@ function initControls() {
   const emptyView = document.getElementById('tvd-empty-view');
 
   if (btnTable && btnGraph) {
+    if (btnTable.parentElement) {
+      btnTable.parentElement.setAttribute('data-active', btnGraph.classList.contains('ky-tvd-toggle__btn--active') ? 'graph' : 'table');
+    }
+
     btnTable.addEventListener('click', () => {
+      if (btnTable.parentElement) btnTable.parentElement.setAttribute('data-active', 'table');
       btnTable.classList.add('ky-tvd-toggle__btn--active');
       btnGraph.classList.remove('ky-tvd-toggle__btn--active');
       if (!currentCoord || !currentDateStr) {
@@ -1808,6 +2093,7 @@ function initControls() {
     });
 
     btnGraph.addEventListener('click', () => {
+      if (btnGraph.parentElement) btnGraph.parentElement.setAttribute('data-active', 'graph');
       btnGraph.classList.add('ky-tvd-toggle__btn--active');
       btnTable.classList.remove('ky-tvd-toggle__btn--active');
       if (!currentCoord || !currentDateStr) {
@@ -1916,7 +2202,7 @@ function initControls() {
       }
     });
 
-    nativePicker.addEventListener('change', () => {
+    nativePicker.addEventListener('change', async () => {
       const val = nativePicker.value;
       if (!val) {
         currentDateStr = null;
@@ -1929,8 +2215,8 @@ function initControls() {
         updateEmptyStatePrompt();
         return;
       }
-      if (val < '2023-01-10' || val > '2023-12-31') {
-        alert('Please select a date between 2023-01-10 and 2023-12-31 (Currently serving the 14-year model for 2023).');
+      if (val < '2023-01-01' || val > '2023-12-31') {
+        alert('Please select a date between 2023-01-01 and 2023-12-31 (Currently serving the 14-year model for 2023).');
         nativePicker.value = currentDateStr || '2023-09-04';
         return;
       }
@@ -1939,9 +2225,12 @@ function initControls() {
       const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
       const formatted = `${months[parseInt(parts[1], 10) - 1]} ${parseInt(parts[2], 10)}, ${parts[0]}`;
       if (displayHeader) displayHeader.textContent = formatted;
-      loadAndRenderDynamicPfzZones(currentDateStr);
+      await loadAndRenderDynamicPfzZones(currentDateStr);
       if (currentCoord) {
-        selectLocation(currentCoord.lat, currentCoord.lon, false);
+        const box = findNearshoreBox(currentCoord.lat, currentCoord.lon);
+        if (box) {
+          await selectLocation(box.center_lat, box.center_lon, false, box);
+        }
       } else {
         updateEmptyStatePrompt();
       }
@@ -1969,6 +2258,7 @@ if (typeof window !== 'undefined') {
 /* ── Node.js / Testing & Global Exports ──────────────────── */
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
+    NEARSHORE_MAX_KM,
     HIGHLIGHT_MIN_TIER,
     SHOW_PFZ_ZONE_HIGHLIGHTS,
     checkTemperatureDataQuality,
@@ -1989,11 +2279,18 @@ if (typeof module !== 'undefined' && module.exports) {
     resetStatCards,
     updateEmptyStatePrompt,
     revealTvdPanel,
+    renderTable,
     selectLocation,
+    selectNearshoreBox,
+    findNearshoreBox,
+    getNearshoreBoxesFromGrid,
+    renderNearshoreBoxes,
+    getNearshoreBoxes: () => currentNearshoreBoxes,
     PRESET_ZONES,
   };
 }
 if (typeof window !== 'undefined') {
+  window.NEARSHORE_MAX_KM = NEARSHORE_MAX_KM;
   window.HIGHLIGHT_MIN_TIER = HIGHLIGHT_MIN_TIER;
   window.SHOW_PFZ_ZONE_HIGHLIGHTS = SHOW_PFZ_ZONE_HIGHLIGHTS;
   window.checkTemperatureDataQuality = checkTemperatureDataQuality;
@@ -2011,6 +2308,12 @@ if (typeof window !== 'undefined') {
   window.resetStatCards = resetStatCards;
   window.updateEmptyStatePrompt = updateEmptyStatePrompt;
   window.revealTvdPanel = revealTvdPanel;
+  window.renderTable = renderTable;
   window.selectLocation = selectLocation;
+  window.selectNearshoreBox = selectNearshoreBox;
+  window.findNearshoreBox = findNearshoreBox;
+  window.getNearshoreBoxesFromGrid = getNearshoreBoxesFromGrid;
+  window.renderNearshoreBoxes = renderNearshoreBoxes;
+  window.getNearshoreBoxes = () => currentNearshoreBoxes;
 }
 

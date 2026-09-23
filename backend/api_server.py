@@ -394,6 +394,95 @@ def check_temperature_data_quality(temps_0_50: list[float]) -> tuple[bool, Optio
     return False, None
 
 
+# ==============================================================================
+# Coastline Land Mask & Nearshore Distance Calculation
+# ==============================================================================
+
+# Realistic fishing range from shore for nearshore/shelf fleets (100 nautical miles = 185.0 km).
+# Rationale: On a 1.0° lat x 1.5° lon downsampled grid (~111-160 km cell spacing),
+# grid cells adjacent to the coastline sit at ~111-155 km from the nearest land cell centers.
+# A threshold of 185 km (100 NM, standard continental shelf fishing boundary for motorized/mechanized fleets)
+# retains nearshore and shelf candidate zones while completely excluding open-ocean offshore basin cells (>185 km, e.g. 885 km).
+NEARSHORE_MAX_KM = float(os.environ.get("NEARSHORE_MAX_KM", 185.0))
+
+_pfz_land_mask = None
+_land_coords = None
+_pfz_coast_dist_grid = None
+
+
+def _get_pfz_land_mask():
+    global _pfz_land_mask
+    if _pfz_land_mask is None:
+        mask_path = os.path.join(os.path.dirname(__file__), "data", "pfz_land_mask.npy")
+        if os.path.exists(mask_path):
+            _pfz_land_mask = inf.np.load(mask_path)
+    return _pfz_land_mask
+
+
+def _haversine_np(lat1, lon1, lat2_arr, lon2_arr):
+    """Vectorized Haversine distance in km between scalar point (lat1, lon1) and 1D coordinate arrays."""
+    R = 6371.0  # Earth radius in km
+    phi1 = inf.np.radians(lat1)
+    phi2 = inf.np.radians(lat2_arr)
+    dphi = inf.np.radians(lat2_arr - lat1)
+    dlambda = inf.np.radians(lon2_arr - lon1)
+    a = inf.np.sin(dphi / 2.0) ** 2 + inf.np.cos(phi1) * inf.np.cos(phi2) * inf.np.sin(dlambda / 2.0) ** 2
+    c = 2.0 * inf.np.arctan2(inf.np.sqrt(a), inf.np.sqrt(1.0 - a))
+    return R * c
+
+
+def _get_land_coords():
+    global _land_coords
+    if _land_coords is None:
+        mask = _get_pfz_land_mask()
+        sub_lats = inf._target_lats[::4]
+        sub_lons = inf._target_lons[::6]
+        lat_grid, lon_grid = inf.np.meshgrid(sub_lats, sub_lons, indexing='ij')
+        land_lats = lat_grid[mask]
+        land_lons = lon_grid[mask]
+        _land_coords = (land_lats, land_lons)
+    return _land_coords
+
+
+def compute_distance_to_coast_km(lat: float, lon: float) -> float:
+    """
+    Computes distance to the nearest coastline in kilometers for any given (lat, lon)
+    using the Natural Earth land mask (haversine distance to the nearest land cell).
+    Returns 0.0 if the point is on land.
+    """
+    land_lats, land_lons = _get_land_coords()
+    dists = _haversine_np(lat, lon, land_lats, land_lons)
+    min_dist = float(inf.np.min(dists))
+    if min_dist < 1e-3:
+        return 0.0
+    return round(min_dist, 1)
+
+
+distance_to_coast_km = compute_distance_to_coast_km
+distance_to_nearest_coast_km = compute_distance_to_coast_km
+
+
+def _get_pfz_coast_dist_grid():
+    global _pfz_coast_dist_grid
+    if _pfz_coast_dist_grid is None:
+        mask = _get_pfz_land_mask()
+        sub_lats = inf._target_lats[::4]
+        sub_lons = inf._target_lons[::6]
+        land_lats, land_lons = _get_land_coords()
+
+        H, W = len(sub_lats), len(sub_lons)
+        grid = inf.np.zeros((H, W), dtype="float32")
+        for r in range(H):
+            for c in range(W):
+                if mask[r, c]:
+                    grid[r, c] = 0.0
+                else:
+                    dists = _haversine_np(sub_lats[r], sub_lons[c], land_lats, land_lons)
+                    grid[r, c] = float(inf.np.min(dists))
+        _pfz_coast_dist_grid = grid
+    return _pfz_coast_dist_grid
+
+
 def model_result_to_frontend(result: dict, latitude: float, longitude: float, date_str: str, raw_result: Optional[dict] = None) -> dict:
     if "error" in result:
         return {"error": result["error"]}
@@ -425,7 +514,7 @@ def model_result_to_frontend(result: dict, latitude: float, longitude: float, da
             tchp_info = {
                 "value": tchp_val,
                 "band": v6_adapter.TCHP_RMSE_BAND,
-                "raw_tchp": round(tchp_val - 2.47, 2) if tchp_val is not None else None,
+                "raw_tchp": round(tchp_val, 2) if tchp_val is not None else None,
                 "unit": "kJ/cm²"
             }
         except Exception:
@@ -634,6 +723,7 @@ def model_result_to_frontend(result: dict, latitude: float, longitude: float, da
         pfz_val = round(max(0.1, min(0.98, pfz_raw)), 2)
 
     profile = [{"depth": d, "temperature": (round(float(t), 2) if t is not None else None)} for d, t in zip(depths, temps)]
+    dist_to_coast_km = compute_distance_to_coast_km(latitude, longitude)
 
     return {
         "depths": depths,
@@ -643,7 +733,9 @@ def model_result_to_frontend(result: dict, latitude: float, longitude: float, da
         "profile": profile,
         "data_source": v6_adapter.MODEL_NAME,
         "provenance": v6_adapter.PROVENANCE_NOTE,
+        "distance_to_coast_km": dist_to_coast_km,
         "indices": {
+            "distance_to_coast_km": dist_to_coast_km,
             "mld": mld_val,
             "mld_status": "Experimental",
             "d20": d20_val,
@@ -1087,16 +1179,6 @@ def parameter_grid(param: str, date: str):
 _pfz_grid_cache = {}
 _pfz_grid_cache_lock = threading.Lock()
 _MAX_PFZ_CACHE_SIZE = 8
-_pfz_land_mask = None
-
-
-def _get_pfz_land_mask():
-    global _pfz_land_mask
-    if _pfz_land_mask is None:
-        mask_path = os.path.join(os.path.dirname(__file__), "data", "pfz_land_mask.npy")
-        if os.path.exists(mask_path):
-            _pfz_land_mask = inf.np.load(mask_path)
-    return _pfz_land_mask
 
 
 def compute_pfz_grid(date_str: str) -> dict:
@@ -1252,8 +1334,9 @@ def compute_pfz_grid(date_str: str) -> dict:
     shallow_shelf = inf.np.isnan(sub_temps[3])  # Seafloor < 20m (e.g. Gulf of Mannar 10m shelf reef)
     corrupted_grid = cliff_corrupted | flatline_corrupted | shallow_shelf
 
-    # 6. Apply Natural Earth land mask, raw SST ocean mask, shallow reef mask & data quality mask
+    # 6. Apply Natural Earth land mask, raw SST ocean mask, shallow reef mask, data quality mask & nearshore filter
     land_mask = _get_pfz_land_mask()
+    coast_dist_grid = _get_pfz_coast_dist_grid()
     _, chl_source_arr = _get_chlorophyll_arrays()
     sub_src = chl_source_arr[mapped_day_idx, ::lat_step, ::lon_step] if (chl_source_arr is not None and 0 <= mapped_day_idx < len(chl_source_arr)) else None
 
@@ -1281,7 +1364,9 @@ def compute_pfz_grid(date_str: str) -> dict:
                 chla_row.append(None)
                 source_row.append(None)
             else:
-                score_row.append(round(float(pfz_grid[r, c]), 2))
+                # Restrict candidate zones to nearshore fishing range (distance <= NEARSHORE_MAX_KM)
+                is_nearshore = (coast_dist_grid is None or coast_dist_grid[r, c] <= NEARSHORE_MAX_KM)
+                score_row.append(round(float(pfz_grid[r, c]), 2) if is_nearshore else None)
                 chla_row.append(round(float(chla_val[r, c]), 2))
                 if sub_src is not None:
                     code = int(sub_src[r, c])
@@ -1297,6 +1382,29 @@ def compute_pfz_grid(date_str: str) -> dict:
         chla_list.append(chla_row)
         chla_sources_list.append(source_row)
 
+    nearshore_boxes = []
+    for r in range(H):
+        for c in range(W):
+            if scores_list[r][c] is not None:
+                c_lat = round(float(sub_lats[r]), 2)
+                c_lon = round(float(sub_lons[c]), 2)
+                d_coast = round(float(coast_dist_grid[r, c]), 1) if coast_dist_grid is not None else 0.0
+                nearshore_boxes.append({
+                    "id": f"box_{r}_{c}",
+                    "row": r,
+                    "col": c,
+                    "center_lat": c_lat,
+                    "center_lon": c_lon,
+                    "bounds": [
+                        round(c_lon - 0.75, 3),
+                        round(c_lat - 0.5, 3),
+                        round(c_lon + 0.75, 3),
+                        round(c_lat + 0.5, 3),
+                    ],
+                    "distance_to_coast_km": d_coast,
+                    "pfz_score": scores_list[r][c],
+                })
+
     result = {
         "date": date_str,
         "bounds": {
@@ -1308,6 +1416,7 @@ def compute_pfz_grid(date_str: str) -> dict:
         "lats": [round(float(x), 2) for x in sub_lats],
         "lons": [round(float(x), 2) for x in sub_lons],
         "pfz_scores": scores_list,
+        "nearshore_boxes": nearshore_boxes,
         "chla_grid": chla_list,
         "chla_sources": chla_sources_list,
     }
@@ -1330,6 +1439,21 @@ def pfz_grid(date: str):
     """
     _validate_date_available(date, need_history=True)
     return compute_pfz_grid(date)
+
+
+@app.get("/nearshore-boxes")
+def nearshore_boxes(date: str = "2023-09-04"):
+    """
+    Return the discrete set of selectable nearshore ocean zone boxes (distance <= NEARSHORE_MAX_KM)
+    with their bounding box coordinates, center coordinates, distance to coast, and PFZ score.
+    """
+    _validate_date_available(date, need_history=True)
+    grid = compute_pfz_grid(date)
+    return {
+        "date": date,
+        "count": len(grid.get("nearshore_boxes", [])),
+        "boxes": grid.get("nearshore_boxes", []),
+    }
 
 
 # ---------------------------------------------------------------------------

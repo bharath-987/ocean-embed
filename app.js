@@ -21,10 +21,10 @@ const EPOCH_END      = new Date('2023-12-31');
 const TOTAL_DAYS     = Math.round((EPOCH_END - EPOCH_START) / 86400000);
 const MIN_VALID_DAY  = 10;
 
-// V6 SatSwap 14-Year Model Active Window (January 10 – December 31, 2023)
-const WINDOW_START_DATE = new Date('2023-01-10');
+// V6 SatSwap 14-Year Model Active Window (January 1 – December 31, 2023)
+const WINDOW_START_DATE = new Date('2023-01-01');
 const WINDOW_END_DATE   = new Date('2023-12-31');
-const WINDOW_START_DAY  = Math.round((WINDOW_START_DATE - EPOCH_START) / 86400000); // 739
+const WINDOW_START_DAY  = Math.round((WINDOW_START_DATE - EPOCH_START) / 86400000); // 730
 const WINDOW_END_DAY    = Math.round((WINDOW_END_DATE - EPOCH_START) / 86400000);   // 1094
 const DEFAULT_DEMO_DAY  = Math.round((new Date('2023-10-22') - EPOCH_START) / 86400000); // 1024
 
@@ -491,7 +491,7 @@ if (nativeDatePicker) {
     const maxValidDate = WINDOW_END_DATE;
 
     if (selectedDate < minValidDate || selectedDate > maxValidDate) {
-      showRegionNotice('Date outside active model window: Currently serving the 14-year model for 2023 (Jan 10 – Dec 31). Please select a date between 2023-01-10 and 2023-12-31.', 'warning');
+      showRegionNotice('Date outside active model window: Currently serving the 14-year model for 2023 (Jan 1 – Dec 31). Please select a date between 2023-01-01 and 2023-12-31.', 'warning');
       nativeDatePicker.value = hasSelectedDate ? dateToISO(dayIndexToDate(parseInt(dateSlider.value, 10))) : '';
       return;
     }
@@ -721,15 +721,19 @@ function buildCosineSmoothLut(stops, size = 1024) {
 const TEMP_LUT = buildCosineSmoothLut(ZOOM_EARTH_STOPS, 1024);
 
 function tempToColor(temp, depth) {
-  let minT = 24.0, maxT = 32.0;
+  let minT = 25.5, maxT = 31.5;
   if (depth >= 700) {
-    minT = 4.0; maxT = 12.0;
-  } else if (depth >= 300) {
-    minT = 8.0; maxT = 18.0;
+    minT = 5.0; maxT = 13.0;
+  } else if (depth >= 500) {
+    minT = 8.0; maxT = 16.0;
+  } else if (depth >= 200) {
+    minT = 10.0; maxT = 20.0;
   } else if (depth >= 100) {
     minT = 14.0; maxT = 26.0;
   } else if (depth >= 50) {
     minT = 20.0; maxT = 30.0;
+  } else if (depth >= 30) {
+    minT = 22.0; maxT = 31.0;
   }
 
   const tNorm = Math.max(0, Math.min(1, (temp - minT) / (maxT - minT)));
@@ -898,17 +902,21 @@ function generateRealGridCanvas(gridData, depth) {
   const imgData = ctx.createImageData(dstW, dstH);
   const imgArr  = imgData.data;
 
-  const MAX_ALPHA = 245; // High saturation overlay opacity matching legend scale
+  const MAX_ALPHA = 255; // Full solid vibrant opacity matching reference Image 5
 
-  let minT = 24.0, maxT = 32.0;
+  let minT = 25.5, maxT = 31.5;
   if (depth >= 700) {
-    minT = 4.0; maxT = 12.0;
-  } else if (depth >= 300) {
-    minT = 8.0; maxT = 18.0;
+    minT = 5.0; maxT = 13.0;
+  } else if (depth >= 500) {
+    minT = 8.0; maxT = 16.0;
+  } else if (depth >= 200) {
+    minT = 10.0; maxT = 20.0;
   } else if (depth >= 100) {
     minT = 14.0; maxT = 26.0;
   } else if (depth >= 50) {
     minT = 20.0; maxT = 30.0;
+  } else if (depth >= 30) {
+    minT = 22.0; maxT = 31.0;
   }
 
   for (let i = 0, pi = 0; i < dstH * dstW; i++, pi += 4) {
@@ -990,75 +998,33 @@ function interpolateColorStops(stops, norm) {
 
 function paramToColor(param, val) {
   const p = param.toLowerCase();
+  let minV = 0.0, maxV = 1.0;
   if (p === 'sst') {
     return tempToColor(val, 0);
   } else if (p === 'ssh') {
-    // Sea Surface Height: 0.2m to 1.0m (physical dynamic topography + anomaly)
-    // Deep Blue #1E3A8A -> Blue #2563EB -> Cyan #06B6D4 -> Emerald #10B981 -> Amber #F59E0B -> Red #EF4444
-    const minV = 0.20, maxV = 1.00;
-    const norm = Math.max(0, Math.min(1, (val - minV) / (maxV - minV)));
-    const stops = [
-      { t: 0.00, r: 30,  g: 58,  b: 138 }, // #1E3A8A
-      { t: 0.25, r: 37,  g: 99,  b: 235 }, // #2563EB
-      { t: 0.50, r: 6,   g: 182, b: 212 }, // #06B6D4
-      { t: 0.70, r: 16,  g: 185, b: 129 }, // #10B981
-      { t: 0.85, r: 245, g: 158, b: 11  }, // #F59E0B
-      { t: 1.00, r: 239, g: 68,  b: 68  }, // #EF4444
-    ];
-    return interpolateColorStops(stops, norm);
+    // Sea Surface Height: 0.20m to 1.00m (vibrant rainbow)
+    minV = 0.20; maxV = 1.00;
   } else if (p === 'sss') {
-    // Sea Surface Salinity: 32.0 to 36.0 PSU
-    // Dark Green #059669 -> Emerald #10B981 -> Sky Blue #38BDF8 -> Royal Blue #1D4ED8
-    const minV = 32.0, maxV = 36.0;
-    const norm = Math.max(0, Math.min(1, (val - minV) / (maxV - minV)));
-    const stops = [
-      { t: 0.00, r: 5,   g: 150, b: 105 }, // #059669
-      { t: 0.35, r: 16,  g: 185, b: 129 }, // #10B981
-      { t: 0.70, r: 56,  g: 189, b: 248 }, // #38BDF8
-      { t: 1.00, r: 29,  g: 78,  b: 216 }, // #1D4ED8
-    ];
-    return interpolateColorStops(stops, norm);
+    // Sea Surface Salinity: 33.0 to 37.0 PSU (vibrant rainbow)
+    minV = 33.00; maxV = 37.00;
   } else if (p === 'sla') {
-    // Sea Level Anomaly: -0.20m to +0.20m (-20cm to +20cm)
-    // High-contrast diverging: Deep Indigo #1E1B4B -> Indigo #4338CA -> Light Ice #E0F2FE -> Vivid Rose #EC4899 -> Deep Maroon #9D174D
-    const minV = -0.20, maxV = 0.20;
-    const norm = Math.max(0, Math.min(1, (val - minV) / (maxV - minV)));
-    const stops = [
-      { t: 0.00, r: 30,  g: 27,  b: 75  }, // #1E1B4B
-      { t: 0.30, r: 67,  g: 56,  b: 202 }, // #4338CA
-      { t: 0.50, r: 224, g: 242, b: 254 }, // #E0F2FE
-      { t: 0.75, r: 236, g: 72,  b: 153 }, // #EC4899
-      { t: 1.00, r: 157, g: 23,  b: 77  }, // #9D174D
-    ];
-    return interpolateColorStops(stops, norm);
+    // Sea Level Anomaly: -0.20m to +0.20m (vibrant rainbow)
+    minV = -0.20; maxV = 0.20;
   } else if (p === 'current') {
-    // Surface Ocean Current Speed: 0.0 to 2.0 m/s
-    // Midnight #0F172A -> Ocean Blue #0284C7 -> Cyan #06B6D4 -> Gold #EAB308 -> Vivid Crimson #E11D48
-    const minV = 0.00, maxV = 2.00;
-    const norm = Math.max(0, Math.min(1, (val - minV) / (maxV - minV)));
-    const stops = [
-      { t: 0.00, r: 15,  g: 23,  b: 42  }, // #0F172A
-      { t: 0.25, r: 2,   g: 132, b: 199 }, // #0284C7
-      { t: 0.50, r: 6,   g: 182, b: 212 }, // #06B6D4
-      { t: 0.75, r: 234, g: 179, b: 8   }, // #EAB308
-      { t: 1.00, r: 225, g: 29,  b: 72  }, // #E11D48
-    ];
-    return interpolateColorStops(stops, norm);
+    // Surface Ocean Current Speed: 0.0 to 1.2 m/s (vibrant rainbow)
+    minV = 0.00; maxV = 1.20;
   } else if (p === 'wind') {
-    // Surface Winds: 0.0 to 15.0 m/s (approx 0 to 54 km/h)
-    // Dark Slate #334155 -> Slate #475569 -> Sky Blue #38BDF8 -> Warm Amber #F59E0B -> Flame Orange #EA580C
-    const minV = 0.00, maxV = 15.00;
-    const norm = Math.max(0, Math.min(1, (val - minV) / (maxV - minV)));
-    const stops = [
-      { t: 0.00, r: 51,  g: 65,  b: 85  }, // #334155
-      { t: 0.25, r: 71,  g: 85,  b: 105 }, // #475569
-      { t: 0.50, r: 56,  g: 189, b: 248 }, // #38BDF8
-      { t: 0.75, r: 245, g: 158, b: 11  }, // #F59E0B
-      { t: 1.00, r: 234, g: 88,  b: 12  }, // #EA580C
-    ];
-    return interpolateColorStops(stops, norm);
+    // Surface Winds: 0.0 to 12.0 m/s (vibrant rainbow)
+    minV = 0.00; maxV = 12.00;
   }
-  return tempToColor(val, 0);
+
+  const norm = Math.max(0, Math.min(1, (val - minV) / (maxV - minV)));
+  const lutIdx = Math.round(norm * (TEMP_LUT.size - 1));
+  return {
+    r: TEMP_LUT.rLut[lutIdx],
+    g: TEMP_LUT.gLut[lutIdx],
+    b: TEMP_LUT.bLut[lutIdx]
+  };
 }
 
 function generateParamGridCanvas(gridData, param) {
@@ -1203,7 +1169,7 @@ function generateParamGridCanvas(gridData, param) {
   const imgData = ctx.createImageData(dstW, dstH);
   const imgArr  = imgData.data;
 
-  const MAX_ALPHA = 245;
+  const MAX_ALPHA = 255;
 
   for (let i = 0, pi = 0; i < dstH * dstW; i++, pi += 4) {
     const w = dstOcean[i];
@@ -1637,8 +1603,26 @@ function generateFallbackParamCanvas(param) {
   return generateParamGridCanvas(fallbackGridData, param);
 }
 
+function fadeMapDataLayer(targetOpacity = 0.85, durationMs = 280) {
+  if (typeof map === 'undefined' || !map || typeof map.isStyleLoaded !== 'function' || !map.isStyleLoaded()) return;
+  if (!map.getLayer || !map.getLayer('sst-heatmap-layer')) return;
+  try {
+    if (typeof map.setPaintProperty === 'function') {
+      try {
+        map.setPaintProperty('sst-heatmap-layer', 'raster-opacity-transition', { duration: durationMs, delay: 0 });
+      } catch (e) {}
+      map.setPaintProperty('sst-heatmap-layer', 'raster-opacity', targetOpacity);
+    }
+  } catch (err) {
+    // Graceful fallback if unsupported
+  }
+}
+if (typeof window !== 'undefined') {
+  window.fadeMapDataLayer = fadeMapDataLayer;
+}
+
 function updateHeatmapOverlay(canvasUrl) {
-  if (!map.isStyleLoaded()) return;
+  if (!map || typeof map.isStyleLoaded !== 'function' || !map.isStyleLoaded()) return;
   const source = map.getSource('sst-heatmap-source');
   if (source && typeof source.updateImage === 'function') {
     source.updateImage({
@@ -1650,6 +1634,7 @@ function updateHeatmapOverlay(canvasUrl) {
         [HEATMAP_BOUNDS.west, HEATMAP_BOUNDS.south],
       ]
     });
+    fadeMapDataLayer(0.85, 280);
   }
 }
 
@@ -1663,15 +1648,19 @@ function updateHeatmapLegend(depth) {
     legendBar.style.background = ZOOM_EARTH_GRADIENT_CSS;
   }
 
-  let ticks = ['24', '26', '28', '30', '32'];
+  let ticks = ['25.5', '27.0', '28.5', '30.0', '31.5'];
   if (depth >= 700) {
-    ticks = ['4', '6', '8', '10', '12'];
-  } else if (depth >= 300) {
-    ticks = ['8', '10.5', '13', '15.5', '18'];
+    ticks = ['5', '7', '9', '11', '13'];
+  } else if (depth >= 500) {
+    ticks = ['8', '10', '12', '14', '16'];
+  } else if (depth >= 200) {
+    ticks = ['10', '12.5', '15', '17.5', '20'];
   } else if (depth >= 100) {
     ticks = ['14', '17', '20', '23', '26'];
   } else if (depth >= 50) {
     ticks = ['20', '22.5', '25', '27.5', '30'];
+  } else if (depth >= 30) {
+    ticks = ['22', '24.2', '26.5', '28.7', '31'];
   }
 
   legendTitle.textContent = depth === 0 
@@ -1947,7 +1936,7 @@ map.on('load', () => {
       visibility: 'none', // Initially hidden on load until gated condition is met
     },
     paint: {
-      'raster-opacity': 0.85,
+      'raster-opacity': 0.95,
       'raster-resampling': 'linear',
       'raster-fade-duration': 150,
     }
@@ -2333,45 +2322,154 @@ document.addEventListener('click', (e) => {
 
 /* ── Update Ocean Parameters tiles (Kyogre UI) ───────────── */
 
-function renderSurfaceInputs(inputs) {
-  // Update the 6 Kyogre param tiles in-place using their value IDs
-  function setVal(id, val, unit) {
-    const el = document.getElementById(id);
-    if (el) el.textContent = unit ? `${val} ${unit}` : `${val}`;
-  }
+function renderSurfaceInputs(inputs, options = {}) {
+  if (!inputs) return;
 
-  if (inputs.sst) setVal('param-sst-val', inputs.sst.val, '°C');
+  const paramsData = [];
+
+  if (inputs.sst) {
+    paramsData.push({
+      param: 'sst',
+      id: 'param-sst-val',
+      tileId: 'param-sst',
+      text: `${inputs.sst.val} °C`
+    });
+  }
   if (inputs.ssh) {
     const v = typeof inputs.ssh.val === 'number' ? inputs.ssh.val.toFixed(2) : inputs.ssh.val;
-    setVal('param-ssh-val', v, 'm');
+    paramsData.push({
+      param: 'ssh',
+      id: 'param-ssh-val',
+      tileId: 'param-ssh',
+      text: `${v} m`
+    });
   }
-  if (inputs.sss) setVal('param-sss-val', inputs.sss.val, 'PSU');
+  if (inputs.sss) {
+    paramsData.push({
+      param: 'sss',
+      id: 'param-sss-val',
+      tileId: 'param-sss',
+      text: `${inputs.sss.val} PSU`
+    });
+  }
   if (inputs.sla) {
     const slaM = typeof inputs.sla.val === 'number' ? inputs.sla.val : parseFloat(inputs.sla.val);
     const prefix = slaM >= 0 ? '+' : '';
-    setVal('param-sla-val', `${prefix}${slaM.toFixed(3)}`, 'm');
+    paramsData.push({
+      param: 'sla',
+      id: 'param-sla-val',
+      tileId: 'param-sla',
+      text: `${prefix}${slaM.toFixed(3)} m`
+    });
   } else if (inputs.ssh) {
     const sshV = typeof inputs.ssh.val === 'number' ? inputs.ssh.val : parseFloat(inputs.ssh.val);
-    setVal('param-sla-val', `${sshV >= 0 ? '+' : ''}${sshV.toFixed(2)}`, 'm');
+    paramsData.push({
+      param: 'sla',
+      id: 'param-sla-val',
+      tileId: 'param-sla',
+      text: `${sshV >= 0 ? '+' : ''}${sshV.toFixed(2)} m`
+    });
   }
   if (inputs.current) {
     const curVal = typeof inputs.current.val === 'number' ? `${inputs.current.val.toFixed(2)} m/s` : `${inputs.current.val} m/s`;
     const curDir = inputs.current.dir !== undefined ? ` (${inputs.current.dir}°)` : '';
-    setVal('param-current-val', `${curVal}${curDir}`, '');
+    paramsData.push({
+      param: 'current',
+      id: 'param-current-val',
+      tileId: 'param-current',
+      text: `${curVal}${curDir}`
+    });
   }
   if (inputs.wind) {
     const windSpeed = typeof inputs.wind.val === 'number' ? `${inputs.wind.val.toFixed(1)} m/s` : (typeof inputs.wind.val === 'string' && inputs.wind.val.includes(',') ? inputs.wind.val : `${inputs.wind.val} m/s`);
     const windDir = inputs.wind.dir !== undefined ? ` (${inputs.wind.dir}°)` : '';
-    setVal('param-wind-val', `${windSpeed}${windDir}`, '');
-    const el = document.getElementById('param-wind-val');
-    if (el) {
-      const speedNum = typeof inputs.wind.val === 'number' ? inputs.wind.val : parseFloat(inputs.wind.val);
-      const kmh = inputs.wind.kmh !== undefined ? inputs.wind.kmh : (!isNaN(speedNum) ? Math.round(speedNum * 3.6) : null);
-      if (kmh !== null) {
-        el.title = `${kmh} km/h`;
-      }
-    }
+    const speedNum = typeof inputs.wind.val === 'number' ? inputs.wind.val : parseFloat(inputs.wind.val);
+    const kmh = inputs.wind.kmh !== undefined ? inputs.wind.kmh : (!isNaN(speedNum) ? Math.round(speedNum * 3.6) : null);
+    paramsData.push({
+      param: 'wind',
+      id: 'param-wind-val',
+      tileId: 'param-wind',
+      text: `${windSpeed}${windDir}`,
+      title: kmh !== null ? `${kmh} km/h` : ''
+    });
   }
+
+  // Animation gating check: animate ONLY in supported browser DOM when prediction data exists and reduced motion is off
+  const canAnimate = typeof document !== 'undefined' &&
+    typeof document.querySelectorAll === 'function' &&
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    !window.matchMedia('(prefers-reduced-motion: reduce)').matches &&
+    paramsData.length > 0 &&
+    options.animate !== false;
+
+  if (!canAnimate) {
+    // Immediate synchronous assignment (unit tests, static mocks, reduced motion, empty states)
+    paramsData.forEach(item => {
+      const el = document.getElementById(item.id);
+      if (el) {
+        el.textContent = item.text;
+        if (item.title !== undefined) el.title = item.title;
+      }
+    });
+    return;
+  }
+
+  // Clear any existing active animation timeouts for parameters
+  if (!window._kyParamScanTimeouts) {
+    window._kyParamScanTimeouts = [];
+  }
+  window._kyParamScanTimeouts.forEach(t => clearTimeout(t));
+  window._kyParamScanTimeouts = [];
+
+  const baseDelay = typeof options.delay === 'number' ? options.delay : 240; // Starts sequentially after KPI cards begin
+  const staggerStep = 75; // 60–100ms stagger between parameter cards (75ms)
+
+  paramsData.forEach((item, idx) => {
+    const el = document.getElementById(item.id);
+    const tileEl = document.getElementById(item.tileId) || (el && el.closest ? el.closest('.ky-param-tile') : null);
+    const tileDelay = baseDelay + idx * staggerStep;
+
+    // 1. Trigger tile scan sweep and parameter-specific icon micro-movement
+    const tStart = setTimeout(() => {
+      if (tileEl && tileEl.classList) {
+        tileEl.classList.remove('ky-param-tile--scanning');
+        void tileEl.offsetWidth; // Reflow to reset CSS keyframe animation
+        tileEl.classList.add('ky-param-tile--scanning');
+      }
+
+      // 2. Synchronize value blur-to-sharp reveal as scan beam crosses value (~120ms)
+      const tReveal = setTimeout(() => {
+        if (el) {
+          el.textContent = item.text;
+          if (item.title !== undefined) el.title = item.title;
+          if (el.classList) {
+            el.classList.remove('ky-param-tile__val--revealing');
+            void el.offsetWidth; // Reflow
+            el.classList.add('ky-param-tile__val--revealing');
+          }
+        }
+      }, 120);
+      window._kyParamScanTimeouts.push(tReveal);
+
+      // 3. Settle tile and value cleanly back to static state when scan finishes (~550ms)
+      const tEnd = setTimeout(() => {
+        if (tileEl && tileEl.classList) {
+          tileEl.classList.remove('ky-param-tile--scanning');
+        }
+        if (el && el.classList) {
+          el.classList.remove('ky-param-tile__val--revealing');
+        }
+      }, 550);
+      window._kyParamScanTimeouts.push(tEnd);
+
+    }, tileDelay);
+
+    window._kyParamScanTimeouts.push(tStart);
+  });
+}
+if (typeof window !== 'undefined') {
+  window.renderSurfaceInputs = renderSurfaceInputs;
 }
 
 /* ── Stat Cards In-Flight Loading State ──────────────────── */
@@ -2483,12 +2581,8 @@ function updateStatCards(prediction) {
   // CRITICAL: MLD must be computed from raw_temps (uncorrected) to avoid premature shoaling
   const mldTemps = (raw_temps && raw_temps.length) ? raw_temps : temps;
   const mld = computeMLD(depths, mldTemps);
-
-  const mldEl = document.getElementById('stat-mld-val');
-  if (mldEl) {
-    mldEl.textContent = mld !== null ? `${mld} m` : '—';
-    mldEl.title = mld !== null ? `Mixed layer depth computed at ${mld} m (de Boyer Montégut 2004, 10m ref)` : '';
-  }
+  const mldText = mld !== null ? `${mld} m` : '—';
+  const mldTitle = mld !== null ? `Mixed layer depth computed at ${mld} m (de Boyer Montégut 2004, 10m ref)` : '';
 
   // 2: Ocean Heat Content – 300m (OHC₃₀₀) in kJ/cm²
   // Absolute OHC integrated over 0–300m: OHC = (rho * cp / 1e7) * sum( avg_T_layer * dz )
@@ -2526,49 +2620,115 @@ function updateStatCards(prediction) {
     console.log('[OHC-300m Raw] Value:', ohc, 'kJ/cm² (heatSum:', heatSum.toFixed(2), ')');
   }
 
-  const ohcEl = document.getElementById('stat-ohc-val');
-  if (ohcEl) {
-    ohcEl.textContent = ohc !== null ? `${ohc.toFixed(1)} kJ/cm²` : '—';
-    ohcEl.title = ohc !== null ? `Ocean heat content in upper 300m: ${ohc.toFixed(1)} kJ/cm²` : 'Water column is shallower than 300m (seafloor depth cutoff)';
-  }
+  const ohcText = ohc !== null ? `${ohc.toFixed(1)} kJ/cm²` : '—';
+  const ohcTitle = ohc !== null ? `Ocean heat content in upper 300m: ${ohc.toFixed(1)} kJ/cm²` : 'Water column is shallower than 300m (seafloor depth cutoff)';
 
   // 3: D20 Isotherm Depth
   // Compute depth (in meters) at which temperature first drops to 20°C,
   // linearly interpolating between the depth level just above 20°C and the depth level just below 20°C.
   let d20Isotherm = computeD20Isotherm(depths, temps);
-
-  const d20El = document.getElementById('stat-d20-val');
-  if (d20El) {
-    if (d20Isotherm !== null) {
-      d20El.textContent = `${d20Isotherm} m`;
-      d20El.title = `D20 Isotherm Depth: ${d20Isotherm} m`;
-    } else if (temps && temps.length > 0) {
-      d20El.textContent = 'N/A — 20°C not reached in profile';
-      d20El.title = '20°C isotherm not reached in depth range';
-    } else {
-      d20El.textContent = '—';
-      d20El.title = '';
-    }
+  let d20Text = '—';
+  let d20Title = '';
+  if (d20Isotherm !== null) {
+    d20Text = `${d20Isotherm} m`;
+    d20Title = `D20 Isotherm Depth: ${d20Isotherm} m`;
+  } else if (temps && temps.length > 0) {
+    d20Text = 'N/A — 20°C not reached in profile';
+    d20Title = '20°C isotherm not reached in depth range';
   }
 
   // 4: D26 Isotherm Depth
   // Compute depth (in meters) at which temperature first drops to 26°C,
   // linearly interpolating between the depth level just above 26°C and the depth level just below 26°C.
   let d26Isotherm = computeD26Isotherm(depths, temps);
-
-  const d26El = document.getElementById('stat-d26-val');
-  if (d26El) {
-    if (d26Isotherm !== null) {
-      d26El.textContent = `${d26Isotherm} m`;
-      d26El.title = `D26 Isotherm Depth: ${d26Isotherm} m`;
-    } else if (temps && temps.length > 0) {
-      d26El.textContent = 'N/A — 26°C not reached in profile';
-      d26El.title = '26°C isotherm not reached in depth range';
-    } else {
-      d26El.textContent = '—';
-      d26El.title = '';
-    }
+  let d26Text = '—';
+  let d26Title = '';
+  if (d26Isotherm !== null) {
+    d26Text = `${d26Isotherm} m`;
+    d26Title = `D26 Isotherm Depth: ${d26Isotherm} m`;
+  } else if (temps && temps.length > 0) {
+    d26Text = 'N/A — 26°C not reached in profile';
+    d26Title = '26°C isotherm not reached in depth range';
   }
+
+  const cardData = [
+    { id: 'stat-mld-val', text: mldText, title: mldTitle },
+    { id: 'stat-ohc-val', text: ohcText, title: ohcTitle },
+    { id: 'stat-d20-val', text: d20Text, title: d20Title },
+    { id: 'stat-d26-val', text: d26Text, title: d26Title }
+  ];
+
+  // Gated animation check: Trigger subtle data-scan reveal ONLY in supported browser DOM
+  // when new valid prediction data arrives and reduced-motion is not requested
+  const canAnimate = typeof document !== 'undefined' &&
+    typeof document.querySelectorAll === 'function' &&
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    !window.matchMedia('(prefers-reduced-motion: reduce)').matches &&
+    Boolean(temps && temps.length > 0);
+
+  if (!canAnimate) {
+    // Immediate synchronous assignment (unit tests, static mocks, reduced motion, empty states)
+    cardData.forEach(item => {
+      const el = document.getElementById(item.id);
+      if (el) {
+        el.textContent = item.text;
+        if (item.title !== undefined) el.title = item.title;
+      }
+    });
+    return;
+  }
+
+  // Clear any existing active animation timeouts
+  if (!window._kyStatScanTimeouts) {
+    window._kyStatScanTimeouts = [];
+  }
+  window._kyStatScanTimeouts.forEach(t => clearTimeout(t));
+  window._kyStatScanTimeouts = [];
+
+  const cards = document.querySelectorAll('.ky-stat-row .ky-stat-card');
+  cardData.forEach((item, idx) => {
+    const el = document.getElementById(item.id);
+    const cardEl = cards[idx] || (el && el.closest ? el.closest('.ky-stat-card') : null);
+    const staggerDelay = idx * 100; // 0ms, 100ms, 200ms, 300ms (stagger window: 80–120ms)
+
+    // 1. Trigger card scan sweep and icon micro-movement
+    const tStart = setTimeout(() => {
+      if (cardEl && cardEl.classList) {
+        cardEl.classList.remove('ky-stat-card--scanning');
+        void cardEl.offsetWidth; // Reflow to reset CSS keyframe animation
+        cardEl.classList.add('ky-stat-card--scanning');
+      }
+
+      // 2. Synchronize value blur-to-sharp reveal at scan line arrival (~140ms)
+      const tReveal = setTimeout(() => {
+        if (el) {
+          el.textContent = item.text;
+          if (item.title !== undefined) el.title = item.title;
+          if (el.classList) {
+            el.classList.remove('ky-stat-card__val--revealing');
+            void el.offsetWidth;
+            el.classList.add('ky-stat-card__val--revealing');
+          }
+        }
+      }, 140);
+      window._kyStatScanTimeouts.push(tReveal);
+
+      // 3. Settle card and value cleanly back to static state when scan finishes (~650ms)
+      const tEnd = setTimeout(() => {
+        if (cardEl && cardEl.classList) {
+          cardEl.classList.remove('ky-stat-card--scanning');
+        }
+        if (el && el.classList) {
+          el.classList.remove('ky-stat-card__val--revealing');
+        }
+      }, 650);
+      window._kyStatScanTimeouts.push(tEnd);
+
+    }, staggerDelay);
+
+    window._kyStatScanTimeouts.push(tStart);
+  });
 }
 if (typeof window !== 'undefined') {
   window.updateStatCards = updateStatCards;
@@ -2576,9 +2736,28 @@ if (typeof window !== 'undefined') {
 
 /* ── Depth-Temperature table renderer ── */
 
+let _prevTvdTemps = {};
+
 function updateDepthTable(depths, temps, profile = null, nearestArgo = null) {
   const tbody = document.getElementById('tvd-table-body');
   if (!tbody) return;
+
+  const canAnimate = typeof document !== 'undefined' &&
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    !window.matchMedia('(prefers-reduced-motion: reduce)').matches &&
+    Boolean(temps && temps.length > 0);
+
+  const tableEl = document.getElementById('tvd-table') || (tbody && tbody.closest ? tbody.closest('table') : null);
+  if (tableEl && canAnimate) {
+    tableEl.classList.remove('ky-tvd-table--refreshing');
+    void tableEl.offsetWidth;
+    tableEl.classList.add('ky-tvd-table--refreshing');
+    setTimeout(() => {
+      if (tableEl) tableEl.classList.remove('ky-tvd-table--refreshing');
+    }, 450);
+  }
+
   tbody.innerHTML = '';
   depths.forEach((depth, i) => {
     const tr = document.createElement('tr');
@@ -2595,7 +2774,17 @@ function updateDepthTable(depths, temps, profile = null, nearestArgo = null) {
       tr.classList.add('ky-tvd-table-row--masked');
     }
 
-    tr.innerHTML = `<td>${depth}</td><td class="ky-tvd-val">${tVal}</td>`;
+    const prevVal = _prevTvdTemps[depth];
+    const valChanged = prevVal !== undefined && prevVal !== tVal && tVal !== '—';
+    _prevTvdTemps[depth] = tVal;
+
+    // Sequential row reveal: subtle fade-in + 3px upward movement with 35ms stagger (30–40ms range)
+    if (canAnimate) {
+      tr.style.animation = `kyTableRowEntrance 0.24s cubic-bezier(0.16, 1, 0.3, 1) ${i * 35}ms backwards`;
+    }
+
+    const valCellClass = (valChanged && canAnimate) ? 'ky-tvd-val ky-tvd-val--updated' : 'ky-tvd-val';
+    tr.innerHTML = `<td>${depth}</td><td class="${valCellClass}"><span class="ky-tvd-val-inner">${tVal}</span></td>`;
     tr.style.cursor = 'pointer';
     tr.title = isMasked
       ? `Depth ${depth} m is beyond the local seafloor`
@@ -2604,7 +2793,26 @@ function updateDepthTable(depths, temps, profile = null, nearestArgo = null) {
       setDepthSelection(depth, true);
     });
     tbody.appendChild(tr);
+
+    // Clean up updated highlight class after ~320ms (~300ms return to normal)
+    if (valChanged && canAnimate) {
+      setTimeout(() => {
+        const cell = tr.querySelector('.ky-tvd-val--updated');
+        if (cell) cell.classList.remove('ky-tvd-val--updated');
+      }, 320);
+    }
   });
+
+  // Clean up inline animation styles on rows after sequence completes (~780ms)
+  if (canAnimate) {
+    const totalEntranceTime = depths.length * 35 + 260;
+    setTimeout(() => {
+      if (tbody) {
+        tbody.querySelectorAll('tr').forEach(r => { r.style.animation = ''; });
+      }
+    }, totalEntranceTime);
+  }
+
   scrollHighlightedTvdRow();
 }
 
@@ -2642,8 +2850,12 @@ function initTableGraphToggle() {
   const emptyView = document.getElementById('tvd-empty-view');
 
   if (!btnTable || !btnGraph) return;
+  if (btnTable.parentElement) {
+    btnTable.parentElement.setAttribute('data-active', btnGraph.classList.contains('ky-tvd-toggle__btn--active') ? 'graph' : 'table');
+  }
 
   btnTable.addEventListener('click', () => {
+    if (btnTable.parentElement) btnTable.parentElement.setAttribute('data-active', 'table');
     btnTable.classList.add('ky-tvd-toggle__btn--active');
     btnGraph.classList.remove('ky-tvd-toggle__btn--active');
     if (!clickedLatLng || !hasSelectedDate) {
@@ -2653,12 +2865,26 @@ function initTableGraphToggle() {
       return;
     }
     if (emptyView) emptyView.style.display = 'none';
-    if (tableView) tableView.style.display = '';
     if (graphView) graphView.style.display = 'none';
+    if (tableView) {
+      tableView.style.display = '';
+      const canAnimate = typeof window !== 'undefined' &&
+        typeof window.matchMedia === 'function' &&
+        !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (canAnimate) {
+        tableView.classList.remove('ky-tvd-view--crossfade');
+        void tableView.offsetWidth;
+        tableView.classList.add('ky-tvd-view--crossfade');
+        setTimeout(() => {
+          if (tableView) tableView.classList.remove('ky-tvd-view--crossfade');
+        }, 200);
+      }
+    }
     scrollHighlightedTvdRow();
   });
 
   btnGraph.addEventListener('click', () => {
+    if (btnGraph.parentElement) btnGraph.parentElement.setAttribute('data-active', 'graph');
     btnGraph.classList.add('ky-tvd-toggle__btn--active');
     btnTable.classList.remove('ky-tvd-toggle__btn--active');
     if (!clickedLatLng || !hasSelectedDate) {
@@ -2668,47 +2894,49 @@ function initTableGraphToggle() {
       return;
     }
     if (emptyView) emptyView.style.display = 'none';
-    if (graphView) graphView.style.display = '';
     if (tableView) tableView.style.display = 'none';
+    if (graphView) {
+      graphView.style.display = '';
+      const canAnimate = typeof window !== 'undefined' &&
+        typeof window.matchMedia === 'function' &&
+        !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (canAnimate) {
+        graphView.classList.remove('ky-tvd-view--crossfade');
+        void graphView.offsetWidth;
+        graphView.classList.add('ky-tvd-view--crossfade');
+        setTimeout(() => {
+          if (graphView) graphView.classList.remove('ky-tvd-view--crossfade');
+        }, 200);
+      }
+    }
     // Force Chart.js to resize now that the canvas is visible
     if (profileChart) {
-      setTimeout(() => profileChart.resize(), 50);
+      setTimeout(() => {
+        if (profileChart && typeof profileChart.resize === 'function') {
+          profileChart.resize();
+        }
+        if (profileChart && profileChart._needsReveal && typeof triggerChartRevealAnimation === 'function') {
+          profileChart._needsReveal = false;
+          triggerChartRevealAnimation(profileChart, 600);
+        }
+      }, 50);
     }
   });
 }
 
 initTableGraphToggle();
 
-/* ── Raw Model Profile Toggle ────────────────────────────── */
 
-function initRawProfileToggle() {
-  const rawToggle = document.getElementById('toggle-raw-profile');
-  const rawNote = document.getElementById('raw-profile-note');
-  if (!rawToggle) return;
-
-  rawToggle.addEventListener('change', () => {
-    if (rawNote) {
-      rawNote.style.display = rawToggle.checked ? 'flex' : 'none';
-    }
-    // If a prediction point and date are already chosen, refresh prediction with new mode
-    if (clickedLatLng && hasSelectedDate) {
-      const castBtn = document.getElementById('btn-cast');
-      if (castBtn) castBtn.click();
-    }
-  });
-}
-
-initRawProfileToggle();
 
 /* ── Ocean Parameters tile active state & Legend sync ──────── */
 
 const PARAM_CONFIG = {
-  sst:        { title: 'Sea Surface Temperature (°C)', ticks: ['24', '26', '28', '30', '32'], bar: ZOOM_EARTH_GRADIENT_CSS },
-  ssh:        { title: 'Sea Surface Height (m)',       ticks: ['0.2', '0.4', '0.6', '0.8', '1.0'], bar: 'linear-gradient(to right, #1E3A8A 0%, #2563EB 25%, #06B6D4 50%, #10B981 70%, #F59E0B 85%, #EF4444 100%)' },
-  sss:        { title: 'Sea Surface Salinity (PSU)',   ticks: ['32', '33', '34', '35', '36'], bar: 'linear-gradient(to right, #059669 0%, #10B981 35%, #38BDF8 70%, #1D4ED8 100%)' },
-  sla:        { title: 'Sea Level Anomaly (m)',        ticks: ['-0.20', '-0.10', '0.00', '+0.10', '+0.20'], bar: 'linear-gradient(to right, #1E1B4B 0%, #4338CA 30%, #E0F2FE 50%, #EC4899 75%, #9D174D 100%)' },
-  current:    { title: 'Surface Ocean Current (m/s)',  ticks: ['0.0', '0.5', '1.0', '1.5', '2.0+'], bar: 'linear-gradient(to right, #0F172A 0%, #0284C7 30%, #06B6D4 55%, #EAB308 80%, #E11D48 100%)' },
-  wind:       { title: 'Surface Winds (m/s)',          ticks: ['0', '3', '6', '9', '12', '15+'], bar: 'linear-gradient(to right, #334155 0%, #475569 25%, #38BDF8 55%, #F59E0B 80%, #EA580C 100%)' },
+  sst:        { title: 'Sea Surface Temperature (°C)', ticks: ['25.5', '27.0', '28.5', '30.0', '31.5'], bar: ZOOM_EARTH_GRADIENT_CSS },
+  ssh:        { title: 'Sea Surface Height (m)',       ticks: ['0.2', '0.4', '0.6', '0.8', '1.0'], bar: ZOOM_EARTH_GRADIENT_CSS },
+  sss:        { title: 'Sea Surface Salinity (PSU)',   ticks: ['33.0', '34.0', '35.0', '36.0', '37.0'], bar: ZOOM_EARTH_GRADIENT_CSS },
+  sla:        { title: 'Sea Level Anomaly (m)',        ticks: ['-0.20', '-0.10', '0.00', '+0.10', '+0.20'], bar: ZOOM_EARTH_GRADIENT_CSS },
+  current:    { title: 'Surface Ocean Current (m/s)',  ticks: ['0.0', '0.3', '0.6', '0.9', '1.2+'], bar: ZOOM_EARTH_GRADIENT_CSS },
+  wind:       { title: 'Surface Winds (m/s)',          ticks: ['0', '3', '6', '9', '12+'], bar: ZOOM_EARTH_GRADIENT_CSS },
 };
 
 document.querySelectorAll('.ky-param-tile').forEach(tile => {
@@ -2718,7 +2946,7 @@ document.querySelectorAll('.ky-param-tile').forEach(tile => {
 
     // Toggle off / deselect if already selected
     if (isAlreadyActive) {
-      tile.classList.remove('ky-param-tile--active');
+      tile.classList.remove('ky-param-tile--active', 'ky-param-tile--activating');
       selectedParam = null;
       if (typeof ParticleFlowEngine !== 'undefined' && ParticleFlowEngine.stop) {
         ParticleFlowEngine.stop();
@@ -2736,9 +2964,17 @@ document.querySelectorAll('.ky-param-tile').forEach(tile => {
       return;
     }
 
-    // Deselect all other tiles and select this one
-    document.querySelectorAll('.ky-param-tile').forEach(t => t.classList.remove('ky-param-tile--active'));
-    tile.classList.add('ky-param-tile--active');
+    // 1. First, activate/highlight the parameter card with thin blue outline, border sweep, and extending arrow
+    document.querySelectorAll('.ky-param-tile').forEach(t => t.classList.remove('ky-param-tile--active', 'ky-param-tile--activating'));
+    tile.classList.add('ky-param-tile--active', 'ky-param-tile--activating');
+    setTimeout(() => {
+      tile.classList.remove('ky-param-tile--activating');
+    }, 650);
+
+    // 2. Then transition map visualization layer smoothly (cross-fade out previous raster)
+    if (typeof fadeMapDataLayer === 'function') {
+      fadeMapDataLayer(0.2, 160);
+    }
 
     selectedParam = param;
     setDepthSelection(0, false); // Auto-set/lock depth to 0m (Surface) for 2D surface parameter
@@ -2840,12 +3076,84 @@ function rgba(r, g, b, a) {
 
 /* ── Build / update Chart.js depth profile ───────────────── */
 
+const leftToRightCurvePlugin = {
+  id: 'leftToRightCurve',
+  beforeDatasetsDraw(chart) {
+    if (!chart || !chart._revealStartTime) return;
+    const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+    const elapsed = now - chart._revealStartTime;
+    const duration = chart._revealDuration || 600;
+    const progress = Math.min(1, Math.max(0, elapsed / duration));
+    chart._revealProgress = progress;
+
+    const { ctx, chartArea } = chart;
+    if (!chartArea) return;
+
+    if (progress < 1) {
+      const sweepX = chartArea.left + chartArea.width * progress;
+      chart._currentSweepX = sweepX;
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(chartArea.left - 2, chartArea.top - 8, Math.max(0, sweepX - chartArea.left + 2), chartArea.height + 16);
+      ctx.clip();
+      chart._isCurveClipped = true;
+    } else {
+      chart._currentSweepX = chartArea.right + 100;
+      chart._isCurveClipped = false;
+    }
+  },
+  afterDatasetsDraw(chart) {
+    if (chart && chart._isCurveClipped) {
+      chart.ctx.restore();
+      chart._isCurveClipped = false;
+    }
+  }
+};
+
+function triggerChartRevealAnimation(chart, duration = 600) {
+  if (!chart) return;
+  const canAnimate = typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  if (!canAnimate || typeof requestAnimationFrame !== 'function') {
+    chart._revealProgress = 1;
+    chart._revealStartTime = null;
+    if (typeof chart.draw === 'function') chart.draw();
+    return;
+  }
+
+  const startTime = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+  chart._revealStartTime = startTime;
+  chart._revealDuration = duration;
+  chart._revealProgress = 0;
+
+  function stepReveal(now) {
+    if (!chart || !chart.ctx) return;
+    const elapsed = now - chart._revealStartTime;
+    const progress = Math.min(1, elapsed / chart._revealDuration);
+    chart._revealProgress = progress;
+    chart.draw();
+    if (progress < 1) {
+      requestAnimationFrame(stepReveal);
+    } else {
+      chart._revealProgress = 1;
+      chart._revealStartTime = null;
+      chart.draw();
+    }
+  }
+  requestAnimationFrame(stepReveal);
+}
+
+if (typeof window !== 'undefined') {
+  window.leftToRightCurvePlugin = leftToRightCurvePlugin;
+  window.triggerChartRevealAnimation = triggerChartRevealAnimation;
+}
+
 function buildChart(prediction) {
   const { temps, depths, argo, indices } = prediction;
   const n = depths.length;
-
-  // Compute D20 Isotherm Depth (20°C crossing point) matching the D20 summary card
-  const d20Depth = computeD20Isotherm(depths, temps);
 
   const segmentColors = depths.map((_, i) => {
     const t = i / (n - 1);
@@ -2856,7 +3164,7 @@ function buildChart(prediction) {
 
   const borderWidths = depths.map((_, i) => 1.5 + 1.5 * (i / (n - 1)));
 
-  const chartLabel = 'Temperature — Argo-bias-corrected';
+  const chartLabel = 'Temperature (°C)';
 
   const chartData = [];
   for (let i = 0; i < depths.length; i++) {
@@ -2875,8 +3183,36 @@ function buildChart(prediction) {
     borderColor: '#1D64F2',
     borderWidth: 2,
     pointRadius: 3.5,
-    pointBackgroundColor: '#1D64F2',
-    pointBorderColor: '#FFFFFF',
+    pointBackgroundColor: function(ctx) {
+      const chart = ctx.chart;
+      if (!chart || !chart._revealStartTime || chart._revealProgress >= 1) {
+        return '#1D64F2';
+      }
+      const sweepX = chart._currentSweepX;
+      if (typeof sweepX !== 'number') return '#1D64F2';
+      const meta = chart.getDatasetMeta(ctx.datasetIndex);
+      const elem = meta && meta.data ? meta.data[ctx.dataIndex] : null;
+      if (!elem) return '#1D64F2';
+      const ptX = elem.x;
+      if (sweepX < ptX) return 'rgba(29, 100, 242, 0)';
+      const alpha = Math.min(1, Math.max(0, (sweepX - ptX) / 24));
+      return `rgba(29, 100, 242, ${alpha})`;
+    },
+    pointBorderColor: function(ctx) {
+      const chart = ctx.chart;
+      if (!chart || !chart._revealStartTime || chart._revealProgress >= 1) {
+        return '#FFFFFF';
+      }
+      const sweepX = chart._currentSweepX;
+      if (typeof sweepX !== 'number') return '#FFFFFF';
+      const meta = chart.getDatasetMeta(ctx.datasetIndex);
+      const elem = meta && meta.data ? meta.data[ctx.dataIndex] : null;
+      if (!elem) return '#FFFFFF';
+      const ptX = elem.x;
+      if (sweepX < ptX) return 'rgba(255, 255, 255, 0)';
+      const alpha = Math.min(1, Math.max(0, (sweepX - ptX) / 24));
+      return `rgba(255, 255, 255, ${alpha})`;
+    },
     pointBorderWidth: 1,
     tension: 0.35,
     fill: false,
@@ -2895,7 +3231,21 @@ function buildChart(prediction) {
       borderWidth: 1.8,
       borderDash: [5, 4],
       pointRadius: 2.5,
-      pointBackgroundColor: '#94A3B8',
+      pointBackgroundColor: function(ctx) {
+        const chart = ctx.chart;
+        if (!chart || !chart._revealStartTime || chart._revealProgress >= 1) {
+          return '#94A3B8';
+        }
+        const sweepX = chart._currentSweepX;
+        if (typeof sweepX !== 'number') return '#94A3B8';
+        const meta = chart.getDatasetMeta(ctx.datasetIndex);
+        const elem = meta && meta.data ? meta.data[ctx.dataIndex] : null;
+        if (!elem) return '#94A3B8';
+        const ptX = elem.x;
+        if (sweepX < ptX) return 'rgba(148, 163, 184, 0)';
+        const alpha = Math.min(1, Math.max(0, (sweepX - ptX) / 24));
+        return `rgba(148, 163, 184, ${alpha})`;
+      },
       pointBorderColor: 'transparent',
       tension: 0.35,
       fill: false,
@@ -2915,10 +3265,7 @@ function buildChart(prediction) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      animation: {
-        duration: 500,
-        easing: 'easeOutQuart',
-      },
+      animation: false,
       interaction: {
         mode: 'index',
         intersect: false,
@@ -3007,48 +3354,18 @@ function buildChart(prediction) {
         },
       },
     },
-    plugins: d20Depth !== null ? [{
-      id: 'referenceDepthLine',
-      afterDraw(chart) {
-        const { ctx, chartArea: { left, right, top, bottom }, scales: { y } } = chart;
-        const yPos = y.getPixelForValue(d20Depth);
-        if (yPos >= top && yPos <= bottom) {
-          ctx.save();
-
-          // 1. Draw horizontal dashed reference line across the chart area
-          ctx.beginPath();
-          ctx.setLineDash([5, 4]);
-          ctx.strokeStyle = '#94A3B8';
-          ctx.lineWidth = 1.5;
-          ctx.moveTo(left, yPos);
-          ctx.lineTo(right, yPos);
-          ctx.stroke();
-
-          // 2. Full label text: e.g. "D20: 127 m"
-          const labelText = `D20: ${d20Depth} m`;
-          ctx.font = '600 11px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-          ctx.textAlign = 'right';
-
-          // Prevent top clipping: if reference line is near chart top, render label below line
-          const isNearTop = yPos < top + 18;
-          ctx.textBaseline = isNearTop ? 'top' : 'bottom';
-          const yOffset = isNearTop ? 3 : -3;
-
-          // Crisp background halo so text remains legible against grid lines and data curves
-          ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
-          ctx.lineWidth = 3;
-          ctx.setLineDash([]);
-          ctx.strokeText(labelText, right - 6, yPos + yOffset);
-
-          // Render foreground text in dark slate matching Kyogre palette
-          ctx.fillStyle = '#1E293B';
-          ctx.fillText(labelText, right - 6, yPos + yOffset);
-
-          ctx.restore();
-        }
-      }
-    }] : []
+    plugins: [leftToRightCurvePlugin]
   });
+
+  const graphView = document.getElementById('tvd-graph-view');
+  const isGraphVisible = graphView && graphView.style.display !== 'none';
+
+  if (isGraphVisible) {
+    triggerChartRevealAnimation(profileChart, 600);
+  } else {
+    profileChart._needsReveal = true;
+    profileChart._revealProgress = 1;
+  }
 }
 
 /* ── Cast / Reconstruct button handler & Failure Fallback ───── */
@@ -3069,6 +3386,7 @@ function clearPreviousPredictionUI() {
 
   setStatsLoading(true);
   clearSurfaceInputs();
+  _prevTvdTemps = {};
 
   const idleEl    = document.getElementById('result-idle');
   const contentEl = document.getElementById('result-content');
@@ -3171,9 +3489,9 @@ document.getElementById('btn-cast').addEventListener('click', function () {
   const dateObj = dayIndexToDate(dayIdx);
   const dateStr = dateToISO(dateObj);
 
-  // Date guard — V6 SatSwap 14-Year Model Active Window (2023-01-10 to 2023-12-31)
+  // Date guard — V6 SatSwap 14-Year Model Active Window (2023-01-01 to 2023-12-31)
   if (dayIdx < WINDOW_START_DAY || dayIdx > WINDOW_END_DAY) {
-    showRegionNotice('Date outside active model window: Currently serving the 14-year model for 2023 (Jan 10 – Dec 31). Please select a date between 2023-01-10 and 2023-12-31.', 'warning');
+    showRegionNotice('Date outside active model window: Currently serving the 14-year model for 2023 (Jan 1 – Dec 31). Please select a date between 2023-01-01 and 2023-12-31.', 'warning');
     return;
   }
 
@@ -3218,7 +3536,7 @@ document.getElementById('btn-cast').addEventListener('click', function () {
   fetch(baseEndpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ latitude: lat, longitude: lon, date: dateStr, corrected: true, raw: false }),
+    body: JSON.stringify({ latitude: lat, longitude: lon, date: dateStr }),
     signal: currentPredictController ? currentPredictController.signal : undefined,
   })
     .then(function (res) {
@@ -3287,11 +3605,11 @@ function renderPrediction(prediction, lat, lon, dateObj) {
   if (regionValEl) regionValEl.textContent = getRegionName(lat, lon);
   if (dateValEl)   dateValEl.textContent   = formatDate(dateObj);
 
-  // Update Ocean Parameters tiles
-  renderSurfaceInputs(prediction.surfaceInputs);
-
-  // Update Stat Cards (MLD, OHC, D20 Isotherm)
+  // 1. Coordinated Data Refresh: Top 4 KPI Cards update sequentially (MLD -> OHC -> D20 -> D26)
   updateStatCards(prediction);
+
+  // 2. Coordinated Data Refresh: Ocean Parameters update sequentially (SST -> SSH -> SSS -> SLA -> Current -> Winds)
+  renderSurfaceInputs(prediction.surfaceInputs, { delay: 240 });
 
   // Update Depth-Temperature table
   updateDepthTable(prediction.depths, prediction.temps);
@@ -3324,12 +3642,7 @@ function renderPrediction(prediction, lat, lon, dateObj) {
     if (tableView) tableView.style.display = 'none';
   }
 
-  // Sync raw model profile note visibility
-  const rawToggle = document.getElementById('toggle-raw-profile');
-  const rawNote = document.getElementById('raw-profile-note');
-  if (rawNote) {
-    rawNote.style.display = (rawToggle && rawToggle.checked) ? 'flex' : 'none';
-  }
+
 
   // Show result panel
   const loadingEl = document.getElementById('result-loading');
@@ -3450,3 +3763,235 @@ function validateLayerMarkerSync() {
 
 window.validateLayerMarkerSync = validateLayerMarkerSync;
 window.getLastValidationReport = () => lastValidationReport;
+
+/* ── NetCDF Static / Remote Download Gating ──────────────── */
+
+function initNetCDFDownloadLink() {
+  const btn = document.getElementById('btn-download-netcdf');
+  if (!btn) return;
+
+  const textSpan = document.getElementById('btn-download-netcdf-text') || btn.querySelector('span');
+
+  const checkSvg = `
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <polyline points="20 6 9 17 4 12"></polyline>
+    </svg>`;
+
+  const downloadSvg = `
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+      <polyline points="7 10 12 15 17 10"/>
+      <line x1="12" y1="15" x2="12" y2="3"/>
+    </svg>`;
+
+  function applyDisabledDownloadedState() {
+    btn.classList.remove('is-downloading');
+    btn.classList.add('is-downloaded');
+    btn.setAttribute('aria-disabled', 'true');
+    btn.setAttribute('tabindex', '-1');
+    btn.removeAttribute('href');
+    btn.removeAttribute('download');
+    btn.removeAttribute('target');
+    btn.removeAttribute('rel');
+    btn.style.pointerEvents = 'none';
+
+    // Replace icon with checkmark
+    const currentSvg = btn.querySelector('svg');
+    if (currentSvg) {
+      currentSvg.outerHTML = checkSvg.trim();
+    }
+    const currentText = document.getElementById('btn-download-netcdf-text') || btn.querySelector('span');
+    if (currentText) {
+      currentText.textContent = '✓ Already Downloaded';
+    }
+  }
+
+  // 1. Session Persistence Check: If already downloaded this session, disable immediately
+  let isDownloadedSession = false;
+  try {
+    if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('kyogre_netcdf_downloaded') === 'true') {
+      isDownloadedSession = true;
+    }
+  } catch (e) {
+    // Fallback if sessionStorage is blocked
+  }
+
+  if (isDownloadedSession) {
+    applyDisabledDownloadedState();
+    return;
+  }
+
+  // 2. Check local dev fallback URL
+  const isLocalDev = (typeof window !== 'undefined' && window.location)
+    ? (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+    : false;
+
+  if (isLocalDev) {
+    const localUrl = 'downloads/oceanembed_v6_satswap_anom_14yr_2023.nc';
+    fetch(localUrl, { method: 'HEAD' })
+      .then(res => {
+        if (res.ok && !btn.classList.contains('is-downloaded')) {
+          btn.href = localUrl;
+        }
+      })
+      .catch(() => {
+        // Fallback to existing Hugging Face URL on failure or offline
+      });
+  }
+
+  // 3. Click handler for one-time interactive download
+  let isDownloading = false;
+
+  btn.addEventListener('click', async (e) => {
+    e.preventDefault();
+
+    if (isDownloading || btn.classList.contains('is-downloaded') || btn.getAttribute('aria-disabled') === 'true') {
+      return;
+    }
+
+    const downloadUrl = btn.getAttribute('href') ||
+      'https://huggingface.co/datasets/bharath-987/ocean-embed-data/resolve/main/oceanembed_v6_satswap_anom_14yr_2023.nc';
+
+    isDownloading = true;
+    btn.classList.add('is-downloading');
+    const labelSpan = document.getElementById('btn-download-netcdf-text') || btn.querySelector('span');
+    if (labelSpan) {
+      labelSpan.textContent = '↓ Downloading...';
+    }
+
+    try {
+      const response = await fetch(downloadUrl);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: Download failed`);
+      }
+
+      const blob = await response.blob();
+      const objectUrl = window.URL.createObjectURL(blob);
+      const tempLink = document.createElement('a');
+      tempLink.style.display = 'none';
+      tempLink.href = objectUrl;
+      tempLink.download = 'oceanembed_v6_satswap_anom_14yr_2023.nc';
+      document.body.appendChild(tempLink);
+      tempLink.click();
+      setTimeout(() => {
+        if (tempLink.parentNode) tempLink.parentNode.removeChild(tempLink);
+        window.URL.revokeObjectURL(objectUrl);
+      }, 2000);
+
+      // Save successful download flag to session
+      try {
+        if (typeof sessionStorage !== 'undefined') {
+          sessionStorage.setItem('kyogre_netcdf_downloaded', 'true');
+        }
+      } catch (err) {}
+
+      // Transition to Downloaded
+      btn.classList.remove('is-downloading');
+      const currentSvg = btn.querySelector('svg');
+      if (currentSvg) {
+        currentSvg.outerHTML = checkSvg.trim();
+      }
+      if (labelSpan) {
+        labelSpan.textContent = '✓ Downloaded';
+      }
+
+      // Then transition to final subdued disabled state
+      setTimeout(() => {
+        applyDisabledDownloadedState();
+      }, 700);
+
+    } catch (err) {
+      console.warn('[NetCDF Download] Direct fetch failed or restricted, falling back to window navigation:', err);
+      // Fallback for cross-origin or local network constraints: trigger browser direct download
+      try {
+        const fallbackLink = document.createElement('a');
+        fallbackLink.style.display = 'none';
+        fallbackLink.href = downloadUrl;
+        fallbackLink.download = 'oceanembed_v6_satswap_anom_14yr_2023.nc';
+        fallbackLink.target = '_blank';
+        fallbackLink.rel = 'noopener noreferrer';
+        document.body.appendChild(fallbackLink);
+        fallbackLink.click();
+        setTimeout(() => {
+          if (fallbackLink.parentNode) fallbackLink.parentNode.removeChild(fallbackLink);
+        }, 2000);
+
+        try {
+          if (typeof sessionStorage !== 'undefined') {
+            sessionStorage.setItem('kyogre_netcdf_downloaded', 'true');
+          }
+        } catch (e2) {}
+
+        btn.classList.remove('is-downloading');
+        const currentSvg = btn.querySelector('svg');
+        if (currentSvg) {
+          currentSvg.outerHTML = checkSvg.trim();
+        }
+        if (labelSpan) {
+          labelSpan.textContent = '✓ Downloaded';
+        }
+        setTimeout(() => {
+          applyDisabledDownloadedState();
+        }, 700);
+      } catch (fallbackErr) {
+        console.error('[NetCDF Download] Fallback trigger failed:', fallbackErr);
+        btn.classList.remove('is-downloading');
+        isDownloading = false;
+        if (labelSpan) {
+          labelSpan.textContent = '↓ Download NetCDF';
+        }
+      }
+    }
+  });
+}
+
+
+/* ── Ocean Parameters Sequential Entrance (Initial Load Only) ── */
+
+function initParamTilesEntrance() {
+  if (typeof window === 'undefined' || window.__kyParamEntranceRan) return;
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    window.__kyParamEntranceRan = true;
+    return;
+  }
+  const tileIds = ['param-sst', 'param-ssh', 'param-sss', 'param-sla', 'param-current', 'param-wind'];
+  const tiles = tileIds.map(id => document.getElementById(id)).filter(Boolean);
+  if (tiles.length === 0) return;
+
+  window.__kyParamEntranceRan = true;
+  tiles.forEach((tile, idx) => {
+    tile.style.animation = `kyParamTileEntrance 0.32s cubic-bezier(0.16, 1, 0.3, 1) ${idx * 60}ms backwards`;
+  });
+
+  setTimeout(() => {
+    tiles.forEach(tile => {
+      tile.style.animation = '';
+    });
+  }, 750);
+}
+
+if (typeof window !== 'undefined') {
+  window.initParamTilesEntrance = initParamTilesEntrance;
+  window.initNetCDFDownloadLink = initNetCDFDownloadLink;
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    ...module.exports,
+    initNetCDFDownloadLink,
+  };
+}
+
+if (typeof document !== 'undefined') {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      initNetCDFDownloadLink();
+      initParamTilesEntrance();
+    });
+  } else {
+    initNetCDFDownloadLink();
+    initParamTilesEntrance();
+  }
+}
+
+

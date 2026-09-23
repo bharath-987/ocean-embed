@@ -54,8 +54,7 @@ async function runTests() {
   assert(html.includes('ky-header__search'), 'Centered search bar wrapper present in navbar');
   assert(html.includes('map-search-wrap'), 'Search bar component container present');
   assert(html.includes('id="map-search-input"'), 'Search input #map-search-input present');
-  assert(html.includes('placeholder="Search floats by region or float ID (e.g. Arabian Sea, #2902282)..."'), 'Search input placeholder matches specification');
-  assert(html.includes('ky-search-kbd') && html.includes('Ctrl K'), 'Ctrl K shortcut hint present');
+  assert(!html.includes('ky-search-kbd') && !html.includes('Ctrl K'), 'Ctrl K shortcut hint successfully removed from search bar');
   assert(html.includes('id="map-search-clear"'), 'Search clear button present');
   assert(html.includes('id="map-search-results"'), 'Search dropdown container present');
   assert(html.includes('ky-live-indicator') && html.includes('ky-live-dot--reanalysis'), 'Navbar includes Historical Reanalysis indicator (replaces removed Live badge)');

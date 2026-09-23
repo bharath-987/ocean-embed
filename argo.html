@@ -35,16 +35,17 @@
 
       <!-- Centered search bar matching Dashboard component -->
       <div class="ky-header__search">
-        <div class="map-search-wrap">
-          <svg class="map-search__icon" width="16" height="16" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="11" cy="11" r="8"></circle>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        <div class="map-search-wrap group">
+          <svg class="map-search__icon search-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <g>
+              <path
+                d="M21.53 20.47l-3.66-3.66C19.195 15.24 20 13.214 20 11c0-4.97-4.03-9-9-9s-9 4.03-9 9 4.03 9 9 9c2.215 0 4.24-.804 5.808-2.13l3.66 3.66c.147.146.34.22.53.22s.385-.073.53-.22c.295-.293.295-.767.002-1.06zM3.5 11c0-4.135 3.365-7.5 7.5-7.5s7.5 3.365 7.5 7.5-3.365 7.5-7.5 7.5-7.5-3.365-7.5-7.5z"
+              ></path>
+            </g>
           </svg>
-          <input type="text" id="map-search-input" class="map-search__input"
+          <input type="text" id="map-search-input" class="map-search__input input"
             placeholder="Search floats by region or float ID (e.g. Arabian Sea, #2902282)..."
             autocomplete="off" spellcheck="false" aria-label="Search floats by region or float ID" />
-          <span class="ky-search-kbd">Ctrl K</span>
           <button type="button" id="map-search-clear" class="map-search__clear"
             aria-label="Clear search" style="display:none;">&times;</button>
           <div id="map-search-results" class="map-search__dropdown" style="display:none;" role="listbox"></div>
@@ -99,7 +100,7 @@
                 <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>
               </svg>
             </span>
-            <span class="ky-nav-item__label">Marine Ecology &amp; Heatwave Mode</span>
+            <span class="ky-nav-item__label">Heatwave Mode</span>
           </button>
 
           <button class="ky-nav-item ky-nav-item--active" data-nav="argo">
@@ -127,17 +128,16 @@
         <!-- 2. STAT CARDS ROW (4 Cards: icon + label + big number only) -->
         <div class="ky-argo-stat-grid">
           <!-- Card 1: Basin RMSE -->
-          <div class="ky-argo-mini-card" title="RAW RMSE: 1.002 °C (0.901 °C corrected, vs 14-year climatology baseline n=1,809 profiles)">
+          <div class="ky-argo-mini-card" title="Model RMSE: 0.801 °C vs 2023 in-situ ARGO test set (n=2,910 profiles)">
             <div class="ky-argo-mini-card__icon ky-argo-mini-card__icon--blue">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                 <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
               </svg>
             </div>
             <div class="ky-argo-mini-card__body">
-              <span class="ky-argo-mini-card__label" title="RAW RMSE: 1.002 °C vs 14-year climatology baseline n=1,809 profiles">Basin RMSE</span>
+              <span class="ky-argo-mini-card__label" title="Model RMSE: 0.801 °C vs 2023 in-situ ARGO test set">Basin RMSE</span>
               <div style="display: flex; align-items: baseline; gap: 6px;">
-                <span class="ky-argo-mini-card__val" id="stat-argo-rmse">1.00 °C</span>
-                <span style="font-size: 12px; font-weight: 500; color: #64748B;">(raw)</span>
+                <span class="ky-argo-mini-card__val" id="stat-argo-rmse">0.801 °C</span>
               </div>
             </div>
           </div>
@@ -151,7 +151,7 @@
             </div>
             <div class="ky-argo-mini-card__body">
               <span class="ky-argo-mini-card__label">Mean Thermal Bias</span>
-              <span class="ky-argo-mini-card__val" id="stat-argo-bias">+0.08 °C</span>
+              <span class="ky-argo-mini-card__val" id="stat-argo-bias">+0.10 °C</span>
             </div>
           </div>
 
@@ -165,7 +165,7 @@
             </div>
             <div class="ky-argo-mini-card__body">
               <span class="ky-argo-mini-card__label">GLORYS RMSE</span>
-              <span class="ky-argo-mini-card__val" id="stat-argo-glorys">0.95 °C</span>
+              <span class="ky-argo-mini-card__val" id="stat-argo-glorys">0.886 °C</span>
             </div>
           </div>
 
@@ -179,7 +179,10 @@
             </div>
             <div class="ky-argo-mini-card__body">
               <span class="ky-argo-mini-card__label">Active Floats</span>
-              <span class="ky-argo-mini-card__val" id="stat-argo-floats">81</span>
+              <div style="display: flex; align-items: baseline; gap: 6px;">
+                <span class="ky-argo-mini-card__val" id="stat-argo-floats">92</span>
+                <span style="font-size: 11px; font-weight: 500; color: #64748B;" id="stat-argo-profiles-sub">(2,910 Profiles)</span>
+              </div>
             </div>
           </div>
         </div>
@@ -278,15 +281,11 @@
                     <polyline points="6 9 12 15 18 9"/>
                   </svg>
                 </div>
-                <div class="ky-argo-date-sub" id="argo-date-sub">Choose an available observation date (June–December 2023)</div>
+                <div class="ky-argo-date-sub" id="argo-date-sub">Choose an available observation date (Full Year 2023)</div>
               </div>
 
-              <!-- Model Prediction Configuration Toggles (Independently Controllable) -->
+              <!-- Model Prediction Post-Processing Toggles -->
               <div class="ky-argo-config-toggles" style="display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 12px; padding: 8px 12px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;">
-                <label class="ky-tvd-raw-toggle-label" for="toggle-argo-corrected" style="display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: 12px; color: #334155; font-weight: 500;" title="Apply Argo depth bias correction vector">
-                  <input type="checkbox" id="toggle-argo-corrected" class="ky-tvd-raw-checkbox" checked />
-                  <span>Bias-Corrected</span>
-                </label>
                 <label class="ky-tvd-raw-toggle-label" for="toggle-argo-smoothed" style="display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: 12px; color: #334155; font-weight: 500;" title="Apply PAVA isotonic decreasing smoothing (0–100m only)">
                   <input type="checkbox" id="toggle-argo-smoothed" class="ky-tvd-raw-checkbox" checked />
                   <span>PAVA Smoothed (0–100m)</span>
@@ -368,69 +367,88 @@
         <div class="ky-argo-panel ky-argo-skill-panel">
           <div class="ky-argo-panel-header ky-argo-skill-header">
             <div class="ky-argo-skill-title-wrap">
-              <h2 class="ky-argo-panel-title">Model vs. Monthly Climatology Baseline (Skill Score, n=1,809)</h2>
+              <h2 class="ky-argo-panel-title">Model vs. Monthly Climatology Baseline (Skill Score, n=2,910)</h2>
               <span class="ky-provenance-pill ky-provenance-pill--model">Model Validation</span>
             </div>
-            <div class="ky-argo-skill-badge" id="argo-skill-headline-badge">+41.4% Raw (+52.6% corrected)</div>
+            <div class="ky-argo-skill-badge" id="argo-skill-headline-badge">+57.0% Skill</div>
           </div>
 
-          <!-- Empirical Argo Warm-Bias Post-Processing Benchmark (1,809 Profiles Served Window & 2,910 Profiles Full 2023) -->
+          <!-- In-Situ ARGO Validation Benchmark Table (2023 Independent Test Set: 2,910 Profiles · 92 Floats · 38,769 Points) -->
           <div class="ky-argo-bias-benchmark" style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; padding: 16px 20px; margin-bottom: 20px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
               <div style="display: flex; align-items: center; gap: 10px;">
                 <span style="display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 6px; background: #EFF6FF; color: #1D4ED8; font-weight: 700; font-size: 14px;">✓</span>
-                <h3 style="margin: 0; font-size: 15px; font-weight: 600; color: #0F172A;">14-Year Model Independent In-Situ ARGO Validation Benchmarks</h3>
+                <h3 style="margin: 0; font-size: 15px; font-weight: 600; color: #0F172A;">Independent In-Situ ARGO Validation Benchmark (2023 Out-of-Sample Test Set)</h3>
               </div>
-              <span class="ky-provenance-pill ky-provenance-pill--model" style="font-size: 11px;">Trained on 2010–2020 · Tested on 2023 · One Training Run · MLD is Experimental</span>
+              <span class="ky-provenance-pill ky-provenance-pill--model" style="font-size: 11px;">Satellite inputs; network trained on the GLORYS reanalysis, then on real Argo floats</span>
             </div>
 
-            <!-- Two Comparison Cards: Served Window (1,809) vs Full Year 2023 (2,910) -->
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-bottom: 14px;">
-              <!-- Panel A: Served Window (June-December 2023) -->
-              <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 8px; padding: 14px 16px;">
-                <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px;">
-                  <span style="font-size: 12px; font-weight: 700; color: #1D4ED8; text-transform: uppercase; letter-spacing: 0.5px;">Served Model Window (Jun–Dec 2023)</span>
-                  <span style="font-size: 11px; color: #64748B; font-weight: 500;">1,809 Profiles · 81 Floats</span>
-                </div>
-                <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px;">
-                  <span style="font-size: 20px; font-weight: 700; color: #0F172A;">1.002 °C</span>
-                  <span style="font-size: 13px; color: #16A34A; font-weight: 600;">&rarr; 0.901 °C</span>
-                  <span style="font-size: 11px; font-weight: 600; color: #16A34A; background: #DCFCE7; padding: 2px 6px; border-radius: 4px;">corrected</span>
-                  <span style="font-size: 12px; color: #64748B;">vs GLORYS 0.948 °C</span>
-                </div>
-                <div style="font-size: 11px; color: #64748B; line-height: 1.4;">
-                  <strong>Headline Skill Score:</strong> <span style="color: #1D4ED8; font-weight: 600;">+41.4% Raw</span> (+39.7% daily baseline) &middot; <span style="color: #16A34A; font-weight: 600;">+52.6%</span> with Argo-fitted depth correction.
-                </div>
-              </div>
+            <div style="font-size: 12px; color: #64748B; margin-bottom: 12px; line-height: 1.5;">
+              Evaluated strictly on the 2023 test set (N = 2,910 profiles, 92 floats, 38,769 depth observation points; GLORYS &ne; 0 and finite, Argo exists). Root Mean Square Error (RMSE, &deg;C) computed directly from data across all standard depths.
+            </div>
 
-              <!-- Panel B: Full Year 2023 Independent Test Set -->
-              <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 8px; padding: 14px 16px;">
-                <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px;">
-                  <span style="font-size: 12px; font-weight: 700; color: #0F172A; text-transform: uppercase; letter-spacing: 0.5px;">Full-Year 2023 Validation Set</span>
-                  <span style="font-size: 11px; color: #64748B; font-weight: 500;">2,910 Profiles · 92 Floats</span>
-                </div>
-                <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px;">
-                  <span style="font-size: 20px; font-weight: 700; color: #0F172A;">0.941 °C</span>
-                  <span style="font-size: 12px; color: #64748B;">raw</span>
-                  <span style="font-size: 12px; color: #64748B;">vs</span>
-                  <span style="font-size: 15px; font-weight: 600; color: #475569;">0.886 °C</span>
-                  <span style="font-size: 12px; color: #64748B;">GLORYS</span>
-                  <span style="font-size: 13px; color: #16A34A; font-weight: 700;">&rarr; 0.836 °C</span>
-                  <span style="font-size: 11px; font-weight: 600; color: #16A34A; background: #DCFCE7; padding: 2px 6px; border-radius: 4px;" title="Fitted on Argo">fitted on Argo</span>
-                </div>
-                <div style="font-size: 11px; color: #64748B; line-height: 1.4;">
-                  Full 2023 independent out-of-sample benchmark across 38,769 depth points. Depth correction reduces raw error by 11.1%, beating operational reanalysis.
-                </div>
-              </div>
+            <!-- Truth Comparison Table: Model (new), GLORYS, Previous model -->
+            <div style="overflow-x: auto; margin-bottom: 14px; border: 1px solid #E2E8F0; border-radius: 8px; background: #FFFFFF;">
+              <table style="width: 100%; border-collapse: collapse; font-size: 13px; text-align: left;">
+                <thead>
+                  <tr style="background: #F1F5F9; border-bottom: 1px solid #CBD5E1; color: #334155; font-size: 12px; font-weight: 600;">
+                    <th style="padding: 10px 14px;">Model / Reference</th>
+                    <th style="padding: 10px 14px; font-weight: 700; color: #0F172A;">All Depths</th>
+                    <th style="padding: 10px 14px;">5 m</th>
+                    <th style="padding: 10px 14px;">50 m</th>
+                    <th style="padding: 10px 14px;">100 m</th>
+                    <th style="padding: 10px 14px;">200 m</th>
+                    <th style="padding: 10px 14px;">500 m</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr style="border-bottom: 1px solid #E2E8F0; background: #F0FDF4; font-weight: 600;">
+                    <td style="padding: 10px 14px; color: #166534;">
+                      <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #16A34A; margin-right: 6px;"></span>
+                      Model (new &middot; argoft_seed1)
+                    </td>
+                    <td style="padding: 10px 14px; font-weight: 700; color: #166534;">0.801 &deg;C</td>
+                    <td style="padding: 10px 14px; color: #166534;">0.471 &deg;C</td>
+                    <td style="padding: 10px 14px; color: #166534;">1.029 &deg;C</td>
+                    <td style="padding: 10px 14px; color: #166534;">1.180 &deg;C</td>
+                    <td style="padding: 10px 14px; color: #166534;">0.740 &deg;C</td>
+                    <td style="padding: 10px 14px; color: #166534;">0.332 &deg;C</td>
+                  </tr>
+                  <tr style="border-bottom: 1px solid #E2E8F0; color: #334155;">
+                    <td style="padding: 10px 14px; font-weight: 500;">
+                      <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #64748B; margin-right: 6px;"></span>
+                      GLORYS12 Reanalysis
+                    </td>
+                    <td style="padding: 10px 14px; font-weight: 600; color: #0F172A;">0.886 &deg;C</td>
+                    <td style="padding: 10px 14px;">0.453 &deg;C</td>
+                    <td style="padding: 10px 14px;">1.088 &deg;C</td>
+                    <td style="padding: 10px 14px;">1.634 &deg;C</td>
+                    <td style="padding: 10px 14px;">0.935 &deg;C</td>
+                    <td style="padding: 10px 14px;">0.519 &deg;C</td>
+                  </tr>
+                  <tr style="color: #64748B;">
+                    <td style="padding: 10px 14px;">
+                      <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #94A3B8; margin-right: 6px;"></span>
+                      Previous model (v6_14yr)
+                    </td>
+                    <td style="padding: 10px 14px; font-weight: 600;">0.941 &deg;C</td>
+                    <td style="padding: 10px 14px;">0.504 &deg;C</td>
+                    <td style="padding: 10px 14px;">1.138 &deg;C</td>
+                    <td style="padding: 10px 14px;">1.752 &deg;C</td>
+                    <td style="padding: 10px 14px;">0.951 &deg;C</td>
+                    <td style="padding: 10px 14px;">0.490 &deg;C</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
 
             <!-- Weakest Layer & Calibrated Uncertainty Callouts -->
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px;">
               <div style="background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 6px; padding: 10px 12px; font-size: 12px; color: #92400E;">
-                <strong>Layer Callout:</strong> 100m is the weakest layer: <strong>1.75 °C raw vs 1.63 °C reanalysis</strong> (1.29 °C with Argo depth correction). Sharp vertical thermocline stratification gradients create the largest challenge for surface-only neural inversion.
+                <strong>Layer Callout (100 m):</strong> 100m exhibits the largest gradient challenge: <strong>1.180 &deg;C Model</strong> vs <strong>1.634 &deg;C GLORYS</strong> (previous model 1.752 &deg;C). Argo fine-tuning sharply resolves the thermocline core.
               </div>
               <div style="background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 6px; padding: 10px 12px; font-size: 12px; color: #166534;">
-                <strong>Calibrated Uncertainty:</strong> 90% error band held 89% coverage on 2023 test set; TCHP 90% band ±17.8 kJ/cm² held about 87% coverage (Trust Layer ready).
+                <strong>Calibrated 90% Confidence Bands:</strong> &plusmn;0.65&deg;C at 5m, &plusmn;1.60&deg;C at 50m, &plusmn;1.79&deg;C at 100m, &plusmn;0.37&deg;C at 1000m. TCHP error: &plusmn;11.6 kJ/cm&sup2; (90% band &plusmn;17.8 kJ/cm&sup2;).
               </div>
             </div>
           </div>
@@ -440,15 +458,15 @@
             <div class="ky-argo-skill-summary-col">
               <div class="ky-argo-skill-headline-card">
                 <div class="ky-argo-skill-headline-label">Pooled Basin Skill Score</div>
-                <div class="ky-argo-skill-headline-value" id="argo-skill-headline-val">+41.4% <span class="ky-argo-skill-secondary" style="font-size: 15px; font-weight: 500; color: #16A34A; display: block; margin-top: 4px;">(+52.6% with the Argo-fitted depth correction)</span></div>
+                <div class="ky-argo-skill-headline-value" id="argo-skill-headline-val">+57.0%</div>
                 <div class="ky-argo-skill-headline-sub">
-                  <span class="ky-argo-skill-sub-pair"><strong>AI Model RMSE:</strong> <span id="argo-skill-model-rmse">1.00 °C (0.90 °C corrected)</span></span>
+                  <span class="ky-argo-skill-sub-pair"><strong>AI Model RMSE:</strong> <span id="argo-skill-model-rmse">0.80 °C</span></span>
                   <span class="ky-argo-skill-sub-divider">•</span>
-                  <span class="ky-argo-skill-sub-pair"><strong>Climatology RMSE:</strong> <span id="argo-skill-clim-rmse">1.31 °C</span></span>
+                  <span class="ky-argo-skill-sub-pair"><strong>Climatology RMSE:</strong> <span id="argo-skill-clim-rmse">1.22 °C</span></span>
                 </div>
                 <p class="ky-argo-skill-caption" id="argo-skill-caption">
-                  14-year calendar-average baseline (the model's own target climatology), n=1,809, 81 floats, Jun-Dec 2023.
-                  Skill Score SS = 1 − (RMSE_model² / RMSE_climatology²) evaluated across 24,185 pooled depth observation points.
+                  14-year calendar-average baseline (the model's own target climatology), n=2,910 profiles, 92 floats, 2023.
+                  Skill Score SS = 1 − (RMSE_model² / RMSE_climatology²) evaluated across 38,769 pooled depth observation points.
                   A score of <strong>0.0</strong> represents no improvement over seasonal historical averages; positive scores indicate real predictive skill from deep learning.
                 </p>
               </div>
@@ -457,18 +475,18 @@
               <div class="ky-argo-basin-grid">
                 <div class="ky-argo-basin-card">
                   <div class="ky-argo-basin-name">Bay of Bengal</div>
-                  <div class="ky-argo-basin-skill" id="basin-skill-bob">+45.2% <span style="font-size: 11px; font-weight: 500; color: #16A34A;">(+61.6% corr)</span></div>
-                  <div class="ky-argo-basin-meta" id="basin-meta-bob">Raw 0.87°C (0.73°C corr) vs Clim 1.18°C (n=277 profiles)</div>
+                  <div class="ky-argo-basin-skill" id="basin-skill-bob">+64.6%</div>
+                  <div class="ky-argo-basin-meta" id="basin-meta-bob">Model 0.70°C vs Clim 1.18°C (n=277 profiles)</div>
                 </div>
                 <div class="ky-argo-basin-card">
                   <div class="ky-argo-basin-name">Arabian Sea</div>
-                  <div class="ky-argo-basin-skill" id="basin-skill-as">+38.3% <span style="font-size: 11px; font-weight: 500; color: #16A34A;">(+48.7% corr)</span></div>
-                  <div class="ky-argo-basin-meta" id="basin-meta-as">Raw 1.02°C (0.93°C corr) vs Clim 1.30°C (n=1,455 profiles)</div>
+                  <div class="ky-argo-basin-skill" id="basin-skill-as">+54.8%</div>
+                  <div class="ky-argo-basin-meta" id="basin-meta-as">Model 0.87°C vs Clim 1.29°C (n=1,455 profiles)</div>
                 </div>
                 <div class="ky-argo-basin-card">
                   <div class="ky-argo-basin-name">Equatorial Indian Ocean</div>
-                  <div class="ky-argo-basin-skill" id="basin-skill-eio">+62.4% <span style="font-size: 11px; font-weight: 500; color: #16A34A;">(+73.3% corr)</span></div>
-                  <div class="ky-argo-basin-meta" id="basin-meta-eio">Raw 1.16°C (0.97°C corr) vs Clim 1.88°C (n=77 profiles)</div>
+                  <div class="ky-argo-basin-skill" id="basin-skill-eio">+75.8%</div>
+                  <div class="ky-argo-basin-meta" id="basin-meta-eio">Model 0.93°C vs Clim 1.89°C (n=77 profiles)</div>
                 </div>
               </div>
             </div>
