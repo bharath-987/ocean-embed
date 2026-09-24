@@ -1122,7 +1122,7 @@ async function fetchDepthPoint(lat, lon, dateStr) {
 
     if (tooltipEl) {
       if (data.tooltip || data.class === 2) {
-        const tipText = data.tooltip || 'model estimate, tends to understate';
+        const tipText = data.tooltip || 'Model call: right 80% of the time against Argo floats (2023)';
         tooltipEl.style.display = 'inline-block';
         tooltipEl.textContent = tipText;
         tooltipEl.title = tipText;

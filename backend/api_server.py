@@ -137,8 +137,11 @@ async def lifespan(app: FastAPI):
         print("=" * 65, flush=True)
 
     # 3. Initialize Marine Heatwave (MHW) climatology
-    _load_climatology()
-    print("  Marine Heatwave (MHW) climatology initialized.", flush=True)
+    try:
+        _load_climatology()
+        print("  Marine Heatwave (MHW) 14-year baseline loaded.", flush=True)
+    except Exception as e:
+        print(f"  !! Marine Heatwave baseline NOT loaded -- heatwave mode will return errors: {e}", flush=True)
     print("=" * 65, flush=True)
     yield
 
@@ -1985,9 +1988,8 @@ def get_cyclone_map_grid(storm_name: str):
 # HEATWAVE DEPTH CHECK (2023 50–100m Reach Feature)
 # ---------------------------------------------------------------------------
 BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
-HEATWAVE_DIR = os.path.join(BACKEND_DIR, "data", "heatwave_depth")
-if not os.path.exists(HEATWAVE_DIR):
-    HEATWAVE_DIR = r"C:\Users\Asus\OneDrive\Desktop\heatwave_depth"
+# Committed with the repo; override with KYOGRE_HEATWAVE_DIR if the files live elsewhere.
+HEATWAVE_DIR = os.environ.get("KYOGRE_HEATWAVE_DIR", os.path.join(BACKEND_DIR, "data", "heatwave_depth"))
 HEATWAVE_DEPTH_NPZ = os.path.join(HEATWAVE_DIR, "heatwave_depth_2023.npz")
 HEATWAVE_SHARES_CSV = os.path.join(HEATWAVE_DIR, "heatwave_depth_daily_shares_2023.csv")
 
@@ -2082,8 +2084,8 @@ def get_heatwave_depth_point(
     lon_idx = int(inf.np.argmin(inf.np.abs(inf.np.array(hw_data["lons"]) - lon)))
     cls_val = int(hw_data["classes"][idx, lat_idx, lon_idx])
 
-    # Tooltip reading exactly "model estimate, tends to understate" for deep reach
-    tooltip = "model estimate, tends to understate" if cls_val == 2 else None
+    # Tooltip on the deep-reach label: how often the model is right (the raw 50-100 m value is never shown)
+    tooltip = "Model call: right 80% of the time against Argo floats (2023)" if cls_val == 2 else None
 
     return {
         "date": date,

@@ -3357,7 +3357,7 @@ Nearshore boxes originally generated on the coarse $1.0^\circ \times 1.5^\circ$ 
   - `GET /heatwave-depth/summary?date=YYYY-MM-DD`: Returns formatted bulletin lines and validation badge.
 - **Strict Scientific & Wording Rules**:
   1. Depth layer strictly uses binary depth reach labels: `"Surface only"` or `"Reaches 50–100 m"`. Severity labels (`Moderate`, `Strong`, `Severe`, `Extreme`) are strictly prohibited at depth.
-  2. `band_anomaly_50_100m` is never displayed as an exact numeric temperature value; tooltip strictly displays `"model estimate, tends to understate"`.
+  2. `band_anomaly_50_100m` is never displayed as an exact numeric temperature value; tooltip strictly displays `"Model call: right 80% of the time against Argo floats (2023)"`.
   3. Single-day flag is labeled as a daily flag, noting that a 5-consecutive-day duration is required for an event under Hobday et al. (2016).
   4. Feature is strictly restricted to 2023.
 

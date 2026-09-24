@@ -18,6 +18,12 @@ THRESH_PATH = os.path.join(HEATWAVE_DEPTH_DIR, 'thresh.npy')
 MEAN_PATH = os.path.join(HEATWAVE_DEPTH_DIR, 'mean.npy')
 NODE_DAYS_PATH = os.path.join(HEATWAVE_DEPTH_DIR, 'node_days.npy')
 COUNT_PATH = os.path.join(HEATWAVE_DEPTH_DIR, 'count.npy')
+# Preferred source: the single 14-year threshold file committed with the repo (same data as the .npy trio)
+MHW_NPZ_PATH = os.path.join(HEATWAVE_DEPTH_DIR, 'mhw_sst_2010_2023.npz')
+
+
+class ClimatologyMissing(RuntimeError):
+    """The 14-year heatwave baseline is not on disk. Never replaced by made-up values."""
 
 import inference as inf
 
@@ -29,18 +35,20 @@ _nodes_x = None
 def _load_climatology():
     global _thresh_ext, _mean_ext, _nodes_x
     if _thresh_ext is None:
-        if os.path.exists(THRESH_PATH) and os.path.exists(MEAN_PATH) and os.path.exists(NODE_DAYS_PATH):
+        if os.path.exists(MHW_NPZ_PATH):
+            with np.load(MHW_NPZ_PATH) as z:
+                thresh, mean, node_days = z['thresh'], z['mean'], z['node_days']   # (61,101,241), (61,101,241), (61,)
+        elif os.path.exists(THRESH_PATH) and os.path.exists(MEAN_PATH) and os.path.exists(NODE_DAYS_PATH):
             thresh = np.load(THRESH_PATH)       # (61, 101, 241) float16
             mean = np.load(MEAN_PATH)           # (61, 101, 241) float16
             node_days = np.load(NODE_DAYS_PATH) # (61,) int64
-            _nodes_x = np.append(node_days, 366)
-            _thresh_ext = np.concatenate([thresh, thresh[0:1]], axis=0).astype(np.float32)
-            _mean_ext = np.concatenate([mean, mean[0:1]], axis=0).astype(np.float32)
         else:
-            # Baseline fallback
-            _nodes_x = np.linspace(0, 366, 62, dtype=np.int64)
-            _thresh_ext = np.full((62, 101, 241), 29.5, dtype=np.float32)
-            _mean_ext = np.full((62, 101, 241), 28.0, dtype=np.float32)
+            # No fallback on purpose: a flat made-up threshold would show fake heatwaves without any warning.
+            raise ClimatologyMissing(
+                "14-year heatwave baseline not found: expected backend/data/heatwave_depth/mhw_sst_2010_2023.npz")
+        _nodes_x = np.append(node_days, 366)
+        _thresh_ext = np.concatenate([thresh, thresh[0:1]], axis=0).astype(np.float32)
+        _mean_ext = np.concatenate([mean, mean[0:1]], axis=0).astype(np.float32)
     return _thresh_ext, _mean_ext, _nodes_x
 
 def _get_timeline():
@@ -82,7 +90,10 @@ def detect_marine_heatwaves(
        M = (SST_peak - Mean) / (Threshold_90 - Mean)
        Category = min(4, max(1, floor(M)))
     """
-    thresh_ext, mean_ext, nodes_x = _load_climatology()
+    try:
+        thresh_ext, mean_ext, nodes_x = _load_climatology()
+    except ClimatologyMissing as e:
+        return {"error": f"Heatwave baseline not loaded: {e}", "sst_timeseries": []}
 
     # 1. Coordinate lookup and validation
     if not (inf.MIN_LAT <= latitude <= inf.MAX_LAT and inf.MIN_LON <= longitude <= inf.MAX_LON):

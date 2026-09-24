@@ -183,7 +183,7 @@ async function runTests() {
   assert(ptRes.data.class === 2, `Point class is 2 (got ${ptRes.data.class})`);
   assert(ptRes.data.label === 'Reaches 50–100 m', `Point label is 'Reaches 50–100 m'`);
   assert(ptRes.data.depth_penetration === '50–100 m', `depth_penetration is '50–100 m'`);
-  assert(ptRes.data.tooltip === 'model estimate, tends to understate', `tooltip is strictly 'model estimate, tends to understate'`);
+  assert(ptRes.data.tooltip === 'Model call: right 80% of the time against Argo floats (2023)', `tooltip is strictly 'Model call: right 80% of the time against Argo floats (2023)'`);
 
   // STRICT RULE CHECK: band_anomaly_50_100m MUST NOT be returned as a numeric temperature value
   assert(!('band_anomaly_50_100m' in ptRes.data), 'CRITICAL: band_anomaly_50_100m temperature value is NOT exposed in point endpoint');
@@ -242,8 +242,8 @@ async function runTests() {
   assert(js.includes('fetchDepthPoint'), 'fetchDepthPoint exists');
   assert(js.includes('Daily heatwave flag (Hobday 5+ consecutive day rule required for an event).'), 'Daily flag notice present in depth inspector');
 
-  // Rule 2: band_anomaly_50_100m never shown as exact value, tooltip strictly "model estimate, tends to understate"
-  assert(js.includes('model estimate, tends to understate'), 'Tooltip text "model estimate, tends to understate" is present');
+  // Rule 2: band_anomaly_50_100m never shown as exact value, tooltip strictly "Model call: right 80% of the time against Argo floats (2023)"
+  assert(js.includes('Model call: right 80% of the time against Argo floats (2023)'), 'Tooltip text "Model call: right 80% of the time against Argo floats (2023)" is present');
   assert(!js.includes('data.band_anomaly_50_100m.toFixed'), 'Raw band_anomaly_50_100m is NOT displayed as a formatted number');
 
   // ==========================================================================
