@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Kyogre — Heatwave Mode</title>
-  <meta name="description" content="Detect and categorize Marine Heatwaves (MHWs) across the North Indian Ocean using Hobday et al. (2016) criteria and CNN-LSTM reconstructed SST time series." />
+  <meta name="description" content="Detect and categorize Marine Heatwaves (MHWs) across the North Indian Ocean using Hobday et al. (2016) criteria and Observed satellite SST (OSTIA) time series." />
 
   <!-- Deployment Config -->
   <script src="config.js"></script>
@@ -63,7 +63,7 @@
               <polyline points="6,9 12,15 18,9"/>
             </svg>
           </button>
-          <input type="date" id="native-date-picker" min="2021-01-11" max="2023-12-31" value="" class="ky-hidden-date-input" aria-label="Choose date" />
+          <input type="date" id="native-date-picker" min="2023-01-01" max="2023-12-31" value="" class="ky-hidden-date-input" aria-label="Choose date" />
         </div>
 
         <div class="ky-live-indicator">
@@ -169,7 +169,7 @@
               <div class="ky-stat-card__label-row">
                 <span class="ky-stat-card__label">Marine Heatwave Status</span>
                 <div class="ky-stat-card__pill-row">
-                  <span class="ky-provenance-pill ky-provenance-pill--heuristic" title="Derived from Hobday et al. (2016) statistical thresholding of reconstructed SST — not a direct model prediction.">Estimated Heuristic</span>
+                  <span class="ky-provenance-pill ky-provenance-pill--satellite" title="Observed satellite SST (OSTIA)">Observed satellite SST (OSTIA)</span>
                 </div>
               </div>
               <div class="ky-stat-card__val-row">
@@ -191,7 +191,7 @@
               <div class="ky-stat-card__label-row">
                 <span class="ky-stat-card__label">Events in Window</span>
                 <div class="ky-stat-card__pill-row">
-                  <span class="ky-provenance-pill ky-provenance-pill--heuristic" title="Derived from Hobday et al. (2016) statistical thresholding of reconstructed SST — not a direct model prediction.">Estimated Heuristic</span>
+                  <span class="ky-provenance-pill ky-provenance-pill--satellite" title="Observed satellite SST (OSTIA)">Observed satellite SST (OSTIA)</span>
                 </div>
               </div>
               <div class="ky-stat-card__val-row">
@@ -212,7 +212,7 @@
               <div class="ky-stat-card__label-row">
                 <span class="ky-stat-card__label">Peak Category (Window)</span>
                 <div class="ky-stat-card__pill-row">
-                  <span class="ky-provenance-pill ky-provenance-pill--heuristic" title="Derived from Hobday et al. (2016) statistical thresholding of reconstructed SST — not a direct model prediction.">Estimated Heuristic</span>
+                  <span class="ky-provenance-pill ky-provenance-pill--satellite" title="Observed satellite SST (OSTIA)">Observed satellite SST (OSTIA)</span>
                 </div>
               </div>
               <div class="ky-stat-card__val-row">
@@ -233,13 +233,36 @@
               <div class="ky-stat-card__label-row">
                 <span class="ky-stat-card__label">Longest Event Duration (Window)</span>
                 <div class="ky-stat-card__pill-row">
-                  <span class="ky-provenance-pill ky-provenance-pill--heuristic" title="Derived from Hobday et al. (2016) statistical thresholding of reconstructed SST — not a direct model prediction.">Estimated Heuristic</span>
+                  <span class="ky-provenance-pill ky-provenance-pill--satellite" title="Observed satellite SST (OSTIA)">Observed satellite SST (OSTIA)</span>
                 </div>
               </div>
               <div class="ky-stat-card__val-row">
                 <span class="ky-stat-card__val" id="stat-window-duration-val">—</span>
               </div>
               <div class="ky-stat-card__note" id="stat-window-duration-note">Awaiting selection</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- BULLETIN & VALIDATION BANNER (Heatwave Depth Feature) -->
+        <div class="ky-depth-bulletin-banner" id="depth-bulletin-banner" style="display: flex;">
+          <div class="ky-depth-bulletin-top">
+            <div class="ky-depth-validation-badge" id="depth-validation-badge">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              <span>Checked against 895 Argo float profiles (2023): 80% correct (simple guess: 60%).</span>
+            </div>
+            <div class="ky-depth-demo-shortcuts">
+              <span class="ky-depth-demo-label">Demo Dates:</span>
+              <button type="button" class="ky-demo-date-btn" data-date="2023-10-15" title="Large deep Arabian Sea heatwave">2023-10-15 (Deep Arabian Sea)</button>
+              <button type="button" class="ky-demo-date-btn" data-date="2023-07-15" title="Bay of Bengal, mostly surface only">2023-07-15 (BoB Surface Only)</button>
+            </div>
+          </div>
+          <div class="ky-depth-bulletin-lines">
+            <div class="ky-depth-bulletin-pill" id="depth-bulletin-as">
+              <span class="ky-bulletin-text" id="depth-bulletin-as-text">Arabian Sea: 65.6% of the basin in a heatwave; 57.1% of that reaches 50–100 m.</span>
+            </div>
+            <div class="ky-depth-bulletin-pill" id="depth-bulletin-bob">
+              <span class="ky-bulletin-text" id="depth-bulletin-bob-text">Bay of Bengal: 25.4% of the basin in a heatwave; 13.5% of that reaches 50–100 m.</span>
             </div>
           </div>
         </div>
@@ -257,6 +280,20 @@
               <div class="ky-mhw-map-wrap" id="map-wrap">
                 <div id="map"></div>
 
+                <!-- Layer Switcher (Top-Left: Surface Layer vs Depth Layer) -->
+                <div class="ky-mhw-layer-toggle-wrap">
+                  <div class="ky-mhw-layer-btn-group" role="group" aria-label="Heatwave Layer">
+                    <button type="button" class="ky-mhw-layer-btn ky-mhw-layer-btn--active" id="btn-layer-surface" data-layer="surface">
+                      <span class="ky-mhw-layer-btn__dot ky-mhw-layer-btn__dot--surface"></span>
+                      Surface Layer (SST)
+                    </button>
+                    <button type="button" class="ky-mhw-layer-btn" id="btn-layer-depth" data-layer="depth">
+                      <span class="ky-mhw-layer-btn__dot ky-mhw-layer-btn__dot--depth"></span>
+                      Depth Layer (50–100 m)
+                    </button>
+                  </div>
+                </div>
+
                 <!-- Map Tools (Top-Right: Zoom + / -) -->
                 <div class="ky-map-tools-top-right">
                   <div class="ky-zoom-btn-group">
@@ -266,6 +303,25 @@
                     <button type="button" class="ky-tool-btn" id="btn-zoom-out" aria-label="Zoom out" title="Zoom out">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                     </button>
+                  </div>
+                </div>
+
+                <!-- Depth Layer Legend (Bottom-Left) -->
+                <div class="ky-depth-legend" id="depth-legend" style="display:none;">
+                  <div class="ky-depth-legend__title">HEATWAVE DEPTH EXTENT</div>
+                  <div class="ky-depth-legend__items">
+                    <div class="ky-depth-legend__item">
+                      <span class="ky-depth-legend__color" style="background:#dfe6ee;"></span>
+                      <span>No heatwave</span>
+                    </div>
+                    <div class="ky-depth-legend__item">
+                      <span class="ky-depth-legend__color" style="background:#f6b26b;"></span>
+                      <span>Surface only</span>
+                    </div>
+                    <div class="ky-depth-legend__item">
+                      <span class="ky-depth-legend__color" style="background:#cc0000;"></span>
+                      <span>Reaches 50–100 m</span>
+                    </div>
                   </div>
                 </div>
 
@@ -358,6 +414,38 @@
 
               </div>
 
+              <!-- 3. Depth Check View (Shown when Depth Layer is active) -->
+              <div id="mhw-depth-view" class="ky-mhw-depth-view" style="display:none;">
+                <div class="ky-mhw-depth-card">
+                  <div class="ky-mhw-depth-header">
+                    <div class="ky-mhw-depth-title">Heatwave Depth Penetration Check</div>
+                    <div class="ky-mhw-depth-sub">Subsurface thermal reach analysis (50–100 m layer)</div>
+                  </div>
+                  <div class="ky-mhw-depth-status-box">
+                    <div class="ky-mhw-depth-label-small">Depth Penetration Status</div>
+                    <div class="ky-mhw-depth-result-val" id="depth-point-status">—</div>
+                    <div class="ky-mhw-depth-tooltip-hint" id="depth-point-tooltip" style="display:none;" title="model estimate, tends to understate">
+                      model estimate, tends to understate
+                    </div>
+                    <div class="ky-mhw-depth-note" id="depth-point-note">Click any ocean location on the map to inspect depth reach</div>
+                  </div>
+                  <div class="ky-mhw-depth-meta-row">
+                    <div class="ky-mhw-depth-meta-item">
+                      <span class="ky-mhw-depth-meta-label">Observed Date</span>
+                      <span class="ky-mhw-depth-meta-val" id="depth-meta-date">—</span>
+                    </div>
+                    <div class="ky-mhw-depth-meta-item">
+                      <span class="ky-mhw-depth-meta-label">Selected Coordinate</span>
+                      <span class="ky-mhw-depth-meta-val" id="depth-meta-coord">—</span>
+                    </div>
+                  </div>
+                  <div class="ky-mhw-depth-daily-flag-notice">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    <span>Daily heatwave flag — applies Hobday 5-consecutive-day rule for event characterization.</span>
+                  </div>
+                </div>
+              </div>
+
               <!-- Mandatory Methodology Disclaimer Card (Always visible) -->
               <div class="ky-mhw-methodology-card">
                 <div class="ky-mhw-methodology-icon">
@@ -368,7 +456,7 @@
                   </svg>
                 </div>
                 <div class="ky-mhw-methodology-text">
-                  <strong>Methodology Note:</strong> Marine heatwave defined per Hobday et al. (2016): SST exceeding the location's climatological 90th percentile for 5+ consecutive days. Climatology computed from 2021–2023 reconstructed SST — a short baseline period; treat detected events as indicative, not a substitute for long-term (10–30 year) climatological monitoring.
+                  <strong>Methodology Note:</strong> Threshold: 90th percentile of observed satellite SST, 2010–2023, daily and smoothed (Hobday et al. 2016).
                 </div>
               </div>
 

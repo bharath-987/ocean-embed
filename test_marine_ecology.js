@@ -72,7 +72,7 @@ async function runTests() {
   // SECTION 2: Backend API Schema & Endpoint Verification
   // --------------------------------------------------------------------------
   console.log('\nSECTION 2: Backend API POST /marine-heatwave');
-  const queryCoord = { latitude: 15.0, longitude: 65.0, reference_date: '2021-07-03' };
+  const queryCoord = { latitude: 15.0, longitude: 65.0, reference_date: '2023-10-15' };
   const res = await makePostRequest('http://localhost:8000/marine-heatwave', queryCoord);
   assert(res.status === 200, `POST /marine-heatwave returns 200 OK (status=${res.status})`);
 
@@ -81,7 +81,8 @@ async function runTests() {
   assert(Array.isArray(body.events), 'Events field is an array');
   assert(body.current_status && typeof body.current_status === 'object', 'current_status is an object');
   assert(body.climatology_method && body.climatology_method.includes('90th percentile'), 'climatology_method describes 90th percentile baseline');
-  assert(body.climatology_method.includes('3-year baseline'), 'climatology_method includes transparent 3-year baseline caveat');
+  assert(body.climatology_method.includes('2010') || body.climatology_method.includes('Hobday et al. 2016'), 'climatology_method includes 14-year smooth baseline');
+  assert(!body.climatology_method.includes('3-year baseline'), 'climatology_method removed 3-year baseline caveat');
   assert(Array.isArray(body.sst_timeseries) && body.sst_timeseries.length > 0, 'sst_timeseries is non-empty array');
 
   // Verify timeseries row schema
@@ -132,22 +133,22 @@ async function runTests() {
   // SECTION 5: Reference Date Status Evaluation (Active vs Inactive)
   // --------------------------------------------------------------------------
   console.log('\nSECTION 5: Reference Date Evaluation');
-  // Active test (2021-07-03 at 15N, 65E is day 3 of 8-day event 2021-07-01 to 2021-07-08)
+  // Active test (2023-10-15 at 15N, 65E is day 2 of 5-day event 2023-10-14 to 2023-10-18)
   const activeStatus = body.current_status;
-  assert(activeStatus.in_heatwave === true, '2021-07-03 correctly identified as in_heatwave=true');
-  assert(activeStatus.days_elapsed === 3, `2021-07-03 has days_elapsed=3 (got ${activeStatus.days_elapsed})`);
-  assert(activeStatus.category === 1, '2021-07-03 category is 1');
+  assert(activeStatus.in_heatwave === true, '2023-10-15 correctly identified as in_heatwave=true');
+  assert(activeStatus.days_elapsed === 2, `2023-10-15 has days_elapsed=2 (got ${activeStatus.days_elapsed})`);
+  assert(activeStatus.category === 1, '2023-10-15 category is 1');
   assert(activeStatus.category_label === 'Category I (Moderate)', 'category_label is Category I (Moderate)');
 
-  // Inactive test (2021-01-01 at 15N, 65E is not in heatwave)
+  // Inactive test (2023-01-01 at 15N, 65E is not in heatwave)
   const inactiveRes = await makePostRequest('http://localhost:8000/marine-heatwave', {
     latitude: 15.0,
     longitude: 65.0,
-    reference_date: '2021-01-01'
+    reference_date: '2023-01-01'
   });
   assert(inactiveRes.status === 200, 'Inactive date request returns 200');
   const inactStatus = inactiveRes.data.current_status;
-  assert(inactStatus.in_heatwave === false, '2021-01-01 correctly identified as in_heatwave=false');
+  assert(inactStatus.in_heatwave === false, '2023-01-01 correctly identified as in_heatwave=false');
   assert(inactStatus.category === null, 'in_heatwave=false has category=null');
   assert(inactStatus.days_elapsed === null, 'in_heatwave=false has days_elapsed=null');
   assert(inactStatus.event === null, 'in_heatwave=false has event=null');
@@ -187,11 +188,11 @@ async function runTests() {
   const cardCount = (statRowSlice.match(/class="ky-stat-card"/g) || []).length;
   assert(cardCount === 4, `Stat row contains exactly 4 cards (found ${cardCount})`);
 
-  // Assert all 4 cards carry Estimated Heuristic provenance pills
-  const pillCount = (statRowSlice.match(/ky-provenance-pill--heuristic/g) || []).length;
-  assert(pillCount === 4, `Stat row contains exactly 4 Estimated Heuristic provenance pills (found ${pillCount})`);
+  // Assert all 4 cards carry Observed satellite SST (OSTIA) provenance pills
+  const pillCount = (statRowSlice.match(/ky-provenance-pill--satellite/g) || []).length;
+  assert(pillCount === 4, `Stat row contains exactly 4 Observed satellite SST (OSTIA) provenance pills (found ${pillCount})`);
   assert(!statRowSlice.includes('ky-provenance-pill--model'), 'No Model-Derived pills remain in stat cards');
-  assert(statRowSlice.includes('Derived from Hobday et al. (2016) statistical thresholding'), 'Cards include explanatory title attribute');
+  assert(statRowSlice.includes('Observed satellite SST (OSTIA)'), 'Cards include Observed satellite SST (OSTIA) label');
 
   // Card 1: Marine Heatwave Status
   assert(statRowSlice.includes('Marine Heatwave Status'), 'Card 1 title present');
@@ -231,10 +232,8 @@ async function runTests() {
 
   // Mandatory methodology caveat card
   assert(html.includes('ky-mhw-methodology-card'), 'Methodology disclaimer card present');
-  assert(html.includes('Hobday et al. (2016)'), 'Disclaimer cites Hobday et al. (2016)');
-  assert(html.includes('5+ consecutive days'), 'Disclaimer mentions 5+ consecutive days');
-  assert(html.includes('short baseline period'), 'Disclaimer mentions short baseline period');
-  assert(html.includes('10–30 year'), 'Disclaimer mentions 10–30 year long-term monitoring');
+  assert(html.includes('Threshold: 90th percentile of observed satellite SST, 2010–2023, daily and smoothed (Hobday et al. 2016).'), 'Disclaimer contains exact updated 14-year methodology string');
+  assert(!html.includes('short baseline period'), 'Disclaimer removed short baseline caveat');
 
   // Exclude extraneous heuristics
   assert(!html.includes('coral bleaching risk'), 'Does NOT include extraneous coral bleaching heuristics');

@@ -412,9 +412,7 @@ REPOSITIONED_NEARSHORE_BOXES = {
     (1, 36): (6.75, 98.00, 177.4),
     (2, 36): (7.00, 97.75, 177.1),
     (3, 22): (7.75, 78.25, 141.7),
-    (4, 35): (8.00, 97.50, 165.2),
     (7, 20): (11.75, 74.25, 161.1),
-    (9, 19): (13.25, 73.50, 164.8),
     (10, 19): (15.50, 72.75, 185.0),
     (10, 33): (15.25, 93.50, 135.7),
     (12, 18): (16.25, 72.00, 180.3),
@@ -1981,6 +1979,165 @@ def get_cyclone_map_grid(storm_name: str):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ---------------------------------------------------------------------------
+# HEATWAVE DEPTH CHECK (2023 50–100m Reach Feature)
+# ---------------------------------------------------------------------------
+BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
+HEATWAVE_DIR = os.path.join(BACKEND_DIR, "data", "heatwave_depth")
+if not os.path.exists(HEATWAVE_DIR):
+    HEATWAVE_DIR = r"C:\Users\Asus\OneDrive\Desktop\heatwave_depth"
+HEATWAVE_DEPTH_NPZ = os.path.join(HEATWAVE_DIR, "heatwave_depth_2023.npz")
+HEATWAVE_SHARES_CSV = os.path.join(HEATWAVE_DIR, "heatwave_depth_daily_shares_2023.csv")
+
+_hw_depth_data = None
+_hw_shares_df = None
+
+CLASS_DEPTH_LABELS = {
+    -1: "No Data",
+    0: "No Heatwave",
+    1: "Surface Only",
+    2: "Reaches 50–100 m",
+}
+
+def _get_hw_depth_data():
+    global _hw_depth_data
+    if _hw_depth_data is None:
+        if os.path.exists(HEATWAVE_DEPTH_NPZ):
+            npz = inf.np.load(HEATWAVE_DEPTH_NPZ)
+            dates_list = [str(d) for d in npz["dates"]]
+            date_map = {d: i for i, d in enumerate(dates_list)}
+            _hw_depth_data = {
+                "dates": dates_list,
+                "date_map": date_map,
+                "lats": [round(float(x), 2) for x in npz["lats"]],
+                "lons": [round(float(x), 2) for x in npz["lons"]],
+                "classes": npz["classes"],
+            }
+        else:
+            raise HTTPException(status_code=500, detail="heatwave_depth_2023.npz not found.")
+    return _hw_depth_data
+
+
+def _get_hw_shares_df():
+    global _hw_shares_df
+    if _hw_shares_df is None:
+        if os.path.exists(HEATWAVE_SHARES_CSV):
+            _hw_shares_df = inf.pd.read_csv(HEATWAVE_SHARES_CSV)
+        else:
+            raise HTTPException(status_code=500, detail="heatwave_depth_daily_shares_2023.csv not found.")
+    return _hw_shares_df
+
+
+@app.get("/heatwave-depth")
+def get_heatwave_depth_grid(date: str = Query(..., pattern=r"^\d{4}-\d{2}-\d{2}$")):
+    """
+    Returns full class grid for the Heatwave Depth map layer (2023 only).
+    Classes: -1 = no data, 0 = no surface heatwave, 1 = surface only, 2 = reaches 50–100 m.
+    """
+    hw_data = _get_hw_depth_data()
+    idx = hw_data["date_map"].get(date)
+    if idx is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Heatwave depth analysis is only available for 2023 (2023-01-01 to 2023-12-31).",
+        )
+    grid = hw_data["classes"][idx].tolist()
+    return {
+        "date": date,
+        "lats": hw_data["lats"],
+        "lons": hw_data["lons"],
+        "shape": [len(hw_data["lats"]), len(hw_data["lons"])],
+        "grid": grid,
+        "classes": grid,
+        "legend": {
+            "-1": {"label": "No Data", "color": "transparent"},
+            "0": {"label": "No Heatwave", "color": "#dfe6ee"},
+            "1": {"label": "Surface Only", "color": "#f6b26b"},
+            "2": {"label": "Reaches 50–100 m", "color": "#cc0000"},
+        },
+    }
+
+
+@app.get("/heatwave-depth/point")
+def get_heatwave_depth_point(
+    lat: float = Query(..., ge=inf.MIN_LAT, le=inf.MAX_LAT),
+    lon: float = Query(..., ge=inf.MIN_LON, le=inf.MAX_LON),
+    date: str = Query(..., pattern=r"^\d{4}-\d{2}-\d{2}$"),
+):
+    """
+    Returns heatwave depth class and label for a single coordinate location.
+    Strictly adheres to wording rules: only 'Surface Only' / 'Reaches 50–100 m' (no categories at depth),
+    and raw band_anomaly_50_100m temperature is never exposed.
+    """
+    hw_data = _get_hw_depth_data()
+    idx = hw_data["date_map"].get(date)
+    if idx is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Heatwave depth analysis is only available for 2023 (2023-01-01 to 2023-12-31).",
+        )
+    lat_idx = int(inf.np.argmin(inf.np.abs(inf.np.array(hw_data["lats"]) - lat)))
+    lon_idx = int(inf.np.argmin(inf.np.abs(inf.np.array(hw_data["lons"]) - lon)))
+    cls_val = int(hw_data["classes"][idx, lat_idx, lon_idx])
+
+    # Tooltip reading exactly "model estimate, tends to understate" for deep reach
+    tooltip = "model estimate, tends to understate" if cls_val == 2 else None
+
+    return {
+        "date": date,
+        "latitude": round(lat, 4),
+        "longitude": round(lon, 4),
+        "grid_latitude": hw_data["lats"][lat_idx],
+        "grid_longitude": hw_data["lons"][lon_idx],
+        "class": cls_val,
+        "label": CLASS_DEPTH_LABELS.get(cls_val, "No Data"),
+        "depth_penetration": "50–100 m" if cls_val == 2 else ("Surface Only" if cls_val == 1 else "None"),
+        "tooltip": tooltip,
+    }
+
+
+@app.get("/heatwave-depth/summary")
+def get_heatwave_depth_summary(date: str = Query(..., pattern=r"^\d{4}-\d{2}-\d{2}$")):
+    """
+    Returns basin-level heatwave and depth shares for the date from the daily shares CSV.
+    Formats the exact bulletin line per operational specifications.
+    """
+    df = _get_hw_shares_df()
+    rows = df[df["date"] == date]
+    if rows.empty:
+        raise HTTPException(
+            status_code=400,
+            detail="Heatwave depth summary is only available for 2023 (2023-01-01 to 2023-12-31).",
+        )
+    row = rows.iloc[0]
+
+    as_hw_pct = round(float(row["Arabian Sea heatwave_share"]) * 100, 1)
+    as_deep_pct = round(float(row["Arabian Sea deep_share_of_heatwave"]) * 100, 1)
+    bob_hw_pct = round(float(row["Bay of Bengal heatwave_share"]) * 100, 1)
+    bob_deep_pct = round(float(row["Bay of Bengal deep_share_of_heatwave"]) * 100, 1)
+
+    as_bulletin = f"Arabian Sea: {as_hw_pct}% of the basin in a heatwave; {as_deep_pct}% of that reaches 50–100 m."
+    bob_bulletin = f"Bay of Bengal: {bob_hw_pct}% of the basin in a heatwave; {bob_deep_pct}% of that reaches 50–100 m."
+
+    return {
+        "date": date,
+        "arabian_sea": {
+            "heatwave_share": as_hw_pct,
+            "deep_share_of_heatwave": as_deep_pct,
+            "bulletin": as_bulletin,
+            "bulletin_line": as_bulletin,
+        },
+        "bay_of_bengal": {
+            "heatwave_share": bob_hw_pct,
+            "deep_share_of_heatwave": bob_deep_pct,
+            "bulletin": bob_bulletin,
+            "bulletin_line": bob_bulletin,
+        },
+        "bulletin_line": f"{as_bulletin} | {bob_bulletin}",
+        "validation_badge": "Checked against 895 Argo float profiles (2023): 80% correct (simple guess: 60%).",
+    }
 
 
 if __name__ == "__main__":

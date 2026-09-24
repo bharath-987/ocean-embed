@@ -3321,4 +3321,45 @@ Nearshore boxes originally generated on the coarse $1.0^\circ \times 1.5^\circ$ 
   - $25\text{ m}$ is linearly interpolated between $20\text{ m}$ and $30\text{ m}$.
   - $750\text{ m}$ is linearly interpolated between $700\text{ m}$ and $1000\text{ m}$.
 
+---
+
+## 55. Marine Heatwave Tracking & Subsurface Depth Penetration (50–100 m)
+
+### 55.1 Nearshore Boxes Collision Verification
+- `box_4_35`: Reverted to original shallow position `(9.00°N, 97.50°E)`. Distance to `box_3_35` `(8.00°N, 97.50°E)` is **111.19 km** (zero collision).
+- `box_9_19`: Reverted to original shallow position `(14.00°N, 73.50°E)`. Distance to `box_8_19` `(13.00°N, 73.50°E)` is **111.19 km** (zero collision).
+- Full pairwise collision audit across all 82 nearshore candidate boxes confirms 0 collisions ($<10\text{ km}$).
+
+### 55.2 Climatology Baseline: 14-Year Smooth Daily Threshold (Hobday et al. 2016)
+- **Source Data**: `backend/data/heatwave_depth/` (`thresh.npy`, `mean.npy`, `node_days.npy`).
+- **Calendar & Nodes**: 61 nodal days spaced every 6 days across a 366-day calendar, derived from 14 years (2010–2023) of daily OSTIA satellite SST pooled over an 11-day moving window.
+- **Interpolation**: Periodic cubic spline / linear interpolation evaluates continuous daily mean and 90th percentile threshold $\text{SST}_{90}(t)$.
+- **Event Definition**: Requires $\ge 5$ consecutive days above threshold (Hobday et al. 2016).
+- **Categories**: Multipliers of threshold distance $\Delta T_{90} = \text{Thresh} - \text{Mean}$:
+  - Category I (Moderate): $1\times \le \Delta T < 2\times$
+  - Category II (Strong): $2\times \le \Delta T < 3\times$
+  - Category III (Severe): $3\times \le \Delta T < 4\times$
+  - Category IV (Extreme): $\ge 4\times$
+- **Provenancing**: Relabeled from "CNN-LSTM reconstructed SST" to "Observed satellite SST (OSTIA)" because surface MHW detection uses direct satellite radiometry.
+
+### 55.3 Heatwave Depth Check (50–100 m Reach)
+- **Dataset Structure & Shapes**:
+  - `heatwave_depth_2023.npz`:
+    - `classes`: `(365, 101, 241)` uint8 / int8. Classes: `-1` = No Data / Shallow (<100m), `0` = No Heatwave, `1` = Surface Only, `2` = Reaches 50–100 m.
+    - `dates`: 365 daily strings (`2023-01-01` to `2023-12-31`).
+    - `lats`: 101 points (5.0°N to 30.0°N, 0.25° spacing).
+    - `lons`: 241 points (45.0°E to 105.0°E, 0.25° spacing).
+  - `heatwave_depth_daily_shares_2023.csv`: Basin-level aggregations for Arabian Sea and Bay of Bengal (split at 77.5°E, Andaman Sea included in BoB).
+  - `count.npy`: `(61, 101, 241)` int16. Represents the historical observation sample count (max 154) across the 14-year 11-day pooled window used for quality control masking.
+- **Backend API Endpoints**:
+  - `GET /heatwave-depth?date=YYYY-MM-DD`: Returns 101×241 raster grid of depth penetration classes and color legend.
+  - `GET /heatwave-depth/point?lat=&lon=&date=`: Returns point classification, depth reach label, and tooltip. Suppresses exact temperature value for `band_anomaly_50_100m`.
+  - `GET /heatwave-depth/summary?date=YYYY-MM-DD`: Returns formatted bulletin lines and validation badge.
+- **Strict Scientific & Wording Rules**:
+  1. Depth layer strictly uses binary depth reach labels: `"Surface only"` or `"Reaches 50–100 m"`. Severity labels (`Moderate`, `Strong`, `Severe`, `Extreme`) are strictly prohibited at depth.
+  2. `band_anomaly_50_100m` is never displayed as an exact numeric temperature value; tooltip strictly displays `"model estimate, tends to understate"`.
+  3. Single-day flag is labeled as a daily flag, noting that a 5-consecutive-day duration is required for an event under Hobday et al. (2016).
+  4. Feature is strictly restricted to 2023.
+
+
 

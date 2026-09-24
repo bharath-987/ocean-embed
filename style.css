@@ -5651,6 +5651,320 @@ body.ky-argo-body-theme {
   padding: 0 2px;
 }
 
+/* ============================================================================
+   HEATWAVE DEPTH CHECK FEATURE STYLING (Kyogre Design System)
+   ============================================================================ */
+
+.ky-depth-bulletin-banner {
+  background: #EFF6FF;
+  border: 1px solid rgba(37, 99, 235, 0.25);
+  border-radius: 12px;
+  padding: 12px 18px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ky-depth-bulletin-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.ky-depth-validation-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #15803D;
+  background: #DCFCE7;
+  border: 1px solid #BBF7D0;
+  padding: 3px 10px;
+  border-radius: 9999px;
+}
+
+.ky-depth-demo-shortcuts {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ky-depth-demo-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.ky-demo-date-btn {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #1D4ED8;
+  background: #FFFFFF;
+  border: 1px solid #BFDBFE;
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ky-demo-date-btn:hover {
+  background: #DBEAFE;
+  border-color: #93C5FD;
+}
+
+.ky-depth-bulletin-lines {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.ky-depth-bulletin-pill {
+  flex: 1;
+  min-width: 280px;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12.5px;
+  color: #1E293B;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.ky-mhw-layer-toggle-wrap {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  z-index: 10;
+}
+
+.ky-mhw-layer-btn-group {
+  display: inline-flex;
+  background: #FFFFFF;
+  border: 1px solid #CBD5E1;
+  border-radius: 8px;
+  padding: 3px;
+  gap: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.ky-mhw-layer-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: transparent;
+  color: #64748B;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ky-mhw-layer-btn:hover {
+  color: #1E293B;
+  background: #F1F5F9;
+}
+
+.ky-mhw-layer-btn--active {
+  background: #1D4ED8 !important;
+  color: #FFFFFF !important;
+}
+
+.ky-mhw-layer-btn__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.ky-mhw-layer-btn__dot--surface {
+  background: #3B82F6;
+}
+
+.ky-mhw-layer-btn--active .ky-mhw-layer-btn__dot--surface {
+  background: #93C5FD;
+}
+
+.ky-mhw-layer-btn__dot--depth {
+  background: #DC2626;
+}
+
+.ky-mhw-layer-btn--active .ky-mhw-layer-btn__dot--depth {
+  background: #FCA5A5;
+}
+
+/* Depth Layer Legend (Bottom-Left on Map) */
+.ky-depth-legend {
+  position: absolute;
+  bottom: 24px;
+  left: 14px;
+  z-index: 10;
+  background: #FFFFFF;
+  border: 1px solid #CBD5E1;
+  border-radius: 8px;
+  padding: 10px 14px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+}
+
+.ky-depth-legend__title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #64748B;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.ky-depth-legend__items {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ky-depth-legend__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: #1E293B;
+}
+
+.ky-depth-legend__color {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  display: inline-block;
+}
+
+/* Depth Inspector View (Right Column) */
+.ky-mhw-depth-view {
+  margin-top: 10px;
+}
+
+.ky-mhw-depth-card {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  padding: 18px;
+}
+
+.ky-mhw-depth-header {
+  margin-bottom: 14px;
+}
+
+.ky-mhw-depth-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1E293B;
+}
+
+.ky-mhw-depth-sub {
+  font-size: 12px;
+  color: #64748B;
+  margin-top: 2px;
+}
+
+.ky-mhw-depth-status-box {
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  padding: 18px 14px;
+  text-align: center;
+  margin-bottom: 14px;
+}
+
+.ky-mhw-depth-label-small {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #64748B;
+}
+
+.ky-mhw-depth-result-val {
+  font-size: 22px;
+  font-weight: 700;
+  color: #1E293B;
+  margin: 6px 0 2px 0;
+}
+
+.ky-mhw-depth-result-val--deep {
+  color: #DC2626 !important;
+}
+
+.ky-mhw-depth-result-val--surface {
+  color: #D97706 !important;
+}
+
+.ky-mhw-depth-result-val--none {
+  color: #475569 !important;
+}
+
+.ky-mhw-depth-tooltip-hint {
+  font-size: 11.5px;
+  color: #64748B;
+  font-style: italic;
+  margin-top: 4px;
+  display: inline-block;
+  padding: 2px 8px;
+  background: #F1F5F9;
+  border-radius: 4px;
+}
+
+.ky-mhw-depth-note {
+  font-size: 11.5px;
+  color: #64748B;
+  margin-top: 6px;
+}
+
+.ky-mhw-depth-meta-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.ky-mhw-depth-meta-item {
+  flex: 1;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.ky-mhw-depth-meta-label {
+  display: block;
+  font-size: 10.5px;
+  color: #64748B;
+  font-weight: 500;
+  margin-bottom: 2px;
+}
+
+.ky-mhw-depth-meta-val {
+  font-size: 12px;
+  color: #1E293B;
+  font-weight: 600;
+}
+
+.ky-mhw-depth-daily-flag-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  color: #64748B;
+  background: #F1F5F9;
+  border-radius: 6px;
+  padding: 8px 12px;
+}
+
+
 
 
 

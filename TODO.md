@@ -4,6 +4,43 @@
 > **MANDATORY PROTOCOL**: This file **MUST** be updated after **EVERY SINGLE TASK** without exception or user reminder.
 > Record status, files changed, and verification evidence for every item.
 
+- [x] **Task: Nearshore Boxes Collision Verification, Heatwave Mode Bug Fixes & Heatwave Depth Check Feature** `[Completed 2026-09-24 17:50 IST]`
+  - [x] **Task 1: Nearshore Boxes Collision Audit & Confirmation**:
+    - Queried live `/nearshore-boxes` endpoint directly on port 8000.
+    - Confirmed `box_4_35` center reverted to `(9.00°N, 97.50°E)`. Distance to `box_3_35` is **111.19 km** (zero collision).
+    - Confirmed `box_9_19` center reverted to `(14.00°N, 73.50°E)`. Distance to `box_8_19` is **111.19 km** (zero collision).
+    - Ran full pairwise collision audit across all 82 nearshore candidate boxes: **0 collisions** (<10 km) detected.
+  - [x] **Task 2: Heatwave Mode Bug Fixes**:
+    - **Wrong Label Fix**: Updated `marine-ecology.html` (line 7 meta tag and all 4 stat card pills) and `backend/marine_ecology.py` from `"CNN-LSTM reconstructed SST"` to `"Observed satellite SST (OSTIA)"`.
+    - **14-Year Smooth Daily Baseline**: Rewired Heatwave Mode climatology in `backend/marine_ecology.py` to use precomputed 14-year smooth daily threshold (`thresh.npy`, `mean.npy`, `node_days.npy` from `backend/data/heatwave_depth/`). Periodic cubic spline / linear interpolation evaluates exact daily 90th percentile threshold on 366-day calendar. Maintained Hobday et al. (2016) category arithmetic, duration >= 5 days filter, and time series chart.
+    - **Date Range 2023 Restriction**: Limited date picker in `marine-ecology.html` strictly to 2023 (`min="2023-01-01" max="2023-12-31"`).
+    - **Methodology Note Update**: Updated methodology disclaimer card in `marine-ecology.html` to exact required wording: `"Threshold: 90th percentile of observed satellite SST, 2010–2023, daily and smoothed (Hobday et al. 2016)."` Completely removed 3-year baseline caveat.
+  - [x] **Task 3: Heatwave Depth Check Feature (50–100 m Subsurface Reach)**:
+    - **Data Inspection**: Inspected all 10 items in `heatwave_depth` (`heatwave_depth_2023.npz`, `heatwave_depth_daily_shares_2023.csv`, `thresh.npy`, `mean.npy`, `node_days.npy`, `count.npy`, `lat.npy`, `lon.npy`, `mask.npy`, `meta.json`). Reported shapes, dtypes, and explained `count.npy` (`int16`, shape `(61, 101, 241)`) representing historical pooled sample count for threshold estimation.
+    - **Backend API Endpoints (`backend/api_server.py`)**:
+      - `GET /heatwave-depth?date=YYYY-MM-DD`: Serves 101×241 raster grid of depth penetration classes (`-1` = No Data, `0` = No Heatwave, `1` = Surface Only, `2` = Reaches 50–100 m) with structured legend color codes.
+      - `GET /heatwave-depth/point?lat=&lon=&date=`: Returns point class, label, depth penetration, and strict tooltip (`"model estimate, tends to understate"`). Raw `band_anomaly_50_100m` temperature value strictly suppressed per privacy/scientific integrity rule.
+      - `GET /heatwave-depth/summary?date=YYYY-MM-DD`: Serves basin-level shares and exact formatted bulletin lines for Arabian Sea and Bay of Bengal (separated at 77.5°E), plus validation badge.
+      - Enforced 400 Bad Request rejection for any date outside 2023 across all 3 endpoints.
+    - **Frontend Implementation (`marine-ecology.html`, `marine-ecology.js`, `style.css`)**:
+      - **Map Layer Switcher**: Pill group on map top-left toggles between "Surface Layer (SST)" and "Depth Layer (50–100 m)".
+      - **Color Palette**: No heatwave `#dfe6ee`, surface only `#f6b26b` (orange), reaches 50–100m `#cc0000` (red), no data transparent.
+      - **Bulletin Banner**: Formatted string `"<Basin>: <heatwave_share>% of the basin in a heatwave; <deep_share_of_heatwave>% of that reaches 50–100 m."` for Arabian Sea and Bay of Bengal.
+      - **Validation Badge**: Exact string `"Checked against 895 Argo float profiles (2023): 80% correct (simple guess: 60%)."`
+      - **Demo Date Buttons**: `2023-10-15` (Deep Arabian Sea, 57.1% deep reach) and `2023-07-15` (Bay of Bengal, surface only).
+      - **Strict Wording Rules**: Depth layer strictly shows "surface only" / "reaches 50–100 m" with zero severity words (`Moderate`, `Strong`, etc.) at depth. Tooltip strictly reads `"model estimate, tends to understate"`. Daily flag notice explicitly declared.
+  - [x] **Verification & Test Suite**:
+    - Created `test_heatwave_depth.js`: **79/79 assertions PASSED (100%)**.
+    - Ran `test_marine_ecology.js`: **192/192 assertions PASSED (100%)**.
+    - Ran full platform regression:
+      - `test_fisheries.js`: **100% PASSED** (all 21 suites).
+      - `test_cyclone.js`: **100% PASSED** (all 7 suites).
+      - `test_cyclone_layout.js`: **100% PASSED** (all 5 checks).
+      - `test_argo_page.js`: **100% PASSED** (148/148 assertions).
+      - `verify_landing_page.js`: **100% PASSED** (41/41 checks).
+      - `test_coastal_bathymetry_and_errors.js`: **100% PASSED**.
+      - `test_pre_demo_fixes.js`: **100% PASSED**.
+
 - [x] **Task: Push Code to `ui-sample` and `master` Branches** `[Completed 2026-09-24 17:15 IST]`
   - Ran rigorous pre-push testing matrix (148 ARGO tests, 21 Fisheries tests, 12 Cyclone tests, 7 Pre-demo tests, 41 Landing page tests, 100% passing).
   - Committed all changes to `ui-sample` (`commit 9509aa5`: feat: cyclone mode, nearshore bathymetric optimization, and comprehensive pre-demo test suite).

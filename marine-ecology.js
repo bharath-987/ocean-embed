@@ -1,7 +1,7 @@
 /**
  * Kyogre — Marine Ecology & Heatwave Mode
  * Implements Hobday et al. (2016) Marine Heatwave (MHW) detection using
- * reconstructed SST time series and monthly 90th percentile climatology.
+ * Observed satellite SST (OSTIA) time series and 14-year smooth daily 90th percentile climatology.
  */
 
 // ============================================================================
@@ -23,6 +23,10 @@ let currentDateStr = null;
 let activeMarker = null;
 let mhwChart = null;
 let lastMhwData = null;
+let currentLayer = 'surface'; // 'surface' | 'depth'
+let rasterCanvas = null;
+let currentDepthGrid = null;
+let currentDepthSummary = null;
 
 // ============================================================================
 // 2. DOM INITIALIZATION & EVENT LISTENERS
@@ -34,6 +38,7 @@ if (typeof document !== 'undefined') {
     initDatePicker();
     initSearch();
     initGating();
+    initLayerToggle();
   });
 }
 
@@ -153,6 +158,33 @@ function initMap() {
     const btnOut = document.getElementById('btn-zoom-out');
     if (btnIn) btnIn.addEventListener('click', () => map.zoomIn());
     if (btnOut) btnOut.addEventListener('click', () => map.zoomOut());
+
+    // Initialize Heatwave Depth raster image source and layer
+    const blank1x1 = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+    map.addSource('heatwave-depth-raster-src', {
+      type: 'image',
+      url: blank1x1,
+      coordinates: [
+        [45.0, 30.0],
+        [105.0, 30.0],
+        [105.0, 5.0],
+        [45.0, 5.0]
+      ]
+    });
+
+    map.addLayer({
+      id: 'heatwave-depth-raster-layer',
+      type: 'raster',
+      source: 'heatwave-depth-raster-src',
+      layout: {
+        visibility: 'none'
+      },
+      paint: {
+        'raster-opacity': 0.88,
+        'raster-fade-duration': 250,
+        'raster-resampling': 'nearest'
+      }
+    });
   });
 
   map.on('click', (e) => {
@@ -175,6 +207,7 @@ function selectLocation(lat, lon, zoomTo = true) {
   const coordEl = document.getElementById('selected-loc-coord');
   if (coordEl) {
     coordEl.textContent = `${Math.abs(lat).toFixed(2)}°${lat >= 0 ? 'N' : 'S'}, ${Math.abs(lon).toFixed(2)}°${lon >= 0 ? 'E' : 'W'}`;
+    coordEl.style.display = 'inline-flex';
   }
 
   // Drop or update marker pin
@@ -190,6 +223,14 @@ function selectLocation(lat, lon, zoomTo = true) {
   }
 
   // Handle gating
+  if (currentLayer === 'depth') {
+    if (!currentDateStr) {
+      setDemoDate('2023-10-15');
+    }
+    fetchDepthPoint(currentCoord.lat, currentCoord.lon, currentDateStr);
+    return;
+  }
+
   if (!currentDateStr) {
     resetStatCard("Select a date in the header to evaluate heatwave conditions");
     showEmptyState(
@@ -274,6 +315,14 @@ function initDatePicker() {
     currentDateStr = val;
     const formatted = formatDateDisplay(val);
     if (displayEl) displayEl.textContent = formatted;
+
+    if (currentLayer === 'depth') {
+      renderDepthLayer();
+      if (currentCoord) {
+        fetchDepthPoint(currentCoord.lat, currentCoord.lon, currentDateStr);
+      }
+      return;
+    }
 
     if (!currentCoord) {
       resetStatCard("Select a location on the map to evaluate heatwave conditions");
@@ -821,7 +870,283 @@ function renderMhwChart(timeseries, events, refDate) {
 }
 
 // ============================================================================
-// 9. EXPORTS FOR AUTOMATED TESTING (Node environment)
+// 9. HEATWAVE DEPTH CHECK (SURFACE VS DEPTH LAYER)
+// ============================================================================
+
+function initLayerToggle() {
+  const btnSurf = document.getElementById('btn-layer-surface');
+  const btnDepth = document.getElementById('btn-layer-depth');
+  if (btnSurf) {
+    btnSurf.addEventListener('click', () => switchLayer('surface'));
+  }
+  if (btnDepth) {
+    btnDepth.addEventListener('click', () => switchLayer('depth'));
+  }
+
+  // Demo date shortcut buttons
+  if (typeof document !== 'undefined') {
+    document.querySelectorAll('.ky-demo-date-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const d = btn.dataset.date;
+        if (d) setDemoDate(d);
+      });
+    });
+  }
+
+  // Fetch initial summary for default demo date so bulletin is pre-populated
+  fetchDepthSummary('2023-10-15');
+}
+
+function setDemoDate(dateStr) {
+  currentDateStr = dateStr;
+  const picker = document.getElementById('native-date-picker');
+  if (picker) picker.value = dateStr;
+  const disp = document.getElementById('date-display-header');
+  if (disp) disp.textContent = formatDateDisplay(dateStr);
+
+  if (currentLayer === 'depth') {
+    renderDepthLayer();
+    if (currentCoord) {
+      fetchDepthPoint(currentCoord.lat, currentCoord.lon, currentDateStr);
+    }
+  } else {
+    if (currentCoord) {
+      fetchHeatwaveAnalysis(currentCoord.lat, currentCoord.lon, currentDateStr);
+    }
+  }
+}
+
+function switchLayer(layerName) {
+  currentLayer = layerName;
+  const btnSurf = document.getElementById('btn-layer-surface');
+  const btnDepth = document.getElementById('btn-layer-depth');
+  const legend = document.getElementById('depth-legend');
+  const chartView = document.getElementById('mhw-chart-view');
+  const emptyView = document.getElementById('mhw-empty-view');
+  const depthView = document.getElementById('mhw-depth-view');
+  const banner = document.getElementById('depth-bulletin-banner');
+
+  if (layerName === 'depth') {
+    if (btnSurf) btnSurf.classList.remove('ky-mhw-layer-btn--active');
+    if (btnDepth) btnDepth.classList.add('ky-mhw-layer-btn--active');
+    if (legend) legend.style.display = 'block';
+    if (banner) banner.style.display = 'flex';
+    if (chartView) chartView.style.display = 'none';
+    if (emptyView) emptyView.style.display = 'none';
+    if (depthView) depthView.style.display = 'block';
+
+    if (!currentDateStr) {
+      setDemoDate('2023-10-15');
+    } else {
+      renderDepthLayer();
+      if (currentCoord) {
+        fetchDepthPoint(currentCoord.lat, currentCoord.lon, currentDateStr);
+      }
+    }
+  } else {
+    if (btnSurf) btnSurf.classList.add('ky-mhw-layer-btn--active');
+    if (btnDepth) btnDepth.classList.remove('ky-mhw-layer-btn--active');
+    if (legend) legend.style.display = 'none';
+    if (depthView) depthView.style.display = 'none';
+
+    if (map && map.getLayer('heatwave-depth-raster-layer')) {
+      map.setLayoutProperty('heatwave-depth-raster-layer', 'visibility', 'none');
+    }
+
+    if (currentCoord && currentDateStr) {
+      if (chartView) chartView.style.display = 'block';
+      if (emptyView) emptyView.style.display = 'none';
+    } else {
+      if (chartView) chartView.style.display = 'none';
+      if (emptyView) emptyView.style.display = 'flex';
+    }
+  }
+}
+
+async function fetchDepthSummary(dateStr) {
+  try {
+    const res = await fetch(`${API_BASE}/heatwave-depth/summary?date=${dateStr}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    currentDepthSummary = data;
+    const asEl = document.getElementById('depth-bulletin-as-text');
+    const bobEl = document.getElementById('depth-bulletin-bob-text');
+    if (data.arabian_sea && asEl) {
+      asEl.textContent = data.arabian_sea.bulletin;
+    }
+    if (data.bay_of_bengal && bobEl) {
+      bobEl.textContent = data.bay_of_bengal.bulletin;
+    }
+    const badgeEl = document.getElementById('depth-validation-badge');
+    if (badgeEl && data.validation_badge) {
+      badgeEl.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg><span>${data.validation_badge}</span>`;
+    }
+    return data;
+  } catch (err) {
+    console.error('Error fetching depth summary:', err);
+    return null;
+  }
+}
+
+async function renderDepthLayer() {
+  if (!currentDateStr) return;
+  fetchDepthSummary(currentDateStr);
+
+  try {
+    const res = await fetch(`${API_BASE}/heatwave-depth?date=${currentDateStr}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    currentDepthGrid = data;
+
+    const grid = data.grid || data.classes;
+    if (!grid || !grid.length || !map) return;
+
+    const H = grid.length;    // 101
+    const W = grid[0].length; // 241
+
+    if (typeof document !== 'undefined') {
+      if (!rasterCanvas) {
+        rasterCanvas = document.createElement('canvas');
+      }
+      rasterCanvas.width = W;
+      rasterCanvas.height = H;
+      const ctx = rasterCanvas.getContext('2d');
+      const imgData = ctx.createImageData(W, H);
+      const buf = imgData.data;
+
+      // Palette per spec:
+      // -1: transparent (no data / shallow)
+      // 0: #dfe6ee (no heatwave)
+      // 1: #f6b26b (surface only)
+      // 2: #cc0000 (reaches 50–100 m)
+      const colorMap = {
+        '-1': [0, 0, 0, 0],
+        '0':  [223, 230, 238, 220],
+        '1':  [246, 178, 107, 245],
+        '2':  [204, 0, 0, 255]
+      };
+
+      for (let r = 0; r < H; r++) {
+        const latIdx = (H - 1) - r; // Invert Y: row 0 is top (north)
+        const row = grid[latIdx];
+        for (let c = 0; c < W; c++) {
+          const clsVal = row[c];
+          const rgba = colorMap[clsVal] || [0, 0, 0, 0];
+          const pxIdx = (r * W + c) * 4;
+          buf[pxIdx]     = rgba[0];
+          buf[pxIdx + 1] = rgba[1];
+          buf[pxIdx + 2] = rgba[2];
+          buf[pxIdx + 3] = rgba[3];
+        }
+      }
+      ctx.putImageData(imgData, 0, 0);
+
+      const dataUrl = rasterCanvas.toDataURL();
+      const coords = [
+        [45.0, 30.0],
+        [105.0, 30.0],
+        [105.0, 5.0],
+        [45.0, 5.0]
+      ];
+
+      const src = map.getSource('heatwave-depth-raster-src');
+      if (src && typeof src.updateImage === 'function') {
+        src.updateImage({
+          url: dataUrl,
+          coordinates: coords
+        });
+      } else {
+        if (map.getLayer('heatwave-depth-raster-layer')) {
+          map.removeLayer('heatwave-depth-raster-layer');
+        }
+        if (map.getSource('heatwave-depth-raster-src')) {
+          map.removeSource('heatwave-depth-raster-src');
+        }
+        map.addSource('heatwave-depth-raster-src', {
+          type: 'image',
+          url: dataUrl,
+          coordinates: coords
+        });
+        map.addLayer({
+          id: 'heatwave-depth-raster-layer',
+          type: 'raster',
+          source: 'heatwave-depth-raster-src',
+          paint: {
+            'raster-opacity': 0.88,
+            'raster-fade-duration': 250,
+            'raster-resampling': 'nearest'
+          }
+        });
+      }
+
+      if (map.getLayer('heatwave-depth-raster-layer')) {
+        map.setLayoutProperty('heatwave-depth-raster-layer', 'visibility', 'visible');
+      }
+    }
+  } catch (err) {
+    console.error('Error rendering depth raster:', err);
+  }
+}
+
+async function fetchDepthPoint(lat, lon, dateStr) {
+  try {
+    const res = await fetch(`${API_BASE}/heatwave-depth/point?lat=${lat}&lon=${lon}&date=${dateStr}`);
+    if (!res.ok) return;
+    const data = await res.json();
+
+    const statusEl = document.getElementById('depth-point-status');
+    const tooltipEl = document.getElementById('depth-point-tooltip');
+    const noteEl = document.getElementById('depth-point-note');
+    const dateEl = document.getElementById('depth-meta-date');
+    const coordEl = document.getElementById('depth-meta-coord');
+
+    if (dateEl) dateEl.textContent = dateStr;
+    if (coordEl) coordEl.textContent = formatCoordinates(lat, lon);
+
+    if (statusEl) {
+      statusEl.className = 'ky-mhw-depth-result-val';
+      if (data.class === 2) {
+        statusEl.textContent = 'Reaches 50–100 m';
+        statusEl.classList.add('ky-mhw-depth-result-val--deep');
+      } else if (data.class === 1) {
+        statusEl.textContent = 'Surface only';
+        statusEl.classList.add('ky-mhw-depth-result-val--surface');
+      } else if (data.class === 0) {
+        statusEl.textContent = 'No heatwave';
+        statusEl.classList.add('ky-mhw-depth-result-val--none');
+      } else {
+        statusEl.textContent = 'No Data';
+        statusEl.classList.add('ky-mhw-depth-result-val--none');
+      }
+    }
+
+    if (tooltipEl) {
+      if (data.tooltip || data.class === 2) {
+        const tipText = data.tooltip || 'model estimate, tends to understate';
+        tooltipEl.style.display = 'inline-block';
+        tooltipEl.textContent = tipText;
+        tooltipEl.title = tipText;
+      } else {
+        tooltipEl.style.display = 'none';
+      }
+    }
+
+    if (noteEl) {
+      if (data.class >= 1) {
+        noteEl.textContent = 'Daily heatwave flag (Hobday 5+ consecutive day rule required for an event).';
+      } else if (data.class === 0) {
+        noteEl.textContent = 'Within normal climatological range at this depth.';
+      } else {
+        noteEl.textContent = 'Land mask or bathymetric depth shallower than 100 m.';
+      }
+    }
+  } catch (err) {
+    console.error('Error fetching depth point:', err);
+  }
+}
+
+// ============================================================================
+// 10. EXPORTS FOR AUTOMATED TESTING (Node environment)
 // ============================================================================
 
 if (typeof module !== 'undefined' && module.exports) {
@@ -838,7 +1163,12 @@ if (typeof module !== 'undefined' && module.exports) {
     resetStatCard,
     showEmptyState,
     revealChartView,
-    renderHeatwaveResults
+    renderHeatwaveResults,
+    switchLayer,
+    setDemoDate,
+    fetchDepthSummary,
+    renderDepthLayer,
+    fetchDepthPoint
   };
 }
 
@@ -848,4 +1178,9 @@ if (typeof window !== 'undefined') {
   window.computeDateWindow = computeDateWindow;
   window.computeWindowStats = computeWindowStats;
   window.formatEventDateRange = formatEventDateRange;
+  window.switchLayer = switchLayer;
+  window.setDemoDate = setDemoDate;
+  window.renderDepthLayer = renderDepthLayer;
+  window.fetchDepthPoint = fetchDepthPoint;
+  window.fetchDepthSummary = fetchDepthSummary;
 }

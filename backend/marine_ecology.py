@@ -1,6 +1,6 @@
 """
 Marine Ecology & Heatwave Mode — Hobday et al. (2016) Detection Engine
-Analyzes reconstructed SST time series to detect, characterize, and categorize
+Analyzes Observed satellite SST (OSTIA) time series to detect, characterize, and categorize
 Marine Heatwaves (MHWs) across the North Indian Ocean.
 """
 
@@ -13,35 +13,35 @@ from typing import Optional, Dict, Any, List
 # Ensure backend directory is accessible
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, 'data')
-CLIM_PATH = os.path.join(DATA_DIR, 'mhw_climatology.npz')
+HEATWAVE_DEPTH_DIR = os.path.join(DATA_DIR, 'heatwave_depth')
+THRESH_PATH = os.path.join(HEATWAVE_DEPTH_DIR, 'thresh.npy')
+MEAN_PATH = os.path.join(HEATWAVE_DEPTH_DIR, 'mean.npy')
+NODE_DAYS_PATH = os.path.join(HEATWAVE_DEPTH_DIR, 'node_days.npy')
+COUNT_PATH = os.path.join(HEATWAVE_DEPTH_DIR, 'count.npy')
 
 import inference as inf
 
 # Module-level cached climatology arrays
-_clim_data = None
-_mean_clim = None
-_pct90_clim = None
+_thresh_ext = None
+_mean_ext = None
+_nodes_x = None
 
 def _load_climatology():
-    global _clim_data, _mean_clim, _pct90_clim
-    if _clim_data is None:
-        if not os.path.exists(CLIM_PATH):
-            try:
-                from compute_mhw_climatology import compute_climatology
-                compute_climatology()
-            except Exception as e:
-                print(f"  [MHW] Climatology file missing and cannot compute ({e}); using baseline fallback.", flush=True)
-                _mean_clim = np.full((12, 101, 241), 28.0, dtype=np.float32)
-                _pct90_clim = np.full((12, 101, 241), 29.5, dtype=np.float32)
-                return _mean_clim, _pct90_clim
-        if os.path.exists(CLIM_PATH):
-            _clim_data = np.load(CLIM_PATH)
-            _mean_clim = _clim_data['mean_sst']    # (12, 101, 241)
-            _pct90_clim = _clim_data['pct90_sst']  # (12, 101, 241)
+    global _thresh_ext, _mean_ext, _nodes_x
+    if _thresh_ext is None:
+        if os.path.exists(THRESH_PATH) and os.path.exists(MEAN_PATH) and os.path.exists(NODE_DAYS_PATH):
+            thresh = np.load(THRESH_PATH)       # (61, 101, 241) float16
+            mean = np.load(MEAN_PATH)           # (61, 101, 241) float16
+            node_days = np.load(NODE_DAYS_PATH) # (61,) int64
+            _nodes_x = np.append(node_days, 366)
+            _thresh_ext = np.concatenate([thresh, thresh[0:1]], axis=0).astype(np.float32)
+            _mean_ext = np.concatenate([mean, mean[0:1]], axis=0).astype(np.float32)
         else:
-            _mean_clim = np.full((12, 101, 241), 28.0, dtype=np.float32)
-            _pct90_clim = np.full((12, 101, 241), 29.5, dtype=np.float32)
-    return _mean_clim, _pct90_clim
+            # Baseline fallback
+            _nodes_x = np.linspace(0, 366, 62, dtype=np.int64)
+            _thresh_ext = np.full((62, 101, 241), 29.5, dtype=np.float32)
+            _mean_ext = np.full((62, 101, 241), 28.0, dtype=np.float32)
+    return _thresh_ext, _mean_ext, _nodes_x
 
 def _get_timeline():
     """
@@ -76,13 +76,13 @@ def detect_marine_heatwaves(
     """
     Detect Marine Heatwaves (MHWs) per Hobday et al. (2016).
     
-    1. Compares daily reconstructed SST against monthly 90th percentile threshold.
+    1. Compares daily Observed satellite SST (OSTIA) against 14-year smooth daily 90th percentile threshold.
     2. Identifies continuous runs of exceedance lasting >= 5 consecutive days.
     3. Categorizes each event using Hobday's threshold distance multiplier:
        M = (SST_peak - Mean) / (Threshold_90 - Mean)
        Category = min(4, max(1, floor(M)))
     """
-    mean_clim, pct90_clim = _load_climatology()
+    thresh_ext, mean_ext, nodes_x = _load_climatology()
 
     # 1. Coordinate lookup and validation
     if not (inf.MIN_LAT <= latitude <= inf.MAX_LAT and inf.MIN_LON <= longitude <= inf.MAX_LON):
@@ -97,7 +97,7 @@ def detect_marine_heatwaves(
                 "days_elapsed": None,
                 "event": None
             },
-            "climatology_method": "Monthly 90th percentile SST baseline computed from CNN-LSTM reconstructed SST fields.",
+            "climatology_method": "Threshold: 90th percentile of observed satellite SST, 2010–2023, daily and smoothed (Hobday et al. 2016).",
             "sst_timeseries": []
         }
 
@@ -146,21 +146,29 @@ def detect_marine_heatwaves(
                 "days_elapsed": None,
                 "event": None
             },
-            "climatology_method": "Monthly 90th percentile SST baseline computed from CNN-LSTM reconstructed SST fields.",
+            "climatology_method": "Threshold: 90th percentile of observed satellite SST, 2010–2023, daily and smoothed (Hobday et al. 2016).",
             "sst_timeseries": []
         }
+
+    # Interpolate smooth daily threshold & mean across 366-day calendar
+    th_pt = thresh_ext[:, lat_idx, lon_idx]
+    mn_pt = mean_ext[:, lat_idx, lon_idx]
+
+    doys = np.array([dt.dayofyear - 1 if (dt.month <= 2) else dt.dayofyear for dt in dates_arr], dtype=np.int32)
+    segs = doys // 6
+    ws = (doys - nodes_x[segs]) / 6.0
+
+    p_vals = (1.0 - ws) * th_pt[segs] + ws * th_pt[segs + 1]
+    m_vals = (1.0 - ws) * mn_pt[segs] + ws * mn_pt[segs + 1]
 
     full_timeseries = []
     exceed_flags = []
 
     for global_idx in range(num_days):
-        dt = dates_arr[global_idx]
-        month_idx = dt.month - 1
         d_str = dates_str[global_idx]
-
         sst_val = float(sst_full[global_idx])
-        m_val = float(mean_clim[month_idx, lat_idx, lon_idx])
-        p_val = float(pct90_clim[month_idx, lat_idx, lon_idx])
+        m_val = float(m_vals[global_idx])
+        p_val = float(p_vals[global_idx])
         
         is_exceed = bool(sst_val > p_val)
         exceed_flags.append(is_exceed)
@@ -272,6 +280,6 @@ def detect_marine_heatwaves(
         "end_date": end_date,
         "events": events,
         "current_status": current_status,
-        "climatology_method": "Monthly 90th percentile SST baseline computed from 2021-2023 CNN-LSTM reconstructed SST fields (1,095 days). Short 3-year baseline; indicative only.",
+        "climatology_method": "Threshold: 90th percentile of observed satellite SST, 2010–2023, daily and smoothed (Hobday et al. 2016).",
         "sst_timeseries": timeseries
     }
