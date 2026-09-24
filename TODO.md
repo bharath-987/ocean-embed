@@ -4,6 +4,180 @@
 > **MANDATORY PROTOCOL**: This file **MUST** be updated after **EVERY SINGLE TASK** without exception or user reminder.
 > Record status, files changed, and verification evidence for every item.
 
+- [x] **Task: Reposition Nearshore Boxes Toward Deeper Water & Depth-Level Audit** `[Completed 2026-09-24 16:05 IST]`
+  - [x] **1. Bathymetric Depth Audit of Nearshore Boxes**:
+    - Evaluated all 82 nearshore candidate boxes against bathymetric seafloor mask `_valid_depth_mask` (`(15, 101, 241)`).
+    - Found 41 boxes already reached $\ge 300\text{m}$.
+    - Found 41 boxes initially cut off before 300m.
+  - [x] **2. Local Neighborhood Repositioning Algorithm**:
+    - Searched nearby cells on the 0.25° grid within $\pm 1.0^\circ$ latitude ($\pm 4$ steps) and $\pm 1.5^\circ$ longitude ($\pm 6$ steps) constrained strictly to `0.0 < distance_to_coast_km <= NEARSHORE_MAX_KM` (185.0 km).
+    - **21 boxes** successfully repositioned to reach $\ge 300\text{m}$ (reaching 300m, 500m, 700m, or 1000m).
+    - **20 boxes** identified as genuinely shallow enclosed/shelf basins (Persian Gulf, Gulf of Thailand, Gulf of Martaban, Mumbai High/Gulf of Khambhat shelf) where no $\ge 300\text{m}$ point exists within the 185 km fleet boundary; left as-is per instructions.
+  - [x] **3. Backend Wiring (`backend/api_server.py`)**:
+    - Integrated `REPOSITIONED_NEARSHORE_BOXES` mapping into `backend/api_server.py` and `compute_pfz_grid`.
+    - Both `center_lat`, `center_lon`, `distance_to_coast_km`, and bounding boxes `[lon-0.75, lat-0.5, lon+0.75, lat+0.5]` automatically update.
+  - [x] **4. Depth-Level Audit**:
+    - **Model Computed (15 Standard Levels)**: `[0, 5, 10, 20, 30, 50, 75, 100, 125, 150, 200, 300, 500, 700, 1000]` m.
+    - **Fisheries Table Displayed (9 Discrete Levels)**: `[0, 25, 50, 100, 200, 300, 500, 750, 1000]` m (where 25m and 750m are linearly interpolated).
+  - [x] **5. Rigorous Automated Verification**:
+    - `verify_repositioned_profiles.py`: Tested all 21 repositioned points across 6 seasonal dates (126 total profiles). 0 shallow errors (<300m), 0 thermal cliff/cold errors, 0 coast distance errors (>185km).
+    - `test_nearshore_filter.py`: 100% PASSED (mask resolution, fleet constant, distance calculation, PFZ grid exclusion/inclusion).
+    - `test_nearshore_filter.js`: 100% PASSED (DOM integrity, detail table rendering, live `/predict` distance, box selection snapping, date change reactivity).
+    - `test_coastal_bathymetry_and_errors.js`: 100% PASSED (null seafloor depth formatting, error differentiation).
+    - `test_fisheries.js`: 100% PASSED (all 21 comprehensive test suites).
+
+- [x] **Task: Restructure Cyclone Mode Layout & Light Theme (Fast Refactor)** `[Completed 2026-09-24 13:26 IST]`
+  - [x] **1. Top-to-Bottom Layout Restructuring (`cyclone.html`)**:
+    - **Row 1**: 4 stat cards in a row (`.ky-stat-row.ky-cyclone-stats`) matching Fisheries/Heatwave/Dashboard design: Peak Intensity (IMD), Peak Ocean Fuel (TCHP), Rapid Intensification (RI), and Near-Track Argo Floats.
+    - **Row 2**: Two-column workspace (`.ky-cyclone-workspace-grid`) with Map (left) and Fuel-Wind Chart (right).
+    - **Map Dropdown Control**: Replaced 6-card storm picker with a top-left map dropdown (`#map-storm-dropdown-wrap`, `#map-storm-btn`, `#map-storm-menu`) matching Explore page's Depth control style. Orders Biparjoy & Mocha featured first with badges.
+    - **Row 3**: In-situ Argo "Truth Check" subsurface observation comparison table.
+    - **Row 4 (Bottom)**: Relocated methodology banner (`.ky-mhw-methodology-card.ky-cyclone-bottom-methodology`) to the very bottom below the table as a clean light-blue left-bordered info box.
+  - [x] **2. Pure Light Theme Architecture (`cyclone.css`, `cyclone.html`)**:
+    - Swapped body class from dark fallback to `<body class="kyogre-page">` and wrapper to `<div class="ky-app">`.
+    - Main container styled with `#EAF3FC` background, white cards (`#FFFFFF`, `rgba(226, 235, 246, 0.85)` border, subtle box-shadow).
+    - Top stat cards restyled with standardized icon badges (`--red`, `--blue`, `--amber`, `--teal`), uppercase labels, and bold 22px values.
+  - [x] **3. Interactive Dropdown Wiring (`cyclone.js`)**:
+    - Replaced `renderStormCards()` with `renderStormDropdown()`, sorting featured storms first.
+    - Added dropdown toggle on button click, outside click auto-dismiss, and Escape key handling.
+    - Kept zero changes to underlying data, JSON parsing, chart logic, RI/land-gap handling, or wake data omission.
+  - [x] **4. Automated Verification**:
+    - Ran `node test_cyclone.js`: **7/7 PASSED (100%)**
+    - Created and ran `node test_cyclone_layout.js`: **ALL 5 CHECKS PASSED (100%)**
+      - Verified all 6 storms (Biparjoy, Mocha, Tej, Hamoon, Midhili, Michaung) load cleanly through dropdown and 4 stat cards update correctly.
+    - Ran full platform regression matrix:
+      - `test_coastal_bathymetry_and_errors.js`: **100% PASSED**
+      - `test_fisheries_stability.js`: **5/5 PASSED (100%)**
+      - `test_pre_demo_fixes.js`: **7/7 PASSED (100%)**
+      - `test_stat_card_outputs.js`: **100% PASSED**
+      - `test_netcdf_interaction.js`: **4/4 PASSED (100%)**
+      - `test_fisheries.js`: **ALL PASSED (100%)**
+      - `verify_landing_page.js`: **41/41 PASSED (100%)**
+
+- [x] **Task: Build Cyclone Mode Page with Pre-Storm Ocean Fuel Reconstructions & Track Analysis** `[Completed 2026-09-24 13:00 IST]`
+  - [x] **1. NPZ & JSON Inspection & Provenance Findings**:
+    - Inspected `<NAME>_model.npz` and `<NAME>_glorys.npz`: Each file contains a 4D spatial/temporal bounding box cut across 12 standard depths (`[0, 5, 10, 20, 30, 50, 75, 100, 125, 150, 200, 300]m`) and ~33–43 daily time steps covering pre-storm, passage, and wake.
+    - Compared `_model.npz['tchp']` at `map_date` with `v6_adapter.product_map('tchp', map_date)`: Max absolute difference is **0.00** across all ocean cells. The NPZ files are exact regional cuts used by Ajay to derive `storm_<NAME>.json` (sampling 2-day-prior fuel, near-track Argo pairs, and experimental wake).
+    - Verified `tchp_band90`: Confirmed fixed at `17.849 kJ/cm²` across all 6 storms.
+  - [x] **2. Backend Integration (`backend/api_server.py`)**:
+    - Added `@app.get("/cyclones")`: Serves catalog of all 6 storms, featuring Biparjoy and Mocha first.
+    - Added `@app.get("/cyclone/{storm_name}")`: Serves track fixes, 2-day pre-storm fuel, and Argo pairs.
+    - **Wake field omission**: Stripped experimental `wake` data from detail API response to prevent demo leaks.
+    - Added `@app.get("/cyclone/{storm_name}/map-grid")`: Serves 101x241 full-basin pre-storm TCHP raster grid for the storm's `map_date`.
+  - [x] **3. Frontend Implementation (`cyclone.html`, `cyclone.js`, `cyclone.css`)**:
+    - **Navigation**: Integrated "Cyclone Mode" with custom SVG icon into sidebar across `explore.html`, `fisheries.html`, `marine-ecology.html`, `argo.html`, and `cyclone.html`.
+    - **Methodology wording**: Included exact non-negotiable sentence: `"ocean fuel the storm was about to cross, reconstructed from satellites."`
+    - **Forbidden terms guard**: Confirmed zero instances of `"predicts cyclones"`, `"predicts RI"`, or `"real-time"`.
+    - **Storm picker**: 6 clickable cards with category badge, basin, dates, peak wind, and RI indicator (Biparjoy & Mocha featured).
+    - **Map Component**: MapLibre GL map with pre-storm TCHP heatmap raster, colored track lines by IMD category, distinctly highlighted RI circles (pulsing amber halo), and rich fix click/hover tooltips.
+    - **Chart Component**: Dual-axis Chart.js plot of Pre-Storm TCHP with $\pm 17.85\text{ kJ/cm}^2$ shaded 90% confidence band, dashed GLORYS reference curve, IMD wind speed on secondary y-axis, and shaded RI vertical bands. Handled land fixes (`fuel.tchp === null`) with clean visual breaks (`spanGaps: false`).
+    - **Truth check card**: Dynamic float tabs showing distance to track and 12-depth before/after temperature change table (In-Situ Float vs Kyogre vs GLORYS) with color-coded cooling/warming badges.
+  - [x] **4. Automated Test Suite & Full Regression**:
+    - Created `test_cyclone.js`: **7/7 PASSED (100%)**
+    - `test_coastal_bathymetry_and_errors.js`: **100% PASSED**
+    - `test_fisheries_stability.js`: **5/5 PASSED (100%)**
+    - `test_pre_demo_fixes.js`: **7/7 PASSED (100%)**
+    - `test_netcdf_interaction.js`: **4/4 PASSED (100%)**
+    - `test_fisheries.js`: **ALL PASSED (100%)**
+    - `test_stat_card_outputs.js`: **100% PASSED**
+    - `verify_landing_page.js`: **41/41 PASSED (100%)**
+  - [x] Directive strictly honored: **No premature git commit or push performed without user approval.**
+
+- [x] **Task: Fix Erroneous "Model Unavailable" Error and Report Proper "Data Unavailable" / Bathymetry Cutoff** `[Completed 2026-09-24 11:52 IST]`
+  - [x] **1. Root Cause Diagnosis & Problem Resolution**:
+    - **Root Cause A (Null bathymetry depth crash in summary text)**: At coastal/shelf points (e.g. `7.63°N, 77.18°E` in Gulf of Mannar and `15.79°N, 73.18°E` off Goa), water column depth is shallow (~50m). The model intentionally returns `null` for depths beyond the seafloor (75m–1000m). `app.js` assumed 1000m was always populated and called `deepT.toFixed(1)`, throwing `TypeError: Cannot read properties of null (reading 'toFixed')`.
+    - **Root Cause B (Promise catch conflation)**: `renderPrediction()` was invoked inside `.then()` without internal exception guarding; unhandled TypeErrors rejected the fetch promise and were caught by `.catch()`, which incorrectly invoked `handleBackendFailure()` and blamed the Python backend server.
+    - **Root Cause C (Conflation of Data Unavailable with Model Outage)**: `handleBackendFailure()` in `app.js` and `handleFisheriesBackendFailure()` in `fisheries.js` hardcoded `"Live Model Unavailable"` even when the issue was an oceanographic data gap, out-of-bounds date, land coordinate, or 400 Bad Request.
+  - [x] **2. Implementations & Fixes**:
+    - **`app.js`**:
+      - Dynamically searches for the deepest valid temperature in `prediction.temps` (`deepestIdx`) and renders `Profile span: X°C surface → Y°C at Z m (seafloor reached; deeper levels unavailable)` when seafloor < 1000m.
+      - Protected `renderPrediction()` inside a `try...catch` block in the `/predict` `.then()` handler, preventing client-side rendering exceptions from bubbling into network outage handlers.
+      - Updated `handleBackendFailure(msg, errorType)` to distinguish between `isData` (warning banner + `Data Unavailable` card) and genuine infrastructure outages (`Live Model Unavailable`).
+      - Updated `/predict` `.catch()` to classify HTTP 400, data gaps, out-of-window dates, and land coordinates as `errorType = 'data'`.
+    - **`fisheries.js`**:
+      - Updated `handleFisheriesBackendFailure(lat, lon, err)` to detect data-related errors (`isData`) and render `Data Unavailable` card and stat card notes appropriately instead of `"Live Model Unavailable"`.
+  - [x] **3. Verification Evidence**:
+    - Created `test_coastal_bathymetry_and_errors.js`:
+      - Point 1 (`7.63°N, 77.18°E`) live backend fetch: HTTP 200 OK, depths 75m–1000m returned `null`, summary formatted smoothly without throwing `TypeError`.
+      - Point 2 (`15.79°N, 73.18°E`) live backend fetch: HTTP 200 OK, null bathymetry depths handled cleanly.
+      - Error classification: Data gap / 400 errors verified to render `Data Unavailable`, while genuine network connection drops render `Live Model Unavailable`.
+    - Ran full regression matrix:
+      - `node test_coastal_bathymetry_and_errors.js`: **ALL PASSED (100%)**
+      - `node test_fisheries_stability.js`: **5/5 PASSED (100%)**
+      - `node test_fisheries_rapid_clicks.js`: **ALL PASSED (100%)**
+      - `node test_pre_demo_fixes.js`: **7/7 PASSED (100%)**
+      - `node test_netcdf_interaction.js`: **4/4 PASSED (100%)**
+      - `node test_fisheries.js`: **ALL PASSED (100%)**
+      - `node test_stat_card_outputs.js`: **100% PASSED**
+      - `node verify_landing_page.js`: **41/41 PASSED (100%)**
+      - Backend endpoints verified live on port 8000: `/predict`, `/temperature-grid`, `/parameter-grid`.
+  - [x] Directive strictly honored: **No git commit or push performed without user approval.**
+
+- [x] **Task: Diagnose and Fix Intermittent "Live Model Unavailable" Errors in Fisheries Mode** `[Completed 2026-09-24 10:30 IST]`
+  - [x] **1. Check Dev Server Reload Behavior**:
+    - Identified that `uvicorn.run()` in `backend/api_server.py` lacked explicit watch directories and exclusion filters when running with `--reload`, causing heavy file-writing operations (unpacking `.npz` bundles, rebuilding `dist/`, generating JSON summaries) to trigger full backend restarts that dropped in-flight HTTP requests.
+    - Configured `uvicorn.run()` with `reload_dirs=[backend_dir]` and `reload_excludes=["*/data/*", "*/dist/*", "*.npy", "*.npz", "*.json", "*.log", "data/*", "dist/*"]`. Live data generation/builds no longer drop server requests.
+  - [x] **2. Stress-Test Stability on Live Backend**:
+    - Fired rapid `/predict` requests across 35 nearshore boxes in quick succession: **35/35 succeeded in 344ms (0 failures)**.
+    - Fired requests across all 82 nearshore boxes in Arabian Sea and Bay of Bengal: **82/82 HTTP 200 (100% success, 0 drops)**.
+  - [x] **3. Root Cause Investigation & Frontend Bug Elimination**:
+    - **Root Cause A (Null bathymetry depths crash)**: In shallow coastal/nearshore boxes where bathymetry is <1000m or <700m (e.g. `box_1_3`, `box_1_35`, etc.), the model intentionally returns `null` for depths below the seafloor. `fisheries.js` previously called `Number(modelTemps[idx].toFixed(1))` without null-checking, throwing `TypeError: Cannot read properties of null (reading 'toFixed')` into the `catch` block and falsely rendering "Live Model Unavailable".
+      - **Fix**: Added safe null/undefined guards in `fisheries.js` for `modelTemps` and `backendNutrients` interpolation, allowing shallow water depths to map cleanly to `null` while displaying `'—'` in the table and Chart.js skipping gaps smoothly.
+    - **Root Cause B (Rapid clicking race condition)**: Rapid clicking around the map fired asynchronous `/predict` calls without request sequencing. An earlier, slower request or aborted request would trigger `handleFisheriesBackendFailure()`, overwriting the user's newly selected box with an error card.
+      - **Fix**: Added `currentPredictRequestId`, `currentPredictController`, and `currentPredictTimeoutId` to `fisheries.js` (mirroring `app.js`). Prior requests are cleanly aborted; superseded responses or intentional aborts (`reqId !== currentPredictRequestId`) are ignored quietly.
+    - **Root Cause C (Stale-State Fragmented Reset)**: On failure, stat cards and notes were previously reset piecemeal; chlorophyll provenance badge and model badge remained stuck in stale state.
+      - **Fix**: Centralized error cleanup in `handleFisheriesBackendFailure()` using `resetStatCards('Live model unavailable')`, synchronously resetting all 4 card values to `'—'`, notes to `'Live model unavailable'`, hiding `#stat-pfz-badge`, resetting `#stat-nutrient-pill` to `'Estimated Heuristic'`, hiding `#stat-nutrient-badge`, and hiding `#fisheries-model-badge`.
+    - **Root Cause D (Broken Retry Button)**: The Retry button previously called a nonexistent `querySubsurface()` function in `fisheries.js`, throwing `ReferenceError`.
+      - **Fix**: Rewired `#btn-retry-fisheries` to dispatch `selectLocation(lat, lon, false)` with the exact box coordinates.
+  - [x] **4. Confirm Retry Button Behavior**:
+    - Verified in `test_fisheries_stability.js`: Clicking `#btn-retry-fisheries` re-fires exact box coordinates `(18.0°N, 72.8°E)` without zoom disruption or stale closures.
+  - [x] **5. Live Click-Through Re-Test**:
+    - Created and executed `test_fisheries_rapid_clicks.js`:
+      - **Phase 1 (Rapid Succession)**: 15 nearshore boxes clicked in rapid 40ms intervals with in-flight cancellation; final selection (`box_4_39`) and prediction resolved successfully with zero errors.
+      - **Phase 2 (Sequential Click-Through)**: 10 distinct nearshore boxes clicked and confirmed 100% OK with real indices populated.
+  - [x] **Full Regression Matrix**:
+    - `node test_fisheries_stability.js`: **5/5 PASSED (100%)**
+    - `node test_fisheries_rapid_clicks.js`: **ALL PASSED (100%)**
+    - `node test_fisheries.js`: **ALL PASSED (100%)**
+    - `node test_pre_demo_fixes.js`: **7/7 PASSED (100%)**
+    - `node test_netcdf_interaction.js`: **4/4 PASSED (100%)**
+    - `node test_argo_page.js`: **148/148 PASSED (100%)**
+    - `node test_marine_ecology.js`: **157/157 PASSED (100%)**
+    - `node test_stat_card_outputs.js`: **100% PASSED**
+    - `node verify_landing_page.js`: **41/41 PASSED (100%)**
+  - [x] Directive strictly honored: **No git commit or push performed without user approval.**
+
+- [x] **Task: Remove Duplicate Arrow and Tick Symbols from Download NetCDF Button** `[Completed 2026-09-24 09:18 IST]`
+  - [x] Removed second arrow icon (`↓`) from the initial state text in `explore.html` and `app.js`.
+  - [x] Removed `↓` from the downloading state text in `app.js`.
+  - [x] Removed second tick icon (`✓`) from downloaded and already-downloaded states in `app.js`.
+  - [x] Updated `test_netcdf_interaction.js` to match clean text without duplicate symbols (`Download NetCDF`, `Downloading...`, `Downloaded`, `Already Downloaded`).
+  - [x] Ran `test_netcdf_interaction.js` (100% PASS).
+  - [x] Rule: No git push without user approval.
+
+- [x] **Task: Pre-Demo Polish, Error Handling & Text Fixes** `[Completed 2026-09-24 09:05 IST]`
+  - [x] 1. Fisheries Error Handling: Stopped showing fallback data when `/predict` fails; shows "Live model unavailable" card (`.cast-error-msg`) with retry button (`#btn-retry-fisheries`), and leaves table, chart, and stat cards empty.
+  - [x] 2. Chlorophyll Bug: Fixed `surface_chla = chla_val` in `predict()` and `compute_pfz_grid()`; feeds `chla_val` directly into PFZ score (`min(1.0, chla_val / 3.0)`) and Surface Chlorophyll-a card; depth nutrient curve in chart accurately labeled `"Chlorophyll proxy (mg/m³) [illustrative shape, not measured]"`.
+  - [x] 3. Remove Silent Defaults: Replaced 68m, 0.72, 0.87, and 2.60 defaults with `" — "` in `fisheries.js`.
+  - [x] 4. Wire in Error Bands: Passed `bands=BANDS_FILE` to `ServingData` in `v6_adapter.py`, exposed `error_bands_90` on `/predict`, and rendered 90% confidence bands (`±band`) on Explore profile chart.
+  - [x] 5. Satellite Winds: Updated code comments and docstrings in `api_server.py`, `fisheries.js`, and tests from ERA5 to CCMP satellite winds; confirmed lazy-loading of `ekman_upwelling.npy`.
+  - [x] 6. Text Fixes:
+    - `argo_summary_14yr.json` & `compute_argo_summary.py`: Updated 90% band held to 90%, TCHP to 88%, 0m depth note to -22% skill (n=72), 5m depth note to 73.3% skill.
+    - `argo.html`: Labeled basin scores as `"Jun–Dec 2023, n=1,809"`, aligned baseline label to `n=2,910 profiles, 92 floats, 2023`.
+    - `HeroSection.tsx`: Updated to `"2,910 ARGO PROFILES (2023)"` and rebuilt `dist/kyogre-app.js`.
+  - [x] 7. Remove 4.0 °C Floor: Removed artificial 4.0 °C floor clamps in `v6_adapter.py`.
+  - [x] Verification:
+    - `test_pre_demo_fixes.js`: **ALL 7 TESTS PASSED (100%)**.
+    - `test_fisheries.js`: **ALL PASSED (100%)**.
+    - `test_argo_page.js`: **148/148 PASSED (100%)**.
+    - `test_marine_ecology.js`: **157/157 PASSED (100%)**.
+    - `test_stat_card_outputs.js`: **100% PASSED**.
+    - `verify_landing_page.js`: **41/41 PASSED (100%)**.
+    - `test_nearshore_filter.py`: **100% PASSED**.
+    - `test_chlorophyll_pipeline.py`: **5/5 PASSED (100%)**.
+    - `test_argo_summary_regression.py`: **23/23 PASSED (100%)**.
+    - Explicit directive honored: **NO git commit or push performed without user approval.**
+
 - [x] **Task: Push Everything to ui-sample and master Branches** `[Completed 2026-09-23 22:00 IST]`
   - Staged all changes including model integration metadata (`argoft_seed1`), benchmarks, UI updates, and test suites.
   - Committed on `ui-sample`: `505a8d5 feat: complete model swap to argoft_seed1, update ARGO truth page and benchmarks, polish UI and interaction tests`.

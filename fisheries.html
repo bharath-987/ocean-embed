@@ -99,6 +99,17 @@
             <span class="ky-nav-item__label">Heatwave Mode</span>
           </button>
 
+          <button class="ky-nav-item" data-nav="cyclone" onclick="window.location.href='cyclone.html'">
+            <span class="ky-nav-item__icon">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2a10 10 0 0 0-7.07 17.07l1.41-1.41A8 8 0 0 1 12 4V2z"/>
+                <path d="M12 22a10 10 0 0 0 7.07-17.07l-1.41 1.41A8 8 0 0 1 12 20v2z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+            </span>
+            <span class="ky-nav-item__label">Cyclone Mode</span>
+          </button>
+
           <button class="ky-nav-item" data-nav="argo" onclick="window.location.href='argo.html'">
             <span class="ky-nav-item__icon">
               <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
@@ -342,6 +353,16 @@
               <div class="ky-tvd-toggle">
                 <button type="button" class="ky-tvd-toggle__btn ky-tvd-toggle__btn--active" id="btn-view-table">Table</button>
                 <button type="button" class="ky-tvd-toggle__btn" id="btn-view-graph">Graph</button>
+              </div>
+
+              <!-- Initial Idle / Error state (matching Explore TVD card) -->
+              <div class="ky-tvd-idle" id="result-idle" style="display:none;">
+                <svg width="40" height="40" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="10" y="10" width="36" height="36" rx="10" stroke="#CBD5E1" stroke-width="2"/>
+                  <path d="M20 28H36" stroke="#94A3B8" stroke-width="2" stroke-linecap="round"/>
+                  <path d="M28 20L36 28L28 36" stroke="#94A3B8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <p class="ky-tvd-idle__text">Click the map or search a location, then choose a date to generate prediction.</p>
               </div>
 
               <!-- EMPTY state (shown until both location and date are selected) -->

@@ -244,7 +244,7 @@
       "skillScoreCorrected": -0.22,
       "skillScoreCorrectedPct": -22.0,
       "isPositive": false,
-      "explanation": "Surface skin layer tightly coupled to satellite SST observations; strong boundary layer agreement."
+      "explanation": "Surface layer skill is \u221222% (worse than climatology), based on only 72 profiles with shallow 0m readings."
     },
     {
       "depth": 5,
@@ -266,7 +266,7 @@
       "skillScoreCorrected": 0.733,
       "skillScoreCorrectedPct": 73.3,
       "isPositive": true,
-      "explanation": "Upper mixed layer shows exceptional variance reduction (+67.5% skill) over climatology."
+      "explanation": "Upper mixed layer shows exceptional variance reduction (+73.3% skill) over climatology."
     },
     {
       "depth": 10,
@@ -568,12 +568,12 @@
     "climatologyRationale": "Monthly calendar-average climatology baseline computed across the 2,910-profile 2023 independent evaluation set and valid mask.",
     "errorBands": {
       "depthBands90": "\u00b10.65\u00b0C at 5m, \u00b11.60\u00b0C at 50m, \u00b11.79\u00b0C at 100m, \u00b10.37\u00b0C at 1000m",
-      "band90Coverage": "90% band held 89% on 2023 test set",
+      "band90Coverage": "90% band held 90% on 2023 test set",
       "tchpError": "\u00b111.6 kJ/cm\u00b2",
-      "tchp90Band": "\u00b117.8 kJ/cm\u00b2, held about 87%"
+      "tchp90Band": "\u00b117.8 kJ/cm\u00b2, held about 88%"
     },
     "trainingDisclosure": "Satellite inputs; network trained on the GLORYS reanalysis, then on real Argo floats."
   },
   "provenance": "Satellite inputs; network trained on the GLORYS reanalysis, then on real Argo floats.",
-  "computedAt": "2026-09-23T16:17:13.381065+00:00"
+  "computedAt": "2026-09-24T03:29:03.291037+00:00"
 }

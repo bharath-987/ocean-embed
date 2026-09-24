@@ -77,7 +77,7 @@ class TestChlorophyllPipeline(unittest.TestCase):
         payload = {
             "latitude": 15.5,
             "longitude": 65.0,
-            "date": "2022-07-02"
+            "date": "2023-09-04"
         }
         res = requests.post(f"{API_BASE}/predict", json=payload, timeout=10)
         self.assertEqual(res.status_code, 200)
@@ -95,7 +95,7 @@ class TestChlorophyllPipeline(unittest.TestCase):
 
     def test_api_pfz_grid_sources(self):
         """Verify /pfz-grid returns chla_sources grid."""
-        res = requests.get(f"{API_BASE}/pfz-grid?date=2022-07-02", timeout=10)
+        res = requests.get(f"{API_BASE}/pfz-grid?date=2023-09-04", timeout=10)
         self.assertEqual(res.status_code, 200)
         data = res.json()
         self.assertIn("chla_sources", data)

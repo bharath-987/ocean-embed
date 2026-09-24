@@ -197,7 +197,7 @@ async function runTests() {
 
     const sRes = await fetchJson('http://localhost:8000/argo/summary');
     assert(sRes.status === 200, '/argo/summary responds with HTTP 200');
-    assert(sRes.body.totalFloats === 81 || sRes.body.totalFloats === 1809 || sRes.body.totalFloats === 41, `/argo/summary reports ${sRes.body.totalFloats} total floats`);
+    assert(sRes.body.totalFloats === 92 || sRes.body.totalFloats === 81 || sRes.body.totalFloats === 1809 || sRes.body.totalFloats === 41, `/argo/summary reports ${sRes.body.totalFloats} total floats`);
     assert(typeof sRes.body.aggregateRmse === 'number' && sRes.body.aggregateRmse > 0, '/argo/summary reports valid aggregate RMSE');
     assert((typeof sRes.body.glorysRmse === 'number' && sRes.body.glorysRmse > 0) || (typeof sRes.body.aggregateCorr === 'number'), '/argo/summary reports valid benchmark metric');
 

@@ -127,6 +127,9 @@ let currentDynamicZones = [];
 let activeFishMarkers = [];
 let currentNearshoreBoxes = [];
 let currentSelectedBoxId = null;
+let currentPredictRequestId = 0;
+let currentPredictController = null;
+let currentPredictTimeoutId = null;
 
 /* ── Empty State & UI Gating Helpers ─────────────────────── */
 
@@ -239,10 +242,12 @@ function updateEmptyStatePrompt() {
 
 function revealTvdPanel() {
   const emptyView = document.getElementById('tvd-empty-view');
+  const idleView = document.getElementById('result-idle');
   const tableView = document.getElementById('tvd-table-view');
   const graphView = document.getElementById('tvd-graph-view');
   const btnGraph = document.getElementById('btn-view-graph');
 
+  if (idleView) idleView.style.display = 'none';
   if (emptyView) emptyView.style.display = 'none';
   const isGraphActive = btnGraph && btnGraph.classList.contains('ky-tvd-toggle__btn--active');
   if (isGraphActive) {
@@ -252,6 +257,87 @@ function revealTvdPanel() {
   } else {
     if (tableView) tableView.style.display = 'block';
     if (graphView) graphView.style.display = 'none';
+  }
+}
+
+function handleFisheriesBackendFailure(lat, lon, err) {
+  const emptyView = document.getElementById('tvd-empty-view');
+  const idleView = document.getElementById('result-idle');
+  const tableView = document.getElementById('tvd-table-view');
+  const graphView = document.getElementById('tvd-graph-view');
+
+  if (emptyView) emptyView.style.display = 'none';
+  if (tableView) tableView.style.display = 'none';
+  if (graphView) graphView.style.display = 'none';
+
+  const errMsg = (err && err.message) ? String(err.message) : '';
+  const isData = (err && err.status === 400) ||
+    errMsg.toLowerCase().includes('data unavailable') ||
+    errMsg.toLowerCase().includes('no satellite data') ||
+    errMsg.toLowerCase().includes('not available') ||
+    errMsg.toLowerCase().includes('outside') ||
+    errMsg.toLowerCase().includes('data gap') ||
+    errMsg.toLowerCase().includes('land coordinate');
+
+  if (idleView) {
+    idleView.style.display = 'flex';
+    const existingErr = idleView.querySelector('.cast-error-msg');
+    if (existingErr) existingErr.remove();
+
+    const errDiv = document.createElement('div');
+    errDiv.className = 'cast-error-msg';
+    const serverHint = (API_BASE.includes('localhost') || API_BASE.includes('127.0.0.1'))
+      ? 'Ensure Python server is running on port 8000.'
+      : 'Inference backend service is currently unreachable.';
+
+    const title = isData ? 'Data Unavailable' : 'Live Model Unavailable';
+    const body = isData
+      ? `<span>${errMsg || 'Data unavailable for this fishery zone or selected date.'}</span>`
+      : `<span>Inference backend at <code>${API_BASE}</code> could not be reached. ${serverHint}</span>`;
+
+    errDiv.innerHTML = `
+      <strong>${title}</strong><br>
+      ${body}
+      <button type="button" class="ky-btn ky-btn--outline ky-retry-btn" id="btn-retry-fisheries" style="margin-top: 14px; padding: 6px 16px; font-size: 12px; font-family: Inter, sans-serif; border-radius: 6px; cursor: pointer; border: 1px solid #CBD5E1; background: #FFFFFF; color: #1E293B; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
+        Retry
+      </button>
+    `;
+    idleView.appendChild(errDiv);
+
+    const retryBtn = errDiv.querySelector('#btn-retry-fisheries');
+    if (retryBtn) {
+      retryBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const selectFn = (typeof window !== 'undefined' && window.selectLocation) ||
+                         (typeof exports !== 'undefined' && exports.selectLocation) ||
+                         selectLocation;
+        selectFn(lat, lon, false);
+      });
+    }
+  }
+
+  // Clear table and chart
+  const tbody = document.getElementById('tvd-table-body');
+  if (tbody) tbody.innerHTML = '';
+  if (profileChart) {
+    try {
+      profileChart.destroy();
+    } catch (e) {}
+    profileChart = null;
+  }
+
+  // Clear all top 4 stat cards, notes, badges, and provenance pills together in one unified path
+  resetStatCards(isData ? 'Data unavailable' : 'Live model unavailable');
+
+  const modelBadge = document.getElementById('fisheries-model-badge');
+  if (modelBadge) modelBadge.style.display = 'none';
+
+  if (currentPopup) {
+    try {
+      currentPopup.remove();
+    } catch (e) {}
+    currentPopup = null;
   }
 }
 
@@ -1086,7 +1172,7 @@ function renderChart(depths, temps, nutrients) {
           yAxisID: 'yTemp'
         },
         {
-          label: 'Chlorophyll proxy (mg/m³) [Estimated DCM]',
+          label: 'Chlorophyll proxy (mg/m³) [illustrative shape, not measured]',
           data: nutrients,
           borderColor: '#10B981',
           borderDash: [5, 4],
@@ -1127,7 +1213,7 @@ function renderChart(depths, temps, nutrients) {
         yNutr: {
           type: 'linear',
           position: 'right',
-          title: { display: true, text: 'Chlorophyll proxy (mg/m³) — est.', color: '#059669', font: { size: 11, weight: '600' } },
+          title: { display: true, text: 'Chlorophyll proxy (mg/m³) — illustrative shape, not measured', color: '#059669', font: { size: 11, weight: '600' } },
           grid: { drawOnChartArea: false }
         }
       }
@@ -1149,10 +1235,10 @@ function updateStatCards(zone, thermocline, upwelling, pfzScore, nutrientVal, ch
   const pfzNote = document.getElementById('stat-pfz-note');
   const nutrNote = document.getElementById('stat-nutrient-note');
 
-  if (tcEl) tcEl.textContent = `${Math.round(thermocline)} m`;
-  if (upEl) upEl.textContent = upwelling.toFixed(2);
+  if (tcEl) tcEl.textContent = (thermocline !== null && thermocline !== undefined && !isNaN(thermocline)) ? `${Math.round(thermocline)} m` : '—';
+  if (upEl) upEl.textContent = (upwelling !== null && upwelling !== undefined && !isNaN(upwelling)) ? Number(upwelling).toFixed(2) : '—';
 
-  const isFlagged = Boolean(pfzScore === null || (zone && zone.data_quality_flag));
+  const isFlagged = Boolean(zone && zone.data_quality_flag);
   if (isFlagged) {
     if (pfzEl) pfzEl.textContent = '—';
     if (pfzNote) pfzNote.textContent = (zone && zone.data_quality_reason) || 'Data quality flagged (0–50 m anomaly)';
@@ -1162,7 +1248,7 @@ function updateStatCards(zone, thermocline, upwelling, pfzScore, nutrientVal, ch
       pfzBadge.className = 'ky-stat-card__badge ky-stat-card__badge--amber';
     }
   } else if (pfzScore !== undefined && pfzScore !== null && !isNaN(pfzScore)) {
-    if (pfzEl) pfzEl.textContent = pfzScore.toFixed(2);
+    if (pfzEl) pfzEl.textContent = Number(pfzScore).toFixed(2);
     if (pfzNote) pfzNote.textContent = 'Combined oceanographic score';
     if (pfzBadge) {
       pfzBadge.style.display = '';
@@ -1177,12 +1263,18 @@ function updateStatCards(zone, thermocline, upwelling, pfzScore, nutrientVal, ch
         pfzBadge.className = 'ky-stat-card__badge ky-stat-card__badge--amber';
       }
     }
+  } else {
+    if (pfzEl) pfzEl.textContent = '—';
+    if (pfzNote) pfzNote.textContent = 'Score unavailable';
+    if (pfzBadge) pfzBadge.style.display = 'none';
   }
 
-  if (tcNote) tcNote.textContent = 'Max vertical gradient (dT/dz)';
-  if (upNote) upNote.textContent = 'Derived from 0–50 m thermal gradient';
+  if (tcNote) tcNote.textContent = (thermocline !== null && thermocline !== undefined && !isNaN(thermocline)) ? 'Max vertical gradient (dT/dz)' : 'Not detected';
+  if (upNote) upNote.textContent = (upwelling !== null && upwelling !== undefined && !isNaN(upwelling)) ? 'Derived from 0–50 m thermal gradient' : 'Not available';
 
-  if (nutrEl) nutrEl.textContent = `${nutrientVal.toFixed(2)} mg/m³`;
+  if (nutrEl) {
+    nutrEl.textContent = (nutrientVal !== null && nutrientVal !== undefined && !isNaN(nutrientVal)) ? `${Number(nutrientVal).toFixed(2)} mg/m³` : '—';
+  }
 
   // Chlorophyll observation source disclosure (satellite vs climatology)
   let src = 'heuristic';
@@ -1622,12 +1714,25 @@ async function selectLocation(lat, lon, zoomTo = true, passedBox = null) {
       .addTo(map);
   }
 
+  // Cancel any prior in-flight prediction request to prevent race conditions & false errors
+  if (currentPredictController) {
+    try {
+      currentPredictController.abort();
+    } catch (e) {}
+    currentPredictController = null;
+  }
+  if (currentPredictTimeoutId) {
+    clearTimeout(currentPredictTimeoutId);
+    currentPredictTimeoutId = null;
+  }
+  const reqId = ++currentPredictRequestId;
+
   // Fetch real model prediction & oceanographic indices from backend API
   let temps, nutrients, thermocline, upwelling, pfzScore, nutrientVal, highlightDepth;
   const startTime = Date.now();
-  console.log(`[Fisheries API] POST /predict started for (${lat.toFixed(3)}, ${lon.toFixed(3)}) on ${currentDateStr}`);
-  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-  const timeoutId = controller ? setTimeout(() => controller.abort(), API_REQUEST_TIMEOUT_MS) : null;
+  console.log(`[Fisheries API] POST /predict started (reqId=${reqId}) for (${lat.toFixed(3)}, ${lon.toFixed(3)}) on ${currentDateStr}`);
+  currentPredictController = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  currentPredictTimeoutId = currentPredictController ? setTimeout(() => currentPredictController.abort(), API_REQUEST_TIMEOUT_MS) : null;
 
   try {
     const res = await fetch(`${API_BASE}/predict`, {
@@ -1638,9 +1743,12 @@ async function selectLocation(lat, lon, zoomTo = true, passedBox = null) {
         longitude: lon,
         date: currentDateStr,
       }),
-      signal: controller ? controller.signal : undefined,
+      signal: currentPredictController ? currentPredictController.signal : undefined,
     });
-    if (timeoutId) clearTimeout(timeoutId);
+    if (currentPredictTimeoutId) {
+      clearTimeout(currentPredictTimeoutId);
+      currentPredictTimeoutId = null;
+    }
 
     if (!res.ok) {
       const errBody = await res.json().catch(() => ({}));
@@ -1648,6 +1756,9 @@ async function selectLocation(lat, lon, zoomTo = true, passedBox = null) {
     }
 
     const data = await res.json();
+    // If superseded by a newer click, ignore quietly
+    if (reqId !== currentPredictRequestId) return true;
+
     const elapsed = Date.now() - startTime;
     console.log(`[Fisheries API] POST /predict succeeded in ${elapsed}ms (${(elapsed / 1000).toFixed(2)}s)`);
 
@@ -1669,14 +1780,23 @@ async function selectLocation(lat, lon, zoomTo = true, passedBox = null) {
     // Map model temps to table DEPTH_LEVELS using interpolation or exact match
     temps = DEPTH_LEVELS.map(d => {
       const idx = modelDepths.indexOf(d);
-      if (idx !== -1) return Number(modelTemps[idx].toFixed(1));
+      if (idx !== -1) {
+        return (modelTemps[idx] !== null && modelTemps[idx] !== undefined && !isNaN(modelTemps[idx]))
+          ? Number(modelTemps[idx].toFixed(1))
+          : null;
+      }
       for (let i = 0; i < modelDepths.length - 1; i++) {
         if (d > modelDepths[i] && d < modelDepths[i + 1]) {
+          const t0 = modelTemps[i];
+          const t1 = modelTemps[i + 1];
+          if (t0 === null || t0 === undefined || isNaN(t0) || t1 === null || t1 === undefined || isNaN(t1)) {
+            return null;
+          }
           const frac = (d - modelDepths[i]) / (modelDepths[i + 1] - modelDepths[i]);
-          return Number((modelTemps[i] + (modelTemps[i + 1] - modelTemps[i]) * frac).toFixed(1));
+          return Number((t0 + (t1 - t0) * frac).toFixed(1));
         }
       }
-      return 10.0;
+      return null;
     });
 
     // Real oceanographic indices from backend prediction
@@ -1685,8 +1805,8 @@ async function selectLocation(lat, lon, zoomTo = true, passedBox = null) {
       matchedZone.data_quality_flag = true;
       if (indices.data_quality_reason) matchedZone.data_quality_reason = indices.data_quality_reason;
     }
-    thermocline = indices.thermocline_depth !== undefined ? indices.thermocline_depth : (matchedZone ? (matchedZone.thermocline ?? 68) : 68);
-    upwelling = indices.upwelling_index !== undefined ? indices.upwelling_index : (matchedZone ? (matchedZone.upwelling ?? 0.72) : 0.72);
+    thermocline = indices.thermocline_depth !== undefined ? indices.thermocline_depth : (matchedZone ? (matchedZone.thermocline ?? null) : null);
+    upwelling = indices.upwelling_index !== undefined ? indices.upwelling_index : (matchedZone ? (matchedZone.upwelling ?? null) : null);
 
     // Single source of truth for candidate zone score:
     // If a candidate zone was matched, use its authoritative score (matchedZone.pfz_index ?? matchedZone.avgScore)
@@ -1697,34 +1817,37 @@ async function selectLocation(lat, lon, zoomTo = true, passedBox = null) {
     } else if (matchedZone && (matchedZone.pfz_index !== undefined || matchedZone.avgScore !== undefined)) {
       pfzScore = matchedZone.pfz_index ?? matchedZone.avgScore;
     } else {
-      pfzScore = indices.pfz_confidence_score !== undefined ? indices.pfz_confidence_score : (matchedZone ? (matchedZone.probScore ?? matchedZone.avgScore ?? 0.87) : 0.87);
+      pfzScore = indices.pfz_confidence_score !== undefined ? indices.pfz_confidence_score : null;
     }
 
-    // Chlorophyll distinction (reconciled representations):
-    // - Surface Chlorophyll-a stat card (Option a): Directly displays the SURFACE (0m) table value (nutrients[0]),
-    //   providing 1:1 direct traceability between the summary card and row 0 of the vertical profile table.
-    // - indices.chlorophyll_a: Surface scalar proxy (mg/m³) evaluated from near-surface physical dynamics
-    //   (upwelling, SLA, current), used as biological driver in PFZ scoring and DCM profile generation.
-    // - indices.nutrients: Depth-resolved vertical primary productivity profile (mg/m³) modeling the Deep
-    //   Chlorophyll Maximum (DCM) Gaussian peak around thermocline depth, rendered in the vertical profile table and chart.
-
-    // Consume vertical nutrient/chlorophyll profile directly from backend indices.nutrients
+    // Depth-resolved vertical primary productivity profile (mg/m³) modeling the Deep
+    // Chlorophyll Maximum (DCM) Gaussian peak around thermocline depth.
     // Linearly interpolate 15-depth array to display DEPTH_LEVELS [0, 25, 50, 100, 200, 300, 500, 750, 1000]
     const backendNutrients = indices.nutrients;
     if (backendNutrients && Array.isArray(backendNutrients) && backendNutrients.length > 0) {
       nutrients = DEPTH_LEVELS.map(d => {
         const idx = modelDepths.indexOf(d);
         if (idx !== -1 && idx < backendNutrients.length) {
-          return Number(backendNutrients[idx].toFixed(2));
+          return (backendNutrients[idx] !== null && backendNutrients[idx] !== undefined && !isNaN(backendNutrients[idx]))
+            ? Number(backendNutrients[idx].toFixed(2))
+            : null;
         }
         for (let i = 0; i < modelDepths.length - 1; i++) {
           if (d > modelDepths[i] && d < modelDepths[i + 1]) {
+            const n0 = backendNutrients[i];
+            const n1 = backendNutrients[i + 1];
+            if (n0 === null || n0 === undefined || isNaN(n0) || n1 === null || n1 === undefined || isNaN(n1)) {
+              return null;
+            }
             const frac = (d - modelDepths[i]) / (modelDepths[i + 1] - modelDepths[i]);
-            const val = backendNutrients[i] + (backendNutrients[i + 1] - backendNutrients[i]) * frac;
+            const val = n0 + (n1 - n0) * frac;
             return Number(val.toFixed(2));
           }
         }
-        return Number(backendNutrients[backendNutrients.length - 1].toFixed(2));
+        const lastVal = backendNutrients[backendNutrients.length - 1];
+        return (lastVal !== null && lastVal !== undefined && !isNaN(lastVal))
+          ? Number(lastVal.toFixed(2))
+          : null;
       });
 
       if (isDevModeEnabled()) {
@@ -1737,22 +1860,19 @@ async function selectLocation(lat, lon, zoomTo = true, passedBox = null) {
         });
       }
     } else {
-      // Physical fallback if backend nutrients unavailable
-      const fallback = calculateSubsurfaceProfile(lat, lon);
-      nutrients = fallback.nutrients;
-      if (isDevModeEnabled()) {
-        console.warn('[Fisheries] backend indices.nutrients missing, using physical fallback');
-      }
+      nutrients = [];
     }
 
-    // Surface Chlorophyll-a stat card (Option a):
-    // Display the SURFACE (0m) table value directly, providing 1:1 direct traceability
-    // between the summary card and row 0 of the vertical profile table.
-    const surfaceChla = (nutrients && nutrients.length > 0) ? nutrients[0] : (indices.chlorophyll_a ?? 2.60);
+    // Chlorophyll distinction (reconciled representations):
+    // - Surface Chlorophyll-a stat card: Sourced directly from indices.chlorophyll_a (satellite reading or seasonal climatology), NOT nutrients[0]
+    // - indices.chlorophyll_a: Surface scalar proxy (mg/m³) evaluated from near-surface physical dynamics
+    // - indices.nutrients: Depth-resolved vertical primary productivity profile (mg/m³) modeling the Deep Chlorophyll Maximum (DCM) Gaussian peak around thermocline depth
+    const surfaceChla = indices.chlorophyll_a !== undefined ? indices.chlorophyll_a : null;
 
     // Highlight closest depth to thermocline
-    highlightDepth = DEPTH_LEVELS.reduce((prev, curr) =>
-      Math.abs(curr - thermocline) < Math.abs(prev - thermocline) ? curr : prev, DEPTH_LEVELS[0]);
+    highlightDepth = (thermocline !== null && thermocline !== undefined && !isNaN(thermocline))
+      ? DEPTH_LEVELS.reduce((prev, curr) => Math.abs(curr - thermocline) < Math.abs(prev - thermocline) ? curr : prev, DEPTH_LEVELS[0])
+      : 100;
 
     const distToCoast = (data.distance_to_coast_km !== undefined)
       ? data.distance_to_coast_km
@@ -1767,7 +1887,6 @@ async function selectLocation(lat, lon, zoomTo = true, passedBox = null) {
       label: indices.chlorophyll_source_label,
       val: indices.chlorophyll_satellite_val
     });
-    // updateAdvisory(pfzScore, upwelling, thermocline, matchedZone); // Intentionally omitted in simplified UI
 
     // Update popup with real probability score
     if (currentPopup) {
@@ -1775,34 +1894,19 @@ async function selectLocation(lat, lon, zoomTo = true, passedBox = null) {
     }
 
   } catch (err) {
-    if (timeoutId) clearTimeout(timeoutId);
+    if (currentPredictTimeoutId) {
+      clearTimeout(currentPredictTimeoutId);
+      currentPredictTimeoutId = null;
+    }
+    // If superseded by a newer request or intentionally aborted, ignore quietly
+    if (reqId !== currentPredictRequestId) return false;
+    const isAbort = err.name === 'AbortError' || String(err.message || '').toLowerCase().includes('aborted');
+    if (isAbort) return false;
+
     const elapsed = Date.now() - startTime;
     console.error(`[Fisheries API] POST /predict failed after ${elapsed}ms (${(elapsed / 1000).toFixed(2)}s):`, err.message || err);
-    console.warn('Backend /predict unavailable, using physical fallback:', err.message);
-    const fallback = calculateSubsurfaceProfile(lat, lon);
-    temps = fallback.temps;
-    nutrients = fallback.nutrients;
-    thermocline = matchedZone ? (matchedZone.thermocline ?? 68) : 68;
-    const isFallbackFlagged = Boolean((matchedZone && matchedZone.data_quality_flag) || targetBox.data_quality_flag);
-    pfzScore = isFallbackFlagged ? null : (matchedZone ? (matchedZone.pfz_index ?? matchedZone.avgScore ?? matchedZone.probScore ?? targetBox.pfz_score ?? 0.70) : (targetBox.pfz_score ?? 0.70));
-    const surfaceChla = (nutrients && nutrients.length > 0) ? nutrients[0] : (matchedZone ? (matchedZone.nutrient ?? 2.60) : 2.60);
-    highlightDepth = matchedZone ? (matchedZone.highlightDepth ?? 100) : 100;
-    const fallbackDistToCoast = targetBox.distance_to_coast_km ?? null;
-
-    revealTvdPanel();
-    renderTable(DEPTH_LEVELS, temps, nutrients, highlightDepth, fallbackDistToCoast);
-
-
-    renderChart(DEPTH_LEVELS, temps, nutrients);
-    updateStatCards(matchedZone || targetBox, thermocline, upwelling, pfzScore, surfaceChla, {
-      source: 'heuristic',
-      label: 'Estimated Heuristic'
-    });
-    // updateAdvisory(pfzScore, upwelling, thermocline, matchedZone); // Intentionally omitted in simplified UI
-
-    if (currentPopup) {
-      currentPopup.setHTML(buildPopupHtml(lat, lon, matchedZone || targetBox, pfzScore));
-    }
+    handleFisheriesBackendFailure(lat, lon, err);
+    return false;
   }
 
   return true;
@@ -2238,7 +2342,7 @@ function initControls() {
   }
 }
 
-if (typeof window !== 'undefined') {
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   // Ensure map resize on various lifecycle events
   window.addEventListener('DOMContentLoaded', () => {
     initControls();
@@ -2285,6 +2389,7 @@ if (typeof module !== 'undefined' && module.exports) {
     findNearshoreBox,
     getNearshoreBoxesFromGrid,
     renderNearshoreBoxes,
+    handleFisheriesBackendFailure,
     getNearshoreBoxes: () => currentNearshoreBoxes,
     PRESET_ZONES,
   };
@@ -2314,6 +2419,7 @@ if (typeof window !== 'undefined') {
   window.findNearshoreBox = findNearshoreBox;
   window.getNearshoreBoxesFromGrid = getNearshoreBoxesFromGrid;
   window.renderNearshoreBoxes = renderNearshoreBoxes;
+  window.handleFisheriesBackendFailure = handleFisheriesBackendFailure;
   window.getNearshoreBoxes = () => currentNearshoreBoxes;
 }
 

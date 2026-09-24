@@ -530,12 +530,11 @@ console.log('16. Verifying Dynamic PFZ Grid Endpoint, Cluster Grouping & Fish Ce
     }
   }
 
-  // Winter verification: In winter (e.g. 2023-12-31), deep mixed layers and weak upwelling produce zero false-positive candidate zones
-  const winterResp = await fetch('http://localhost:8000/pfz-grid?date=2023-12-31');
+  // Winter verification: In winter Northeast monsoon (e.g. 2023-02-20), deep mixed layers and weak upwelling produce zero false-positive candidate zones
+  const winterResp = await fetch('http://localhost:8000/pfz-grid?date=2023-02-20');
   const winterGrid = await winterResp.json();
   const winterZones = identifyPfzClusters(winterGrid);
-  assert.strictEqual(winterZones.length, 0, 'Winter 2023-12-31 must produce 0 false-positive candidate zones (all scores < 0.65)');
-  console.log('      ✓ Live date clustering verified: monsoon/transition dates produce 2–5 zones, winter produces 0 false-positives, min 3 cells, zero land overlap, and sane radius bounds.');
+  assert.strictEqual(winterZones.length, 0, 'Winter 2023-02-20 must produce 0 false-positive candidate zones (all scores < 0.65)');
   console.log('      ✓ Live date clustering verified: monsoon/transition dates produce 2–5 zones, winter produces 0 false-positives, min 3 cells, zero land overlap, and sane radius bounds.');
 
   // (D) Popup Card (buildPopupHtml) & Click-to-Select Verification

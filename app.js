@@ -3219,7 +3219,45 @@ function buildChart(prediction) {
     order: 1,
   };
 
-  const datasets = [mainDataset];
+  const errorBands = prediction.error_bands_90 || [0.47, 0.65, 0.63, 0.94, 1.26, 1.60, 1.71, 1.79, 1.71, 1.57, 1.36, 0.93, 0.45, 0.39, 0.37];
+  const upperBandData = [];
+  const lowerBandData = [];
+  for (let i = 0; i < chartData.length; i++) {
+    const hw = (errorBands && errorBands[i] !== undefined) ? errorBands[i] : 0.65;
+    upperBandData.push({ x: Number((chartData[i].x + hw).toFixed(2)), y: chartData[i].y });
+    lowerBandData.push({ x: Number((chartData[i].x - hw).toFixed(2)), y: chartData[i].y });
+  }
+
+  const bandUpperDataset = {
+    label: '90% Error Band (±0.65°C at 5m, ±1.79°C at 100m)',
+    data: upperBandData,
+    parsing: false,
+    borderColor: 'rgba(37, 99, 235, 0.30)',
+    borderWidth: 1,
+    borderDash: [3, 3],
+    pointRadius: 0,
+    pointHoverRadius: 0,
+    fill: false,
+    tension: 0.35,
+    order: 3,
+  };
+
+  const bandLowerDataset = {
+    label: '90% Confidence Band Lower',
+    data: lowerBandData,
+    parsing: false,
+    borderColor: 'rgba(37, 99, 235, 0.30)',
+    borderWidth: 1,
+    borderDash: [3, 3],
+    pointRadius: 0,
+    pointHoverRadius: 0,
+    fill: '-1',
+    backgroundColor: 'rgba(37, 99, 235, 0.09)',
+    tension: 0.35,
+    order: 4,
+  };
+
+  const datasets = [mainDataset, bandUpperDataset, bandLowerDataset];
 
   // Independent Argo in-situ float reference line
   if (argo) {
@@ -3289,6 +3327,9 @@ function buildChart(prediction) {
             boxWidth: 10,
             padding: 8,
             usePointStyle: true,
+            filter: function(item) {
+              return item.text !== '90% Confidence Band Lower';
+            },
           },
         },
         tooltip: {
@@ -3299,12 +3340,20 @@ function buildChart(prediction) {
           bodyColor: '#64748B',
           padding: 8,
           cornerRadius: 8,
+          filter: function(item) {
+            return item.dataset.label !== '90% Confidence Band Lower';
+          },
           callbacks: {
             title: function(items) {
               const depth = items[0].raw.y;
               return `Depth: ${depth} m`;
             },
             label: function(item) {
+              if (item.dataset.label && item.dataset.label.includes('90% Error Band')) {
+                const idx = item.dataIndex;
+                const hw = (errorBands && errorBands[idx] !== undefined) ? errorBands[idx] : 0.65;
+                return `90% Band: ±${hw.toFixed(2)} °C`;
+              }
               return `${item.dataset.label}: ${item.raw.x.toFixed(2)} °C`;
             },
           },
@@ -3428,7 +3477,7 @@ function clearPreviousPredictionUI() {
   }
 }
 
-function handleBackendFailure(msg) {
+function handleBackendFailure(msg, errorType = 'model') {
   setStatsLoading(false);
 
   const loadingEl = document.getElementById('result-loading');
@@ -3440,11 +3489,23 @@ function handleBackendFailure(msg) {
   if (contentEl) contentEl.style.display = 'none';
   if (emptyView) emptyView.style.display = 'none';
 
-  const defaultBanner = isLocalBackend()
-    ? 'Live model unavailable. Make sure Python backend is running on port 8000.'
-    : 'Model Unavailable. Inference service could not be reached.';
+  const isData = errorType === 'data' || (typeof msg === 'string' && (
+    msg.toLowerCase().includes('data unavailable') ||
+    msg.toLowerCase().includes('no satellite data') ||
+    msg.toLowerCase().includes('not available') ||
+    msg.toLowerCase().includes('outside the active model window') ||
+    msg.toLowerCase().includes('outside domain') ||
+    msg.toLowerCase().includes('land coordinate') ||
+    msg.toLowerCase().includes('data gap')
+  ));
+
+  const defaultBanner = isData
+    ? (msg || 'Data unavailable for this location or date.')
+    : (isLocalBackend()
+        ? 'Live model unavailable. Make sure Python backend is running on port 8000.'
+        : 'Model Unavailable. Inference service could not be reached.');
   const bannerText = msg || defaultBanner;
-  showRegionNotice(bannerText, 'error');
+  showRegionNotice(bannerText, isData ? 'warning' : 'error');
 
   if (idleEl) {
     idleEl.style.display = 'flex';
@@ -3452,10 +3513,14 @@ function handleBackendFailure(msg) {
     if (existingErr) existingErr.remove();
     const errDiv = document.createElement('div');
     errDiv.className = 'cast-error-msg';
-    const serverHint = isLocalBackend()
-      ? 'Ensure Python server is running on port 8000.'
-      : 'Inference backend service is currently unreachable.';
-    errDiv.innerHTML = `<strong>Live Model Unavailable</strong><br><span>Inference backend at <code>${API_BASE}</code> could not be reached. ${serverHint}</span>`;
+    if (isData) {
+      errDiv.innerHTML = `<strong>Data Unavailable</strong><br><span>${msg || 'No satellite observation or profile data available for this location and date.'}</span>`;
+    } else {
+      const serverHint = isLocalBackend()
+        ? 'Ensure Python server is running on port 8000.'
+        : 'Inference backend service is currently unreachable.';
+      errDiv.innerHTML = `<strong>Live Model Unavailable</strong><br><span>Inference backend at <code>${API_BASE}</code> could not be reached. ${serverHint}</span>`;
+    }
     idleEl.appendChild(errDiv);
   }
 
@@ -3476,8 +3541,8 @@ function handleBackendFailure(msg) {
   }
 }
 
-function showCastError(msg) {
-  handleBackendFailure(msg);
+function showCastError(msg, errorType = 'model') {
+  handleBackendFailure(msg, errorType);
 }
 
 document.getElementById('btn-cast').addEventListener('click', function () {
@@ -3546,10 +3611,16 @@ document.getElementById('btn-cast').addEventListener('click', function () {
       }
       if (!res.ok) {
         return res.json().then(function (body) {
-          throw new Error(body.detail || `Server error ${res.status}`);
+          const err = new Error(body.detail || `Server error ${res.status}`);
+          err.status = res.status;
+          err.isBackendResponse = true;
+          throw err;
         }).catch(function (e) {
-          if (e instanceof SyntaxError) throw new Error(`Server error ${res.status}`);
-          throw e;
+          if (e.isBackendResponse) throw e;
+          const err = new Error(`Server error ${res.status}`);
+          err.status = res.status;
+          err.isBackendResponse = true;
+          throw err;
         });
       }
       return res.json();
@@ -3558,7 +3629,12 @@ document.getElementById('btn-cast').addEventListener('click', function () {
       if (reqId !== currentPredictRequestId) return;
       const elapsed = Date.now() - startTime;
       console.log(`[OceanEmbed API] POST /predict succeeded in ${elapsed}ms (${(elapsed / 1000).toFixed(2)}s)`);
-      renderPrediction(prediction, lat, lon, dateObj);
+      try {
+        renderPrediction(prediction, lat, lon, dateObj);
+      } catch (renderErr) {
+        console.error('[OceanEmbed API] Error rendering prediction:', renderErr);
+        handleBackendFailure('Error rendering oceanographic profile data for this location.', 'data');
+      }
     })
     .catch(function (err) {
       if (currentPredictTimeoutId) {
@@ -3574,16 +3650,25 @@ document.getElementById('btn-cast').addEventListener('click', function () {
       let msg = err.message || 'Inference service unavailable.';
       const isAbort = err.name === 'AbortError' || msg.toLowerCase().includes('aborted');
       const isNetwork = !navigator.onLine || msg.toLowerCase().includes('failed to fetch') || msg.toLowerCase().includes('networkerror');
+      const isDataUnavailable = (err.status === 400) ||
+        msg.toLowerCase().includes('no satellite data') ||
+        msg.toLowerCase().includes('not available') ||
+        msg.toLowerCase().includes('data gap') ||
+        msg.toLowerCase().includes('outside the active model window') ||
+        msg.toLowerCase().includes('outside domain') ||
+        msg.toLowerCase().includes('land coordinate');
 
       if (isAbort) {
         msg = 'Request timed out: The inference service took too long to respond. Please check your network and retry.';
+      } else if (isDataUnavailable) {
+        // Retain specific data message from backend
       } else if (isNetwork) {
         msg = isLocalBackend()
           ? 'Inference service unavailable. Make sure the Python backend is running on port 8000.'
           : 'Inference service unavailable. Remote inference backend could not be reached.';
       }
 
-      handleBackendFailure(msg);
+      handleBackendFailure(msg, isDataUnavailable ? 'data' : 'model');
     });
 });
 
@@ -3618,11 +3703,33 @@ function renderPrediction(prediction, lat, lon, dateObj) {
   buildChart(prediction);
 
   // Summary text
-  const surfT = prediction.temps[0];
-  const deepT = prediction.temps[prediction.temps.length - 1];
   const summaryEl = document.getElementById('result-summary');
-  if (summaryEl) summaryEl.innerHTML =
-    `Thermocline drop: <strong>${surfT.toFixed(1)}°C</strong> surface &rarr; <strong>${deepT.toFixed(1)}°C</strong> at 1&thinsp;000&thinsp;m`;
+  if (summaryEl && Array.isArray(prediction.temps) && prediction.temps.length > 0) {
+    const surfT = prediction.temps[0];
+    const depths = prediction.depths || DEPTHS;
+
+    let deepestIdx = -1;
+    for (let i = prediction.temps.length - 1; i >= 0; i--) {
+      if (prediction.temps[i] !== null && prediction.temps[i] !== undefined && !isNaN(prediction.temps[i])) {
+        deepestIdx = i;
+        break;
+      }
+    }
+
+    if (surfT !== null && surfT !== undefined && !isNaN(surfT) && deepestIdx >= 0) {
+      const deepestT = prediction.temps[deepestIdx];
+      const deepestDepth = depths[deepestIdx];
+      if (deepestIdx === depths.length - 1) {
+        summaryEl.innerHTML =
+          `Thermocline drop: <strong>${surfT.toFixed(1)}°C</strong> surface &rarr; <strong>${deepestT.toFixed(1)}°C</strong> at 1&thinsp;000&thinsp;m`;
+      } else {
+        summaryEl.innerHTML =
+          `Profile span: <strong>${surfT.toFixed(1)}°C</strong> surface &rarr; <strong>${deepestT.toFixed(1)}°C</strong> at ${deepestDepth}&thinsp;m <span style="color:#64748B; font-weight:normal;">(seafloor reached; deeper levels unavailable)</span>`;
+      }
+    } else {
+      summaryEl.innerHTML = 'Temperature data unavailable for this location.';
+    }
+  }
 
   // Render Independent ARGO Validation
   renderValidation(prediction.validation, prediction.argo);
@@ -3802,7 +3909,7 @@ function initNetCDFDownloadLink() {
     }
     const currentText = document.getElementById('btn-download-netcdf-text') || btn.querySelector('span');
     if (currentText) {
-      currentText.textContent = '✓ Already Downloaded';
+      currentText.textContent = 'Already Downloaded';
     }
   }
 
@@ -3856,7 +3963,7 @@ function initNetCDFDownloadLink() {
     btn.classList.add('is-downloading');
     const labelSpan = document.getElementById('btn-download-netcdf-text') || btn.querySelector('span');
     if (labelSpan) {
-      labelSpan.textContent = '↓ Downloading...';
+      labelSpan.textContent = 'Downloading...';
     }
 
     try {
@@ -3892,7 +3999,7 @@ function initNetCDFDownloadLink() {
         currentSvg.outerHTML = checkSvg.trim();
       }
       if (labelSpan) {
-        labelSpan.textContent = '✓ Downloaded';
+        labelSpan.textContent = 'Downloaded';
       }
 
       // Then transition to final subdued disabled state
@@ -3928,7 +4035,7 @@ function initNetCDFDownloadLink() {
           currentSvg.outerHTML = checkSvg.trim();
         }
         if (labelSpan) {
-          labelSpan.textContent = '✓ Downloaded';
+          labelSpan.textContent = 'Downloaded';
         }
         setTimeout(() => {
           applyDisabledDownloadedState();
@@ -3938,7 +4045,7 @@ function initNetCDFDownloadLink() {
         btn.classList.remove('is-downloading');
         isDownloading = false;
         if (labelSpan) {
-          labelSpan.textContent = '↓ Download NetCDF';
+          labelSpan.textContent = 'Download NetCDF';
         }
       }
     }

@@ -83,7 +83,7 @@ class _Folder:
 class ServingData:
     """One model's field + products + embeddings, memory-mapped. Any of the three may be omitted."""
 
-    def __init__(self, field_dir=None, products_dir=None, embeddings_dir=None, correction=None):
+    def __init__(self, field_dir=None, products_dir=None, embeddings_dir=None, correction=None, bands=None):
         self.field = _Folder(field_dir) if field_dir else None
         self.products = _Folder(products_dir) if products_dir else None
         self.embeddings = _Folder(embeddings_dir) if embeddings_dir else None
@@ -108,6 +108,11 @@ class ServingData:
                 raise ValueError("correction depths differ from the field's depths")
             self.bias = np.asarray(c["depth_bias"], dtype="float64")
             self.correction = c
+        self.bands = None
+        if bands is not None:
+            b_path = Path(bands)
+            if b_path.exists():
+                self.bands = json.loads(b_path.read_text())
 
     # ---------------------------------------------------------------- lookups
     def _day(self, which: str, date: str) -> int:

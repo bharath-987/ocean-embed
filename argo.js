@@ -342,7 +342,7 @@ async function loadSkillScoreStats() {
       skillEl.classList.remove('ky-argo-basin-skill--insufficient');
 
       if (metaEl && modelRmse !== undefined && climRmse !== undefined) {
-        metaEl.textContent = `Model ${modelRmse.toFixed(2)}°C vs Clim ${climRmse.toFixed(2)}°C (n=${basinData.count} profiles)`;
+        metaEl.textContent = `Model ${modelRmse.toFixed(2)}°C vs Clim ${climRmse.toFixed(2)}°C (Jun–Dec 2023, n=${basinData.count} profiles)`;
       }
       if (cardEl) {
         cardEl.classList.remove('ky-argo-basin-card--insufficient');
@@ -404,7 +404,7 @@ function renderSkillChart(depthsData) {
           },
           title: {
             display: true,
-            text: 'Skill Score (SS = 1 - RMSE²_model / RMSE²_clim, vs monthly climatology baseline, n=1,809 profiles, 81 floats, Jun-Dec 2023)',
+            text: 'Skill Score (SS = 1 - RMSE²_model / RMSE²_clim, vs monthly climatology baseline, n=2,910 profiles, 92 floats, 2023)',
             color: '#475569',
             font: { size: 11, weight: '600' }
           }

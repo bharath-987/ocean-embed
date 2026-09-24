@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kyogre — Cyclone Mode &amp; Ocean Fuel Analysis</title>
+
+  <!-- Inter Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <!-- MapLibre GL CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
+
+  <!-- Global Stylesheet -->
+  <link rel="stylesheet" href="style.css" />
+  <!-- Cyclone Page Stylesheet -->
+  <link rel="stylesheet" href="cyclone.css" />
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+</head>
+<body class="kyogre-page">
+  <div class="ky-app">
+
+    <!-- ============================================================
+         HEADER — Global Kyogre Brand & Reanalysis Badge
+         ============================================================ -->
+    <header class="ky-header">
+      <div class="ky-header__brand" onclick="window.location.href='explore.html'" style="cursor: pointer;" title="Back to Dashboard">
+        <div class="ky-header__brand-title">Kyogre</div>
+      </div>
+
+      <div class="ky-header__right">
+        <div class="ky-live-indicator">
+          <div class="ky-live-text">
+            <div class="ky-live-title">Historical Reanalysis</div>
+            <div class="ky-live-sub">Reconstructed Data · 2023 Season</div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- ============================================================
+         BODY — Sidebar + Main Content
+         ============================================================ -->
+    <div class="ky-body">
+
+      <!-- SIDEBAR NAVIGATION -->
+      <aside class="ky-sidebar">
+        <nav class="ky-sidebar__nav">
+
+          <button class="ky-nav-item" data-nav="dashboard" onclick="window.location.href='explore.html'">
+            <span class="ky-nav-item__icon">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+              </svg>
+            </span>
+            <span class="ky-nav-item__label">Dashboard</span>
+          </button>
+
+          <button class="ky-nav-item" data-nav="fisheries" onclick="window.location.href='fisheries.html'">
+            <span class="ky-nav-item__icon">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M2 16s1-5 8-5 8 5 8 5-2 2-8 2-8-2-8-2z"/>
+                <path d="M18 11c1-2 3-4 3-4s-1 2-1 4 1 4 1 4-2-2-3-4z"/>
+                <circle cx="8" cy="11" r="1.2" fill="currentColor"/>
+              </svg>
+            </span>
+            <span class="ky-nav-item__label">Fisheries Mode</span>
+          </button>
+
+          <button class="ky-nav-item" data-nav="ecology" onclick="window.location.href='marine-ecology.html'">
+            <span class="ky-nav-item__icon">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z"/>
+                <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>
+              </svg>
+            </span>
+            <span class="ky-nav-item__label">Heatwave Mode</span>
+          </button>
+
+          <button class="ky-nav-item ky-nav-item--active" data-nav="cyclone" onclick="window.location.href='cyclone.html'">
+            <span class="ky-nav-item__icon">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2a10 10 0 0 0-7.07 17.07l1.41-1.41A8 8 0 0 1 12 4V2z"/>
+                <path d="M12 22a10 10 0 0 0 7.07-17.07l-1.41 1.41A8 8 0 0 1 12 20v2z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+            </span>
+            <span class="ky-nav-item__label">Cyclone Mode</span>
+          </button>
+
+          <button class="ky-nav-item" data-nav="argo" onclick="window.location.href='argo.html'">
+            <span class="ky-nav-item__icon">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="3" y="12" width="4" height="9" rx="1"/>
+                <rect x="10" y="7" width="4" height="14" rx="1"/>
+                <rect x="17" y="3" width="4" height="18" rx="1"/>
+              </svg>
+            </span>
+            <span class="ky-nav-item__label">ARGO Validation &amp; Compare</span>
+          </button>
+        </nav>
+
+        <!-- Sidebar footer note -->
+        <div class="ky-sidebar__footer">
+          <p class="ky-sidebar__note"><em>Reconstructed from real satellite data for past storm seasons — not a forecast.</em></p>
+          <p class="ky-sidebar__copy">© 2025 Kyogre. All rights reserved.</p>
+        </div>
+      </aside>
+
+      <!-- MAIN VIEWPORT -->
+      <main class="ky-main ky-cyclone-main">
+
+        <!-- 1. TOP STAT CARDS ROW (Peak Intensity, Peak Ocean Fuel, RI, Argo Floats) -->
+        <div class="ky-stat-row ky-cyclone-stats">
+          <!-- Card 1: Peak Intensity (IMD) -->
+          <div class="ky-stat-card">
+            <div class="ky-stat-card__icon ky-stat-card__icon--red">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <path d="M12 2a10 10 0 0 0-7.07 17.07l1.41-1.41A8 8 0 0 1 12 4V2z"/>
+                <path d="M12 22a10 10 0 0 0 7.07-17.07l-1.41 1.41A8 8 0 0 1 12 20v2z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+            </div>
+            <div class="ky-stat-card__body">
+              <div class="ky-stat-card__label">Peak Intensity (IMD)</div>
+              <div class="ky-stat-card__val-row">
+                <span class="ky-stat-card__val" id="stat-peak-wind">—</span>
+              </div>
+              <div class="ky-stat-card__sub" id="stat-peak-cat">—</div>
+            </div>
+          </div>
+
+          <!-- Card 2: Peak Ocean Fuel (TCHP) -->
+          <div class="ky-stat-card">
+            <div class="ky-stat-card__icon ky-stat-card__icon--blue">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/>
+              </svg>
+            </div>
+            <div class="ky-stat-card__body">
+              <div class="ky-stat-card__label">Peak Ocean Fuel (TCHP)</div>
+              <div class="ky-stat-card__val-row">
+                <span class="ky-stat-card__val" id="stat-peak-fuel">—</span>
+              </div>
+              <div class="ky-stat-card__sub" id="stat-fuel-sub">Pre-passage heat reservoir</div>
+            </div>
+          </div>
+
+          <!-- Card 3: Rapid Intensification (RI) -->
+          <div class="ky-stat-card">
+            <div class="ky-stat-card__icon ky-stat-card__icon--amber">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+              </svg>
+            </div>
+            <div class="ky-stat-card__body">
+              <div class="ky-stat-card__label">Rapid Intensification (RI)</div>
+              <div class="ky-stat-card__val-row">
+                <span class="ky-stat-card__val" id="stat-ri-val">—</span>
+              </div>
+              <div class="ky-stat-card__sub" id="stat-ri-sub">IMD threshold: +30 kt / 24h</div>
+            </div>
+          </div>
+
+          <!-- Card 4: Near-Track Argo Floats -->
+          <div class="ky-stat-card">
+            <div class="ky-stat-card__icon ky-stat-card__icon--teal">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <circle cx="12" cy="12" r="9"/>
+                <path d="M12 3v18"/>
+                <path d="M3 12h18"/>
+              </svg>
+            </div>
+            <div class="ky-stat-card__body">
+              <div class="ky-stat-card__label">Near-Track Argo Floats</div>
+              <div class="ky-stat-card__val-row">
+                <span class="ky-stat-card__val" id="stat-argo-count">—</span>
+              </div>
+              <div class="ky-stat-card__sub" id="stat-argo-sub">Within 200 km of track</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. TWO-COLUMN WORKSPACE: MAP & FUEL-WIND TIME SERIES -->
+        <div class="ky-cyclone-workspace-grid">
+
+          <!-- LEFT: MAP CONTAINER WITH TCHP RASTER, TRACK & TOP-LEFT STORM SELECTOR -->
+          <div class="ky-card ky-cyclone-map-card">
+            <div class="ky-card-header ky-cyclone-map-header">
+              <div class="ky-cyclone-map-title-wrap">
+                <h3 class="ky-card-title">Pre-Storm Ocean Fuel Map &amp; Storm Track</h3>
+                <span class="ky-card-sub" id="map-date-indicator">Reconstructed TCHP 2 days before genesis</span>
+              </div>
+              <div class="ky-track-legend-pills">
+                <span class="ky-track-pill ky-track-pill--dep">&lt;34 kt (D/DD)</span>
+                <span class="ky-track-pill ky-track-pill--cs">34–47 kt (CS)</span>
+                <span class="ky-track-pill ky-track-pill--scs">48–63 kt (SCS)</span>
+                <span class="ky-track-pill ky-track-pill--vscs">64–89 kt (VSCS)</span>
+                <span class="ky-track-pill ky-track-pill--escs">&ge;90 kt (ESCS)</span>
+                <span class="ky-track-pill ky-track-pill--ri">● RI Fix</span>
+              </div>
+            </div>
+
+            <!-- Map Viewport -->
+            <div class="ky-cyclone-map-wrap">
+              <!-- Top-Left Storm Selector Dropdown (matches Explore Depth dropdown) -->
+              <div class="ky-map-depth-wrap" id="map-storm-dropdown-wrap">
+                <button class="ky-map-depth-btn" id="map-storm-btn" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Storm selector">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="color:#2563EB;">
+                    <path d="M12 2a10 10 0 0 0-7.07 17.07l1.41-1.41A8 8 0 0 1 12 4V2z"/>
+                    <path d="M12 22a10 10 0 0 0 7.07-17.07l-1.41 1.41A8 8 0 0 1 12 20v2z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                  </svg>
+                  <span id="map-storm-label">Storm: BIPARJOY</span>
+                  <svg class="ky-depth-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="6 9 12 15 18 9"/>
+                  </svg>
+                </button>
+                <div class="ky-depth-menu" id="map-storm-menu" role="listbox" aria-label="Select Storm" style="min-width: 220px;">
+                  <div class="ky-depth-menu__inner" id="map-storm-options">
+                    <!-- Populated dynamically via cyclone.js -->
+                  </div>
+                </div>
+              </div>
+
+              <div id="cyclone-map" class="ky-cyclone-map"></div>
+
+              <!-- Loading Overlay -->
+              <div id="cyclone-map-loading" class="ky-map-loading" style="display:none;">
+                <div class="ky-spinner"></div>
+                <span>Loading pre-storm TCHP field...</span>
+              </div>
+
+              <!-- Map Overlay Legend (TCHP kJ/cm²) -->
+              <div class="ky-map-legend" id="cyclone-map-legend">
+                <div class="ky-map-legend__header">
+                  <span class="ky-map-legend__title">Pre-Storm Ocean Fuel (TCHP)</span>
+                  <span class="ky-map-legend__unit">kJ/cm²</span>
+                </div>
+                <div class="ky-map-legend__bar ky-map-legend__bar--tchp"></div>
+                <div class="ky-map-legend__ticks">
+                  <span>0</span>
+                  <span>25</span>
+                  <span>50</span>
+                  <span>75</span>
+                  <span>100</span>
+                  <span>125+</span>
+                </div>
+                <p class="ky-map-legend__sub">Values &ge;50 kJ/cm² support tropical cyclone intensification; &ge;80 kJ/cm² fuels rapid intensification.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- RIGHT: OCEAN FUEL VS INTENSITY TIME SERIES CHART -->
+          <div class="ky-card ky-cyclone-chart-card">
+            <div class="ky-card-header ky-cyclone-chart-header">
+              <div>
+                <h3 class="ky-card-title">Pre-Storm Ocean Fuel (TCHP) vs Observed Wind Speed</h3>
+                <span class="ky-card-sub">Tracking ocean thermal reservoir 2 days prior alongside storm intensity over time</span>
+              </div>
+              <div class="ky-chart-badges">
+                <span class="ky-badge ky-badge--blue">Kyogre TCHP (&plusmn;17.85 kJ/cm&sup2;)</span>
+                <span class="ky-badge ky-badge--slate">GLORYS Reference</span>
+                <span class="ky-badge ky-badge--red">IMD Wind (kt)</span>
+              </div>
+            </div>
+
+            <div class="ky-cyclone-chart-body">
+              <div class="ky-cyclone-chart-wrap">
+                <canvas id="cyclone-track-chart"></canvas>
+              </div>
+              <div class="ky-cyclone-chart-footnote">
+                <span><strong>Data Continuity:</strong> Points over land have null ocean fuel and are plotted with clean breaks. Amber shaded vertical zones indicate IMD Rapid Intensification (RI) intervals.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. "TRUTH CHECK" CARD: IN-SITU ARGO PROFILE VERIFICATION -->
+        <section class="ky-card ky-cyclone-argo-card">
+          <div class="ky-card-header">
+            <div>
+              <div class="ky-truth-badge">In-Situ Truth Check</div>
+              <h3 class="ky-card-title">Argo Float Subsurface Observations vs Kyogre Model vs GLORYS</h3>
+              <span class="ky-card-sub" id="argo-section-sub">Profiling floats within 200 km of storm track sampling before and after passage</span>
+            </div>
+
+            <!-- Float Selector Tabs -->
+            <div class="ky-argo-float-tabs" id="argo-float-tabs">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+
+          <!-- Float Info Bar -->
+          <div class="ky-argo-meta-bar" id="argo-meta-bar">
+            <div class="ky-argo-meta-item">
+              <span class="ky-argo-meta-label">Float Platform:</span>
+              <strong id="argo-platform-val">—</strong>
+            </div>
+            <div class="ky-argo-meta-item">
+              <span class="ky-argo-meta-label">Distance to Track:</span>
+              <span id="argo-dist-val">—</span>
+            </div>
+            <div class="ky-argo-meta-item">
+              <span class="ky-argo-meta-label">Pre-Storm Sample:</span>
+              <span id="argo-date-pre-val">—</span>
+            </div>
+            <div class="ky-argo-meta-item">
+              <span class="ky-argo-meta-label">Post-Storm Sample:</span>
+              <span id="argo-date-post-val">—</span>
+            </div>
+          </div>
+
+          <!-- 12-Depth Comparison Table -->
+          <div class="ky-cyclone-table-wrap">
+            <table class="ky-cyclone-table">
+              <thead>
+                <tr>
+                  <th style="width: 14%;">Depth</th>
+                  <th style="width: 21.5%;">In-Situ Argo Float (&Delta;T)</th>
+                  <th style="width: 21.5%;">Kyogre Model (&Delta;T)</th>
+                  <th style="width: 21.5%;">GLORYS Reanalysis (&Delta;T)</th>
+                  <th style="width: 21.5%;">Model Agreement (|Error|)</th>
+                </tr>
+              </thead>
+              <tbody id="argo-truth-table-body">
+                <!-- Populated dynamically -->
+              </tbody>
+            </table>
+          </div>
+
+          <div class="ky-cyclone-table-empty" id="argo-empty-state" style="display:none;">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <p id="argo-empty-text">No paired Argo profiling floats were co-located within 200 km of this track during passage.</p>
+          </div>
+        </section>
+
+        <!-- 4. METHODOLOGY & PROVENANCE BANNER (Bottom info box matching Heatwave/Fisheries Mode) -->
+        <div class="ky-mhw-methodology-card ky-cyclone-bottom-methodology">
+          <div class="ky-mhw-methodology-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="16" x2="12" y2="12"/>
+              <line x1="12" y1="8" x2="12.01" y2="8"/>
+            </svg>
+          </div>
+          <div class="ky-mhw-methodology-text">
+            <strong>Pre-Storm Ocean Fuel Analysis (2023 Season Reconstructions):</strong>
+            Examines the <strong>ocean fuel the storm was about to cross, reconstructed from satellites.</strong> Each 6-hourly fix evaluates the upper ocean thermal state 2 days prior to cyclone passage, comparing subsurface Tropical Cyclone Heat Potential (TCHP) with IMD observed storm intensity and in-situ Argo float verification.
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- MapLibre GL JS -->
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+
+  <!-- Cyclone Page Logic -->
+  <script src="cyclone.js"></script>
+</body>
+</html>

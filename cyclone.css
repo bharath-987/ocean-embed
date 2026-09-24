@@ -1,0 +1,549 @@
+/* ==============================================================================
+   Kyogre — Cyclone Mode Stylesheet (cyclone.css)
+   Pure Kyogre Light Theme Architecture matching Dashboard / Fisheries / Heatwave
+   ============================================================================== */
+
+/* Main Viewport Container */
+.ky-cyclone-main {
+  background: #EAF3FC;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px 20px 24px 8px;
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-width: 0;
+}
+
+/* ==============================================================================
+   1. TOP 4 STAT CARDS ROW
+   ============================================================================== */
+.ky-cyclone-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 1024px) {
+  .ky-cyclone-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .ky-cyclone-stats {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ky-stat-card {
+  background: #FFFFFF;
+  border-radius: 16px;
+  box-shadow: 0 2px 10px rgba(0, 30, 60, 0.04);
+  padding: 16px 18px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border: 1px solid rgba(226, 235, 246, 0.85);
+  position: relative;
+  overflow: hidden;
+}
+
+.ky-stat-card__icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ky-stat-card__icon--red   { background: #FEF2F2; color: #EF4444; }
+.ky-stat-card__icon--blue  { background: #EFF6FF; color: #2563EB; }
+.ky-stat-card__icon--amber { background: #FFFBEB; color: #D97706; }
+.ky-stat-card__icon--teal  { background: #F0FDFA; color: #0D9488; }
+
+.ky-stat-card__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.ky-stat-card__label {
+  font-size: 11px;
+  color: #64748B;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 3px;
+}
+
+.ky-stat-card__val-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.ky-stat-card__val {
+  font-size: 22px;
+  font-weight: 800;
+  color: #0F172A;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.ky-stat-card__sub {
+  font-size: 11px;
+  color: #94A3B8;
+  margin-top: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ==============================================================================
+   2. TWO-COLUMN WORKSPACE: MAP & FUEL-WIND TIME SERIES
+   ============================================================================== */
+.ky-cyclone-workspace-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 1180px) {
+  .ky-cyclone-workspace-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ky-card {
+  background: #FFFFFF;
+  border: 1px solid rgba(226, 235, 246, 0.9);
+  border-radius: 16px;
+  padding: 18px 20px;
+  box-shadow: 0 2px 10px rgba(0, 30, 60, 0.04);
+  display: flex;
+  flex-direction: column;
+}
+
+.ky-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.ky-card-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #0F172A;
+  margin: 0 0 2px 0;
+}
+
+.ky-card-sub {
+  font-size: 0.78rem;
+  color: #64748B;
+}
+
+/* Track Legend Pills */
+.ky-track-legend-pills {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.ky-track-pill {
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.ky-track-pill--dep  { background: #E0F2FE; color: #0369A1; }
+.ky-track-pill--cs   { background: #D1FAE5; color: #047857; }
+.ky-track-pill--scs  { background: #FEF3C7; color: #B45309; }
+.ky-track-pill--vscs { background: #FFEDD5; color: #C2410C; }
+.ky-track-pill--escs { background: #FEE2E2; color: #B91C1C; }
+.ky-track-pill--ri   { background: #FEF08A; color: #854D0E; font-weight: 700; border: 1px solid #FACC15; }
+
+/* Map Viewport Wrap */
+.ky-cyclone-map-wrap {
+  position: relative;
+  width: 100%;
+  height: 480px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid #CBD5E1;
+}
+
+.ky-cyclone-map {
+  width: 100%;
+  height: 100%;
+}
+
+/* Top-Left Storm Selector (Matching Explore Map Depth Dropdown) */
+#map-storm-dropdown-wrap {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  z-index: 25;
+}
+
+.ky-storm-option-badge {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: #EFF6FF;
+  color: #1D4ED8;
+  border: 1px solid #BFDBFE;
+  padding: 1px 5px;
+  border-radius: 4px;
+  margin-left: 6px;
+}
+
+.ky-storm-option-basin {
+  font-size: 11px;
+  color: #64748B;
+  font-weight: 500;
+}
+
+/* Map Loading Overlay */
+.ky-map-loading {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.88);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  z-index: 20;
+  font-size: 0.85rem;
+  color: #1E293B;
+  font-weight: 600;
+}
+
+.ky-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid #E2E8F0;
+  border-top-color: #2563EB;
+  border-radius: 50%;
+  animation: kySpin 0.7s linear infinite;
+}
+
+@keyframes kySpin {
+  to { transform: rotate(360deg); }
+}
+
+/* Map TCHP Legend */
+.ky-map-legend {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1px solid #CBD5E1;
+  border-radius: 10px;
+  padding: 10px 12px;
+  width: 245px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  z-index: 5;
+}
+
+.ky-map-legend__header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #1E293B;
+  margin-bottom: 5px;
+}
+
+.ky-map-legend__unit {
+  color: #64748B;
+  font-weight: 500;
+}
+
+.ky-map-legend__bar--tchp {
+  height: 10px;
+  border-radius: 3px;
+  background: linear-gradient(to right,
+    #1E3A8A 0%,
+    #0284C7 20%,
+    #10B981 40%,
+    #FACC15 60%,
+    #F97316 80%,
+    #DC2626 100%
+  );
+}
+
+.ky-map-legend__ticks {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.65rem;
+  color: #64748B;
+  font-family: 'JetBrains Mono', monospace;
+  margin-top: 3px;
+}
+
+.ky-map-legend__sub {
+  font-size: 0.66rem;
+  color: #64748B;
+  line-height: 1.35;
+  margin: 6px 0 0 0;
+  border-top: 1px dashed #E2E8F0;
+  padding-top: 4px;
+}
+
+/* Chart Card & Layout */
+.ky-chart-badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.ky-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 5px;
+}
+
+.ky-badge--blue  { background: #EFF6FF; color: #1D4ED8; border: 1px solid #BFDBFE; }
+.ky-badge--slate { background: #F1F5F9; color: #475569; border: 1px solid #CBD5E1; }
+.ky-badge--red   { background: #FEF2F2; color: #DC2626; border: 1px solid #FECACA; }
+
+.ky-cyclone-chart-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+}
+
+.ky-cyclone-chart-wrap {
+  position: relative;
+  width: 100%;
+  height: 430px;
+}
+
+.ky-cyclone-chart-footnote {
+  font-size: 0.73rem;
+  color: #64748B;
+  background: #F8FAFC;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #E2E8F0;
+  line-height: 1.4;
+}
+
+/* ==============================================================================
+   3. "TRUTH CHECK" CARD: IN-SITU ARGO PROFILE VERIFICATION
+   ============================================================================== */
+.ky-cyclone-argo-card {
+  margin-top: 2px;
+}
+
+.ky-truth-badge {
+  display: inline-block;
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: #F0FDF4;
+  color: #166534;
+  border: 1px solid #BBF7D0;
+  padding: 2px 7px;
+  border-radius: 4px;
+  margin-bottom: 4px;
+}
+
+.ky-argo-float-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.ky-argo-tab {
+  background: #FFFFFF;
+  border: 1px solid #CBD5E1;
+  border-radius: 8px;
+  padding: 5px 12px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ky-argo-tab:hover {
+  border-color: #2563EB;
+  color: #2563EB;
+}
+
+.ky-argo-tab--active {
+  background: #2563EB;
+  border-color: #2563EB;
+  color: #FFFFFF;
+}
+
+.ky-argo-meta-bar {
+  display: flex;
+  gap: 20px;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  padding: 10px 16px;
+  margin-bottom: 12px;
+  font-size: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.ky-argo-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ky-argo-meta-label {
+  color: #64748B;
+  font-weight: 500;
+}
+
+/* Truth Table */
+.ky-cyclone-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+}
+
+.ky-cyclone-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.82rem;
+}
+
+.ky-cyclone-table th {
+  background: #F8FAFC;
+  color: #475569;
+  font-weight: 700;
+  padding: 10px 14px;
+  border-bottom: 1.5px solid #E2E8F0;
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.ky-cyclone-table td {
+  padding: 9px 14px;
+  border-bottom: 1px solid #F1F5F9;
+  color: #1E293B;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8rem;
+}
+
+.ky-cyclone-table tr:hover td {
+  background: #F8FAFC;
+}
+
+.ky-delta-badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.ky-delta--cooling {
+  background: #EFF6FF;
+  color: #1D4ED8;
+}
+
+.ky-delta--warming {
+  background: #FFF7ED;
+  color: #C2410C;
+}
+
+.ky-delta--neutral {
+  color: #64748B;
+}
+
+.ky-cyclone-table-empty {
+  padding: 32px;
+  text-align: center;
+  color: #64748B;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.86rem;
+}
+
+/* ==============================================================================
+   4. METHODOLOGY & PROVENANCE BANNER (Bottom info box matching Heatwave/Fisheries)
+   ============================================================================== */
+.ky-cyclone-bottom-methodology {
+  margin-top: 8px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-left: 3.5px solid #2563EB;
+  border-radius: 10px;
+  padding: 14px 16px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #334155;
+}
+
+/* MapLibre Tooltip Customization */
+.maplibregl-popup-content {
+  border-radius: 8px !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12) !important;
+  border: 1px solid #E2E8F0 !important;
+  padding: 12px 14px !important;
+  font-family: 'Inter', sans-serif !important;
+}
+
+.ky-map-popup__title {
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: #0F172A;
+  margin-bottom: 4px;
+}
+
+.ky-map-popup__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 0.76rem;
+  margin-bottom: 3px;
+  color: #475569;
+}
+
+.ky-map-popup__row strong {
+  color: #0F172A;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.ky-map-popup__fuel {
+  border-top: 1px dashed #CBD5E1;
+  margin-top: 6px;
+  padding-top: 5px;
+}
+
+.ky-map-popup__fuel-title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #2563EB;
+  text-transform: uppercase;
+  margin-bottom: 3px;
+}

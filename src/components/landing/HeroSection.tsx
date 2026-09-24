@@ -126,7 +126,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onExploreClick }) => {
             </div>
             <div className="flex items-center gap-2">
               <span className="text-[#0E7C74] font-semibold">VALIDATION:</span>
-              <span>41 BASIN ARGO PROFILES</span>
+              <span>2,910 ARGO PROFILES (2023)</span>
             </div>
           </div>
         </div>

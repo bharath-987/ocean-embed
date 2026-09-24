@@ -3293,3 +3293,32 @@ Derived from `bands_v6_satswap_anom_14yr_argoft_seed1.json` (pooled coverage hel
   *"Satellite inputs; network trained on the GLORYS reanalysis, then on real Argo floats."*
 - All claims of "satellites alone beat GLORYS" or "remote sensing observations alone" have been systematically replaced with accurate multi-stage supervision provenance.
 
+---
+
+## 54. Nearshore Box Bathymetric Optimization & Subsurface Depth-Level Specifications
+
+### 54.1 Bathymetric Optimization Rationale
+Nearshore boxes originally generated on the coarse $1.0^\circ \times 1.5^\circ$ grid occasionally placed cell centers in shallow coastal or reef waters (depth $<300\text{ m}$), causing the vertical temperature profile to truncate prematurely due to the bathymetric mask (`_valid_depth_mask`). To maximize subsurface profile utility for fisheries without violating coastal fleet constraints:
+- Candidate points are evaluated against `_valid_depth_mask` on the 0.25° grid.
+- A local neighborhood search ($\pm 1.0^\circ$ lat, $\pm 1.5^\circ$ lon) shifts flagged cells toward deeper continental shelf/slope water ($\ge 300\text{ m}$) while strictly enforcing `distance_to_coast_km <= NEARSHORE_MAX_KM` (185.0 km).
+- Enclosed shallow basins (Persian Gulf, Gulf of Thailand, inner Gulf of Martaban, Mumbai High inner shelf) where no $\ge 300\text{m}$ water exists within 185 km are left as-is without artificial depth forcing.
+
+### 54.2 Audit Results
+- **Total Nearshore Boxes**: 82
+- **Already $\ge 300\text{m}$**: 41
+- **Moved to Deeper Water ($\ge 300\text{m}$ achieved)**: 21
+- **Genuinely Shallow Basins (Retained)**: 20
+  - Persian Gulf (6 boxes, depths 30–50m)
+  - Gulf of Thailand (6 boxes, depths 20–50m)
+  - Gulf of Martaban / Andaman Inner Shelf (5 boxes, depths 20–50m)
+  - Mumbai High / Gulf of Khambhat Wide Shelf (3 boxes, depths 20–50m; shelf break $>300\text{ km}$ offshore)
+
+### 54.3 Model Depth Levels vs. Fisheries Display Levels
+- **Model Output (15 Standard Depths)**:
+  `[0, 5, 10, 20, 30, 50, 75, 100, 125, 150, 200, 300, 500, 700, 1000]` m
+- **Fisheries Table Display (9 Discrete Depths)**:
+  `[0, 25, 50, 100, 200, 300, 500, 750, 1000]` m
+  - $25\text{ m}$ is linearly interpolated between $20\text{ m}$ and $30\text{ m}$.
+  - $750\text{ m}$ is linearly interpolated between $700\text{ m}$ and $1000\text{ m}$.
+
+

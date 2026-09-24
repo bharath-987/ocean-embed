@@ -86,7 +86,7 @@ _ekman_arr = None
 
 
 def _get_ekman_array():
-    """Lazily loads float16 ERA5 Ekman vertical upwelling velocity array."""
+    """Lazily loads float16 CCMP satellite wind Ekman vertical upwelling velocity array."""
     global _ekman_arr
     if _ekman_arr is None:
         p_ek = os.path.join(inf.DATA_DIR, "ekman_upwelling.npy")
@@ -405,6 +405,33 @@ def check_temperature_data_quality(temps_0_50: list[float]) -> tuple[bool, Optio
 # retains nearshore and shelf candidate zones while completely excluding open-ocean offshore basin cells (>185 km, e.g. 885 km).
 NEARSHORE_MAX_KM = float(os.environ.get("NEARSHORE_MAX_KM", 185.0))
 
+# Repositioned nearshore boxes: shifts candidate zones toward deeper shelf waters (reaching >= 300m bathymetric depth)
+# while remaining strictly within the NEARSHORE_MAX_KM (185.0 km) fleet operational boundary.
+# Format: (row, col): (repositioned_lat, repositioned_lon, distance_to_coast_km)
+REPOSITIONED_NEARSHORE_BOXES = {
+    (1, 36): (6.75, 98.00, 177.4),
+    (2, 36): (7.00, 97.75, 177.1),
+    (3, 22): (7.75, 78.25, 141.7),
+    (4, 35): (8.00, 97.50, 165.2),
+    (7, 20): (11.75, 74.25, 161.1),
+    (9, 19): (13.25, 73.50, 164.8),
+    (10, 19): (15.50, 72.75, 185.0),
+    (10, 33): (15.25, 93.50, 135.7),
+    (12, 18): (16.25, 72.00, 180.3),
+    (13, 8): (17.50, 57.00, 166.8),
+    (13, 26): (17.75, 84.00, 139.0),
+    (15, 9): (20.00, 58.75, 114.2),
+    (15, 17): (20.00, 69.25, 171.2),
+    (16, 31): (20.00, 91.75, 171.2),
+    (18, 15): (22.50, 67.25, 168.7),
+    (19, 14): (24.00, 65.75, 177.8),
+    (20, 11): (24.75, 61.50, 139.0),
+    (20, 12): (24.75, 63.00, 139.0),
+    (20, 13): (24.75, 64.50, 139.0),
+    (20, 14): (24.75, 66.00, 139.0),
+    (21, 8): (25.50, 57.25, 137.0),
+}
+
 _pfz_land_mask = None
 _land_coords = None
 _pfz_coast_dist_grid = None
@@ -598,7 +625,7 @@ def model_result_to_frontend(result: dict, latitude: float, longitude: float, da
 
     # 3. Upwelling Index (UI in [0, 1]):
     # Derived from surface-to-50m thermal gradient (T(0) - T(50)) corroborated by dynamical signals:
-    # - Primary corroboration: Positive ERA5 Ekman pumping velocity (w_E >= 0.30 m/day)
+    # - Primary corroboration: Positive CCMP satellite wind Ekman pumping velocity (w_E >= 0.30 m/day)
     # - Fallback corroboration (if Ekman data unavailable): Negative SLA (<= -0.02m) or strong front (>= 0.8) and cool SST (<= 28.0°C)
     # - Otherwise, neutral/positive SLA and warm SST indicate solar skin heating / downwelling heat trap (e.g. Persian Gulf)
     t0 = temps[0] if temps[0] is not None else 28.0
@@ -703,7 +730,7 @@ def model_result_to_frontend(result: dict, latitude: float, longitude: float, da
     #   Horizontal front (15%) + Surface primary productivity proxy (15%)
     # When thermocline is excluded (shallow shelf/delta/strait waters <60m):
     #   Weights are proportionally redistributed across remaining active signals (UI: 53.8%, Front: 23.1%, Chl: 23.1%)
-    surface_chla = nutrients[0]
+    surface_chla = chla_val
 
     if dq_flag:
         # Temperature corruption detected in 0-50m band: mark data_quality_flag: true
@@ -713,22 +740,24 @@ def model_result_to_frontend(result: dict, latitude: float, longitude: float, da
     else:
         if tc_detected:
             w_tc, w_ui, w_fr, w_ch = 0.35, 0.35, 0.15, 0.15
-            pfz_raw = w_tc * tc_factor + w_ui * upwelling_val + w_fr * front_strength + w_ch * min(1.0, surface_chla / 3.0)
+            pfz_raw = w_tc * tc_factor + w_ui * upwelling_val + w_fr * front_strength + w_ch * min(1.0, chla_val / 3.0)
         else:
             w_tc = 0.0
             w_ui = 0.35 / 0.65
             w_fr = 0.15 / 0.65
             w_ch = 0.15 / 0.65
-            pfz_raw = w_ui * upwelling_val + w_fr * front_strength + w_ch * min(1.0, surface_chla / 3.0)
+            pfz_raw = w_ui * upwelling_val + w_fr * front_strength + w_ch * min(1.0, chla_val / 3.0)
         pfz_val = round(max(0.1, min(0.98, pfz_raw)), 2)
 
     profile = [{"depth": d, "temperature": (round(float(t), 2) if t is not None else None)} for d, t in zip(depths, temps)]
     dist_to_coast_km = compute_distance_to_coast_km(latitude, longitude)
+    error_bands_90 = v6_adapter.get_error_bands("90") if hasattr(v6_adapter, "get_error_bands") else [0.47, 0.65, 0.63, 0.94, 1.26, 1.60, 1.71, 1.79, 1.71, 1.57, 1.36, 0.93, 0.45, 0.39, 0.37]
 
     return {
         "depths": depths,
         "temps": temps,
         "raw_temps": raw_temps,
+        "error_bands_90": error_bands_90,
         "surfaceInputs": surf_inputs,
         "profile": profile,
         "data_source": v6_adapter.MODEL_NAME,
@@ -1273,7 +1302,7 @@ def compute_pfz_grid(date_str: str) -> dict:
     else:
         sla_grid = inf.np.zeros_like(sst_sub)
 
-    # Primary corroboration: Positive ERA5 Ekman pumping velocity (w_E >= 0.30 m/day)
+    # Primary corroboration: Positive CCMP satellite wind Ekman pumping velocity (w_E >= 0.30 m/day)
     # evaluated across a +-2 grid cell (~0.5° matching ~30-50km Rossby radius) spatial window
     # to avoid false negatives at grid-scale curl zero-crossings near coastlines
     # Fallback corroboration: SLA depression or strong thermal front with cool SST
@@ -1315,14 +1344,11 @@ def compute_pfz_grid(date_str: str) -> dict:
         chla_val = chla_heuristic
 
     chla_val = inf.np.clip(chla_val, 0.05, 9.8)
-    nutr_tc_grid = inf.np.where(tc_detected_grid, tc_depth, 30.0)
-    dcm_peak_0 = 1.35 * chla_val * inf.np.exp(-((nutr_tc_grid) ** 2) / (2 * (28.0 ** 2)))
-    nutr_surface = chla_val * 0.30 + dcm_peak_0 + 0.25
 
     # 5. Composite PFZ Confidence Score (0.10 to 0.98):
     # Proportional weight redistribution when thermocline is excluded (shallow shelf/delta/strait waters <60m)
-    pfz_normal = 0.35 * tc_factor + 0.35 * upwelling_val + 0.15 * front_strength_grid + 0.15 * inf.np.minimum(1.0, nutr_surface / 3.0)
-    pfz_shallow = (0.35 * upwelling_val + 0.15 * front_strength_grid + 0.15 * inf.np.minimum(1.0, nutr_surface / 3.0)) / 0.65
+    pfz_normal = 0.35 * tc_factor + 0.35 * upwelling_val + 0.15 * front_strength_grid + 0.15 * inf.np.minimum(1.0, chla_val / 3.0)
+    pfz_shallow = (0.35 * upwelling_val + 0.15 * front_strength_grid + 0.15 * inf.np.minimum(1.0, chla_val / 3.0)) / 0.65
     pfz_raw = inf.np.where(tc_detected_grid, pfz_normal, pfz_shallow)
     pfz_grid = inf.np.clip(pfz_raw, 0.10, 0.98)
     pfz_grid = inf.np.round(pfz_grid, 2)
@@ -1386,9 +1412,12 @@ def compute_pfz_grid(date_str: str) -> dict:
     for r in range(H):
         for c in range(W):
             if scores_list[r][c] is not None:
-                c_lat = round(float(sub_lats[r]), 2)
-                c_lon = round(float(sub_lons[c]), 2)
-                d_coast = round(float(coast_dist_grid[r, c]), 1) if coast_dist_grid is not None else 0.0
+                if (r, c) in REPOSITIONED_NEARSHORE_BOXES:
+                    c_lat, c_lon, d_coast = REPOSITIONED_NEARSHORE_BOXES[(r, c)]
+                else:
+                    c_lat = round(float(sub_lats[r]), 2)
+                    c_lon = round(float(sub_lons[c]), 2)
+                    d_coast = round(float(coast_dist_grid[r, c]), 1) if coast_dist_grid is not None else 0.0
                 nearshore_boxes.append({
                     "id": f"box_{r}_{c}",
                     "row": r,
@@ -1835,10 +1864,141 @@ def get_products_grid(
     }
 
 
+# ==============================================================================
+# Cyclone Mode: Pre-Storm Ocean Fuel Reconstructions & Track Verification
+# ==============================================================================
+
+CYCLONES_DIR = os.path.join(os.path.dirname(__file__), "data", "cyclones")
+CYCLONE_NAMES = ["BIPARJOY", "MOCHA", "TEJ", "HAMOON", "MIDHILI", "MICHAUNG"]
+
+
+def _load_cyclone_catalog() -> list[dict]:
+    """
+    Load metadata catalog for all 6 storms.
+    Featured storms (Biparjoy and Mocha) are listed first.
+    """
+    catalog = []
+    order = ["BIPARJOY", "MOCHA", "TEJ", "HAMOON", "MIDHILI", "MICHAUNG"]
+    for name in order:
+        p = os.path.join(CYCLONES_DIR, f"storm_{name}.json")
+        if not os.path.exists(p):
+            continue
+        try:
+            with open(p, "r", encoding="utf-8") as f:
+                d = json.load(f)
+            catalog.append({
+                "name": d.get("name", name),
+                "basin": d.get("basin"),
+                "start": d.get("start"),
+                "end": d.get("end"),
+                "peak_kt": d.get("peak_kt"),
+                "peak_category": d.get("peak_category"),
+                "ri": d.get("ri", False),
+                "map_date": d.get("map_date"),
+                "tchp_band90": d.get("tchp_band90", 17.849),
+                "track_fixes_count": len(d.get("track", [])),
+                "argo_pairs_count": len(d.get("argo", {}).get("pairs", [])),
+                "featured": name in ("BIPARJOY", "MOCHA"),
+            })
+        except Exception as e:
+            print(f"[Cyclones] Error loading cyclone {name}: {e}")
+    return catalog
+
+
+def _load_cyclone_detail(storm_name: str) -> dict:
+    clean_name = storm_name.upper().strip()
+    if clean_name not in CYCLONE_NAMES:
+        raise HTTPException(status_code=404, detail=f"Cyclone '{storm_name}' not found. Available: {CYCLONE_NAMES}")
+    p = os.path.join(CYCLONES_DIR, f"storm_{clean_name}.json")
+    if not os.path.exists(p):
+        raise HTTPException(status_code=404, detail=f"Data file for cyclone '{clean_name}' not found.")
+    with open(p, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    # CRITICAL: Omit experimental wake data completely so it cannot leak to the demo
+    data_safe = {
+        "name": data.get("name"),
+        "basin": data.get("basin"),
+        "start": data.get("start"),
+        "end": data.get("end"),
+        "peak_kt": data.get("peak_kt"),
+        "peak_category": data.get("peak_category"),
+        "ri": data.get("ri"),
+        "map_date": data.get("map_date"),
+        "tchp_band90": data.get("tchp_band90", 17.849),
+        "track": data.get("track", []),
+        "argo": data.get("argo", {}),
+    }
+    return data_safe
+
+
+@app.get("/cyclones")
+def list_cyclones():
+    """
+    Returns metadata list of all 6 North Indian Ocean cyclones (2023 season).
+    Biparjoy (Arabian Sea) and Mocha (Bay of Bengal) are featured first.
+    """
+    return {"cyclones": _load_cyclone_catalog()}
+
+
+@app.get("/cyclone/{storm_name}")
+def get_cyclone(storm_name: str):
+    """
+    Returns track fixes, 2-day pre-storm ocean fuel, and near-track Argo truth check pairs.
+    Experimental wake data is omitted per operational directives.
+    """
+    return _load_cyclone_detail(storm_name)
+
+
+@app.get("/cyclone/{storm_name}/map-grid")
+def get_cyclone_map_grid(storm_name: str):
+    """
+    Returns pre-storm Tropical Cyclone Heat Potential (TCHP) spatial raster grid
+    for the storm's specific pre-genesis map_date.
+    """
+    detail = _load_cyclone_detail(storm_name)
+    map_date = detail.get("map_date")
+    if not map_date:
+        raise HTTPException(status_code=400, detail="Cyclone has no map_date.")
+
+    try:
+        grid = v6_adapter.product_map("tchp", map_date)
+        valid_vals = grid[inf.np.isfinite(grid)]
+        min_val = round(float(inf.np.min(valid_vals)), 2) if len(valid_vals) > 0 else 0.0
+        max_val = round(float(inf.np.max(valid_vals)), 2) if len(valid_vals) > 0 else 120.0
+        grid_clean = inf.np.where(inf.np.isfinite(grid), inf.np.round(grid.astype(float), 2), None).tolist()
+
+        return {
+            "storm": detail["name"],
+            "map_date": map_date,
+            "parameter": "tchp",
+            "unit": "kJ/cm²",
+            "min": min_val,
+            "max": max_val,
+            "lats": [round(float(lat), 2) for lat in v6_adapter.TARGET_LATS],
+            "lons": [round(float(lon), 2) for lon in v6_adapter.TARGET_LONS],
+            "grid": grid_clean
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))
-    uvicorn.run("api_server:app", host="0.0.0.0", port=port, reload=False)
+    backend_dir = os.path.dirname(os.path.abspath(__file__))
+    reload_flag = os.environ.get("RELOAD", "false").lower() in ("true", "1", "yes")
+    uvicorn.run(
+        "api_server:app",
+        host="0.0.0.0",
+        port=port,
+        reload=reload_flag,
+        reload_dirs=[backend_dir] if reload_flag else None,
+        reload_excludes=[
+            "*/data/*", "*/dist/*", "*.npy", "*.npz", "*.json", "*.log",
+            "data/*", "dist/*"
+        ] if reload_flag else None,
+    )
 
 
 

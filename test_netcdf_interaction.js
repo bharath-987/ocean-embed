@@ -11,7 +11,8 @@ const html = fs.readFileSync('explore.html', 'utf8');
 
 assert(html.includes('id="btn-download-netcdf"'), 'explore.html must have #btn-download-netcdf');
 assert(html.includes('id="btn-download-netcdf-text"'), 'explore.html must have #btn-download-netcdf-text');
-assert(html.includes('↓ Download NetCDF'), 'explore.html must have initial text "↓ Download NetCDF"');
+assert(html.includes('Download NetCDF'), 'explore.html must have initial text "Download NetCDF"');
+assert(!html.includes('↓ Download NetCDF'), 'explore.html must not have duplicate arrow icon in text');
 assert(!html.includes('Download NetCDF (174 MB)'), 'Must not display file size in button');
 assert(!html.includes('Current Location'), 'Must not mention location in button');
 console.log('  [PASS] Initial button text and structure conform to spec.');
@@ -34,9 +35,9 @@ console.log('\n[TEST 3] Verifying app.js interaction logic...');
 const appJs = fs.readFileSync('app.js', 'utf8');
 
 assert(appJs.includes('kyogre_netcdf_downloaded'), 'Must use sessionStorage key kyogre_netcdf_downloaded');
-assert(appJs.includes('↓ Downloading...'), 'Must update label to "↓ Downloading..." on click');
-assert(appJs.includes('✓ Downloaded'), 'Must update label to "✓ Downloaded" on success');
-assert(appJs.includes('✓ Already Downloaded'), 'Must update label to "✓ Already Downloaded" when disabled');
+assert(appJs.includes("labelSpan.textContent = 'Downloading...'"), 'Must update label to "Downloading..." on click');
+assert(appJs.includes("labelSpan.textContent = 'Downloaded'"), 'Must update label to "Downloaded" on success');
+assert(appJs.includes("currentText.textContent = 'Already Downloaded'"), 'Must update label to "Already Downloaded" when disabled');
 assert(appJs.includes('applyDisabledDownloadedState'), 'Must have helper for applying disabled downloaded state');
 assert(appJs.includes('isDownloading'), 'Must prevent multiple concurrent downloads');
 assert(appJs.includes('polyline points="20 6 9 17 4 12"'), 'Must transition icon to checkmark');
@@ -78,24 +79,24 @@ mockBtn.setAttribute('href', 'downloads/oceanembed_v6_satswap_anom_14yr_2023.nc'
 mockBtn.setAttribute('download', 'oceanembed_v6_satswap_anom_14yr_2023.nc');
 
 const mockText = new MockElement('span', 'btn-download-netcdf-text');
-mockText.textContent = '↓ Download NetCDF';
+mockText.textContent = 'Download NetCDF';
 mockBtn.children.push(mockText);
 
 const mockSvg = new MockElement('svg');
 mockBtn.children.push(mockSvg);
 
-assert.strictEqual(mockText.textContent, '↓ Download NetCDF', 'Initial state must be "↓ Download NetCDF"');
+assert.strictEqual(mockText.textContent, 'Download NetCDF', 'Initial state must be "Download NetCDF"');
 
 // Simulate click -> downloading
 mockBtn.classList.add('is-downloading');
-mockText.textContent = '↓ Downloading...';
-assert.strictEqual(mockText.textContent, '↓ Downloading...');
+mockText.textContent = 'Downloading...';
+assert.strictEqual(mockText.textContent, 'Downloading...');
 assert(mockBtn.classList.has('is-downloading'), 'Must have is-downloading class');
 
 // Simulate download success -> Downloaded
 mockBtn.classList.remove('is-downloading');
-mockText.textContent = '✓ Downloaded';
-assert.strictEqual(mockText.textContent, '✓ Downloaded');
+mockText.textContent = 'Downloaded';
+assert.strictEqual(mockText.textContent, 'Downloaded');
 
 // Simulate disabled downloaded -> Already Downloaded
 mockBtn.classList.add('is-downloaded');
@@ -104,9 +105,9 @@ mockBtn.setAttribute('tabindex', '-1');
 mockBtn.removeAttribute('href');
 mockBtn.removeAttribute('download');
 mockBtn.style.pointerEvents = 'none';
-mockText.textContent = '✓ Already Downloaded';
+mockText.textContent = 'Already Downloaded';
 
-assert.strictEqual(mockText.textContent, '✓ Already Downloaded');
+assert.strictEqual(mockText.textContent, 'Already Downloaded');
 assert.strictEqual(mockBtn.getAttribute('aria-disabled'), 'true');
 assert.strictEqual(mockBtn.getAttribute('href'), undefined);
 assert.strictEqual(mockBtn.style.pointerEvents, 'none');

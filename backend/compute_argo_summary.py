@@ -122,8 +122,8 @@ def compute_all_metrics() -> dict:
 
     per_depth_results = []
     depth_explanations = {
-        0: "Surface skin layer tightly coupled to satellite SST observations; strong boundary layer agreement.",
-        5: "Upper mixed layer shows exceptional variance reduction (+67.5% skill) over climatology.",
+        0: "Surface layer skill is −22% (worse than climatology), based on only 72 profiles with shallow 0m readings.",
+        5: "Upper mixed layer shows exceptional variance reduction (+73.3% skill) over climatology.",
         10: "Mixed layer dynamics captured accurately by multi-satellite surface dynamic forcing.",
         20: "Near-surface barrier layer accurately resolved by the deep learning encoder.",
         30: "Upper column thermal structure resolves mesoscale eddies and seasonal stratification.",
@@ -418,9 +418,9 @@ def compute_all_metrics() -> dict:
             "climatologyRationale": "Monthly calendar-average climatology baseline computed across the 2,910-profile 2023 independent evaluation set and valid mask.",
             "errorBands": {
                 "depthBands90": "±0.65°C at 5m, ±1.60°C at 50m, ±1.79°C at 100m, ±0.37°C at 1000m",
-                "band90Coverage": "90% band held 89% on 2023 test set",
+                "band90Coverage": "90% band held 90% on 2023 test set",
                 "tchpError": "±11.6 kJ/cm²",
-                "tchp90Band": "±17.8 kJ/cm², held about 87%"
+                "tchp90Band": "±17.8 kJ/cm², held about 88%"
             },
             "trainingDisclosure": "Satellite inputs; network trained on the GLORYS reanalysis, then on real Argo floats."
         },

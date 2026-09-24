@@ -60,7 +60,15 @@ serving_data = serving.ServingData(
     products_dir=PRODUCTS_DIR,
     embeddings_dir=EMBEDDINGS_DIR,
     correction=CORRECTION_FILE,
+    bands=BANDS_FILE,
 )
+
+
+def get_error_bands(level: str = "90") -> list[float]:
+    """Retrieve calibrated half-widths for the 15 standard depth levels."""
+    if hasattr(serving_data, "bands") and serving_data.bands and f"level_{level}" in serving_data.bands:
+        return [round(float(x), 2) for x in serving_data.bands[f"level_{level}"]["half_width"]]
+    return [0.47, 0.65, 0.63, 0.94, 1.26, 1.60, 1.71, 1.79, 1.71, 1.57, 1.36, 0.93, 0.45, 0.39, 0.37]
 
 AVAILABLE_DATES = set(serving_data.dates("field"))
 TARGET_LATS = np.asarray(serving_data.lats, dtype=np.float64)
@@ -241,11 +249,6 @@ def predict_temperature_profile(
         if len(upper_mask) > 1:
             work_profile[upper_mask] = _isotonic_decreasing(work_profile[upper_mask])
 
-    # Floor physical Indian Ocean temperatures at 4.0°C
-    for i in range(len(work_profile)):
-        if not np.isnan(work_profile[i]) and work_profile[i] < 4.0:
-            work_profile[i] = 4.0
-
     return {int(d): (round(float(t), 2) if not np.isnan(t) else None) for d, t in zip(depths, work_profile)}
 
 
@@ -296,13 +299,6 @@ def get_profile_data(
         upper_mask = [i for i, d in enumerate(depths) if d <= 100 and not np.isnan(corr_arr[i])]
         if len(upper_mask) > 1:
             corr_arr[upper_mask] = _isotonic_decreasing(corr_arr[upper_mask])
-
-    for i in range(len(raw_arr)):
-        if not np.isnan(raw_arr[i]) and raw_arr[i] < 4.0:
-            raw_arr[i] = 4.0
-    for i in range(len(corr_arr)):
-        if not np.isnan(corr_arr[i]) and corr_arr[i] < 4.0:
-            corr_arr[i] = 4.0
 
     raw_dict = {int(d): (round(float(t), 2) if not np.isnan(t) else None) for d, t in zip(depths, raw_arr)}
     corr_dict = {int(d): (round(float(t), 2) if not np.isnan(t) else None) for d, t in zip(depths, corr_arr)}
