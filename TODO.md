@@ -4,6 +4,27 @@
 > **MANDATORY PROTOCOL**: This file **MUST** be updated after **EVERY SINGLE TASK** without exception or user reminder.
 > Record status, files changed, and verification evidence for every item.
 
+- [x] **Task: Heatwave Mode Layout Simplification (Depth Layer Only & Remove Bulletin Banner)** `[Completed 2026-09-24 20:25 IST]`
+  - [x] 1. Removed the top bulletin banner container (`#depth-bulletin-banner`) containing the validation badge, demo dates, and basin percentages from `marine-ecology.html`.
+  - [x] 2. Removed the surface layer toggle button group (`#btn-layer-surface` / `#btn-layer-depth`) and made the depth layer (50–100 m) permanent:
+    - `currentLayer = 'depth'` is the default and only active mode.
+    - Map immediately initializes with the 50–100 m depth raster visible (`heatwave-depth-raster-layer`).
+    - Depth legend (`HEATWAVE DEPTH EXTENT`: No heatwave, Surface only, Reaches 50–100 m) is permanently visible on the map without hidden toggle state.
+  - [x] 3. Streamlined the right-side analysis panel (`.ky-mhw-panel`) and compact layout:
+    - Reduced padding and margins across `.ky-mhw-panel`, `.ky-mhw-panel__header`, `.ky-mhw-summary-bar`, `.ky-mhw-legend-row`, and `.ky-mhw-depth-card`.
+    - Reduced `.ky-mhw-chart-container` height from 250px to 165px.
+    - Integrated the Subsurface Thermal Status card directly below the SST time series chart so both appear simultaneously upon coordinate/date selection.
+    - Ensured entire right-side content (~450px) fits on standard desktop displays without triggering internal vertical scrolling.
+  - [x] 4. Updated test suite `test_heatwave_depth.js`:
+    - Verified `#depth-bulletin-banner` and `#btn-layer-surface` are cleanly removed.
+    - Verified depth legend is permanently visible and contains all required classes/colors.
+    - Verified `currentLayer = 'depth'` default in `marine-ecology.js`.
+    - Automated test runner: **72/72 assertions PASSED (100%)**.
+  - [x] 5. Ran regression tests:
+    - `test_marine_ecology.js`: **192/192 assertions PASSED (100%)**.
+    - `test_cyclone.js`: **100% PASSED** (all 7 suites).
+    - `test_cyclone_layout.js`: **100% PASSED** (all 5 checks).
+
 - [x] **Task: Merge `heatwave-fixes` Branch into `master` & Verify** `[Completed 2026-09-24 19:07 IST]`
   - [x] 1. Fetched `origin/heatwave-fixes` containing:
     - Committed `.npz` data files in `backend/data/heatwave_depth/` (`heatwave_depth_2023.npz`, `mhw_sst_2010_2023.npz`).

@@ -22,8 +22,7 @@ let currentCoord = null;
 let currentDateStr = null;
 let activeMarker = null;
 let mhwChart = null;
-let lastMhwData = null;
-let currentLayer = 'surface'; // 'surface' | 'depth'
+let currentLayer = 'depth'; // Permanent depth layer (50–100 m)
 let rasterCanvas = null;
 let currentDepthGrid = null;
 let currentDepthSummary = null;
@@ -97,11 +96,13 @@ function resetStatCard(reason = 'default') {
 function showEmptyState(title, sub) {
   const emptyView = document.getElementById('mhw-empty-view');
   const chartView = document.getElementById('mhw-chart-view');
+  const depthView = document.getElementById('mhw-depth-view');
   const emptyTitle = document.getElementById('mhw-empty-title');
   const emptySub = document.getElementById('mhw-empty-sub');
 
   if (emptyView) emptyView.style.display = 'flex';
   if (chartView) chartView.style.display = 'none';
+  if (depthView) depthView.style.display = 'none';
   if (emptyTitle) emptyTitle.textContent = title;
   if (emptySub) emptySub.textContent = sub;
 }
@@ -109,9 +110,11 @@ function showEmptyState(title, sub) {
 function revealChartView() {
   const emptyView = document.getElementById('mhw-empty-view');
   const chartView = document.getElementById('mhw-chart-view');
+  const depthView = document.getElementById('mhw-depth-view');
 
   if (emptyView) emptyView.style.display = 'none';
   if (chartView) chartView.style.display = 'block';
+  if (depthView) depthView.style.display = 'block';
 }
 
 // ============================================================================
@@ -177,7 +180,7 @@ function initMap() {
       type: 'raster',
       source: 'heatwave-depth-raster-src',
       layout: {
-        visibility: 'none'
+        visibility: 'visible'
       },
       paint: {
         'raster-opacity': 0.88,
@@ -185,6 +188,10 @@ function initMap() {
         'raster-resampling': 'nearest'
       }
     });
+
+    if (currentDateStr) {
+      renderDepthLayer();
+    }
   });
 
   map.on('click', (e) => {
@@ -222,25 +229,17 @@ function selectLocation(lat, lon, zoomTo = true) {
     });
   }
 
-  // Handle gating
-  if (currentLayer === 'depth') {
-    if (!currentDateStr) {
-      setDemoDate('2023-10-15');
-    }
-    fetchDepthPoint(currentCoord.lat, currentCoord.lon, currentDateStr);
-    return;
-  }
-
   if (!currentDateStr) {
-    resetStatCard("Select a date in the header to evaluate heatwave conditions");
-    showEmptyState(
-      "Location selected: " + coordEl.textContent,
-      "Select a reference date in the top bar to analyze SST time series and heatwaves."
-    );
-    return;
+    currentDateStr = '2023-10-15';
+    const picker = document.getElementById('native-date-picker');
+    if (picker) picker.value = currentDateStr;
+    const disp = document.getElementById('date-display-header');
+    if (disp) disp.textContent = formatDateDisplay(currentDateStr);
+    renderDepthLayer();
   }
 
-  // Both location and date are present -> fetch MHW analysis
+  // Both Depth Point Check and SST Time Series Analysis
+  fetchDepthPoint(currentCoord.lat, currentCoord.lon, currentDateStr);
   fetchHeatwaveAnalysis(currentCoord.lat, currentCoord.lon, currentDateStr);
 }
 
@@ -316,25 +315,18 @@ function initDatePicker() {
     const formatted = formatDateDisplay(val);
     if (displayEl) displayEl.textContent = formatted;
 
-    if (currentLayer === 'depth') {
-      renderDepthLayer();
-      if (currentCoord) {
-        fetchDepthPoint(currentCoord.lat, currentCoord.lon, currentDateStr);
-      }
-      return;
-    }
+    renderDepthLayer();
 
-    if (!currentCoord) {
+    if (currentCoord) {
+      fetchDepthPoint(currentCoord.lat, currentCoord.lon, currentDateStr);
+      fetchHeatwaveAnalysis(currentCoord.lat, currentCoord.lon, currentDateStr);
+    } else {
       resetStatCard("Select a location on the map to evaluate heatwave conditions");
       showEmptyState(
         "Date selected: " + formatted,
-        "Click anywhere in the North Indian Ocean to inspect SST time series and heatwaves."
+        "Click anywhere in the North Indian Ocean to inspect SST time series and depth reach."
       );
-      return;
     }
-
-    // Both present
-    fetchHeatwaveAnalysis(currentCoord.lat, currentCoord.lon, currentDateStr);
   });
 }
 
@@ -883,7 +875,7 @@ function initLayerToggle() {
     btnDepth.addEventListener('click', () => switchLayer('depth'));
   }
 
-  // Demo date shortcut buttons
+  // Demo date shortcut buttons (if present)
   if (typeof document !== 'undefined') {
     document.querySelectorAll('.ky-demo-date-btn').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -893,7 +885,7 @@ function initLayerToggle() {
     });
   }
 
-  // Fetch initial summary for default demo date so bulletin is pre-populated
+  // Fetch initial summary for default date
   fetchDepthSummary('2023-10-15');
 }
 
@@ -904,61 +896,25 @@ function setDemoDate(dateStr) {
   const disp = document.getElementById('date-display-header');
   if (disp) disp.textContent = formatDateDisplay(dateStr);
 
-  if (currentLayer === 'depth') {
-    renderDepthLayer();
-    if (currentCoord) {
-      fetchDepthPoint(currentCoord.lat, currentCoord.lon, currentDateStr);
-    }
-  } else {
-    if (currentCoord) {
-      fetchHeatwaveAnalysis(currentCoord.lat, currentCoord.lon, currentDateStr);
-    }
+  renderDepthLayer();
+  if (currentCoord) {
+    fetchDepthPoint(currentCoord.lat, currentCoord.lon, currentDateStr);
+    fetchHeatwaveAnalysis(currentCoord.lat, currentCoord.lon, currentDateStr);
   }
 }
 
-function switchLayer(layerName) {
-  currentLayer = layerName;
-  const btnSurf = document.getElementById('btn-layer-surface');
-  const btnDepth = document.getElementById('btn-layer-depth');
+function switchLayer(layerName = 'depth') {
+  currentLayer = 'depth';
   const legend = document.getElementById('depth-legend');
-  const chartView = document.getElementById('mhw-chart-view');
-  const emptyView = document.getElementById('mhw-empty-view');
-  const depthView = document.getElementById('mhw-depth-view');
-  const banner = document.getElementById('depth-bulletin-banner');
+  if (legend) legend.style.display = 'block';
 
-  if (layerName === 'depth') {
-    if (btnSurf) btnSurf.classList.remove('ky-mhw-layer-btn--active');
-    if (btnDepth) btnDepth.classList.add('ky-mhw-layer-btn--active');
-    if (legend) legend.style.display = 'block';
-    if (banner) banner.style.display = 'flex';
-    if (chartView) chartView.style.display = 'none';
-    if (emptyView) emptyView.style.display = 'none';
-    if (depthView) depthView.style.display = 'block';
-
-    if (!currentDateStr) {
-      setDemoDate('2023-10-15');
-    } else {
-      renderDepthLayer();
-      if (currentCoord) {
-        fetchDepthPoint(currentCoord.lat, currentCoord.lon, currentDateStr);
-      }
-    }
+  if (!currentDateStr) {
+    setDemoDate('2023-10-15');
   } else {
-    if (btnSurf) btnSurf.classList.add('ky-mhw-layer-btn--active');
-    if (btnDepth) btnDepth.classList.remove('ky-mhw-layer-btn--active');
-    if (legend) legend.style.display = 'none';
-    if (depthView) depthView.style.display = 'none';
-
-    if (map && map.getLayer('heatwave-depth-raster-layer')) {
-      map.setLayoutProperty('heatwave-depth-raster-layer', 'visibility', 'none');
-    }
-
-    if (currentCoord && currentDateStr) {
-      if (chartView) chartView.style.display = 'block';
-      if (emptyView) emptyView.style.display = 'none';
-    } else {
-      if (chartView) chartView.style.display = 'none';
-      if (emptyView) emptyView.style.display = 'flex';
+    renderDepthLayer();
+    if (currentCoord) {
+      fetchDepthPoint(currentCoord.lat, currentCoord.lon, currentDateStr);
+      fetchHeatwaveAnalysis(currentCoord.lat, currentCoord.lon, currentDateStr);
     }
   }
 }

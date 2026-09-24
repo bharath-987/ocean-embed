@@ -244,29 +244,6 @@
           </div>
         </div>
 
-        <!-- BULLETIN & VALIDATION BANNER (Heatwave Depth Feature) -->
-        <div class="ky-depth-bulletin-banner" id="depth-bulletin-banner" style="display: flex;">
-          <div class="ky-depth-bulletin-top">
-            <div class="ky-depth-validation-badge" id="depth-validation-badge">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-              <span>Checked against 895 Argo float profiles (2023): 80% correct (simple guess: 60%).</span>
-            </div>
-            <div class="ky-depth-demo-shortcuts">
-              <span class="ky-depth-demo-label">Demo Dates:</span>
-              <button type="button" class="ky-demo-date-btn" data-date="2023-10-15" title="Large deep Arabian Sea heatwave">2023-10-15 (Deep Arabian Sea)</button>
-              <button type="button" class="ky-demo-date-btn" data-date="2023-07-15" title="Bay of Bengal, mostly surface only">2023-07-15 (BoB Surface Only)</button>
-            </div>
-          </div>
-          <div class="ky-depth-bulletin-lines">
-            <div class="ky-depth-bulletin-pill" id="depth-bulletin-as">
-              <span class="ky-bulletin-text" id="depth-bulletin-as-text">Arabian Sea: 65.6% of the basin in a heatwave; 57.1% of that reaches 50–100 m.</span>
-            </div>
-            <div class="ky-depth-bulletin-pill" id="depth-bulletin-bob">
-              <span class="ky-bulletin-text" id="depth-bulletin-bob-text">Bay of Bengal: 25.4% of the basin in a heatwave; 13.5% of that reaches 50–100 m.</span>
-            </div>
-          </div>
-        </div>
-
         <!-- ============================================================
              TWO-COLUMN GRID: Left Map Section + Right SST Time Series Chart
              ============================================================ -->
@@ -279,20 +256,6 @@
               <!-- Map Container (Edge-to-edge layout matching Fisheries and Dashboard) -->
               <div class="ky-mhw-map-wrap" id="map-wrap">
                 <div id="map"></div>
-
-                <!-- Layer Switcher (Top-Left: Surface Layer vs Depth Layer) -->
-                <div class="ky-mhw-layer-toggle-wrap">
-                  <div class="ky-mhw-layer-btn-group" role="group" aria-label="Heatwave Layer">
-                    <button type="button" class="ky-mhw-layer-btn ky-mhw-layer-btn--active" id="btn-layer-surface" data-layer="surface">
-                      <span class="ky-mhw-layer-btn__dot ky-mhw-layer-btn__dot--surface"></span>
-                      Surface Layer (SST)
-                    </button>
-                    <button type="button" class="ky-mhw-layer-btn" id="btn-layer-depth" data-layer="depth">
-                      <span class="ky-mhw-layer-btn__dot ky-mhw-layer-btn__dot--depth"></span>
-                      Depth Layer (50–100 m)
-                    </button>
-                  </div>
-                </div>
 
                 <!-- Map Tools (Top-Right: Zoom + / -) -->
                 <div class="ky-map-tools-top-right">
@@ -307,7 +270,7 @@
                 </div>
 
                 <!-- Depth Layer Legend (Bottom-Left) -->
-                <div class="ky-depth-legend" id="depth-legend" style="display:none;">
+                <div class="ky-depth-legend" id="depth-legend">
                   <div class="ky-depth-legend__title">HEATWAVE DEPTH EXTENT</div>
                   <div class="ky-depth-legend__items">
                     <div class="ky-depth-legend__item">
@@ -414,22 +377,21 @@
 
               </div>
 
-              <!-- 3. Depth Check View (Shown when Depth Layer is active) -->
+              <!-- 3. Depth Check View -->
               <div id="mhw-depth-view" class="ky-mhw-depth-view" style="display:none;">
                 <div class="ky-mhw-depth-card">
                   <div class="ky-mhw-depth-header">
-                    <div class="ky-mhw-depth-title">Heatwave Depth Penetration Check</div>
-                    <div class="ky-mhw-depth-sub">Subsurface thermal reach analysis (50–100 m layer)</div>
-                  </div>
-                  <div class="ky-mhw-depth-status-box">
-                    <div class="ky-mhw-depth-label-small">Depth Penetration Status</div>
-                    <div class="ky-mhw-depth-result-val" id="depth-point-status">—</div>
+                    <div class="ky-mhw-depth-title">Heatwave Depth Reach (50–100 m)</div>
                     <div class="ky-mhw-depth-tooltip-hint" id="depth-point-tooltip" style="display:none;" title="Model call: right 80% of the time against Argo floats (2023)">
                       Model call: right 80% of the time against Argo floats (2023)
                     </div>
+                  </div>
+                  <div class="ky-mhw-depth-status-box">
+                    <div class="ky-mhw-depth-label-small">Subsurface Thermal Status</div>
+                    <div class="ky-mhw-depth-result-val" id="depth-point-status">—</div>
                     <div class="ky-mhw-depth-note" id="depth-point-note">Click any ocean location on the map to inspect depth reach</div>
                   </div>
-                  <div class="ky-mhw-depth-meta-row">
+                  <div class="ky-mhw-depth-meta-row" style="display:none;">
                     <div class="ky-mhw-depth-meta-item">
                       <span class="ky-mhw-depth-meta-label">Observed Date</span>
                       <span class="ky-mhw-depth-meta-val" id="depth-meta-date">—</span>
@@ -438,10 +400,6 @@
                       <span class="ky-mhw-depth-meta-label">Selected Coordinate</span>
                       <span class="ky-mhw-depth-meta-val" id="depth-meta-coord">—</span>
                     </div>
-                  </div>
-                  <div class="ky-mhw-depth-daily-flag-notice">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                    <span>Daily heatwave flag — applies Hobday 5-consecutive-day rule for event characterization.</span>
                   </div>
                 </div>
               </div>

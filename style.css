@@ -5284,7 +5284,7 @@ body.ky-argo-body-theme {
   display: flex;
   flex-direction: column;
   height: 100%;
-  padding: 18px;
+  padding: 14px 16px;
   overflow-y: auto;
   box-sizing: border-box;
 }
@@ -5293,19 +5293,19 @@ body.ky-argo-body-theme {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 14px;
+  margin-bottom: 8px;
 }
 
 .ky-mhw-panel__title {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 700;
   color: #0F172A;
 }
 
 .ky-mhw-panel__sub {
-  font-size: 12px;
+  font-size: 11px;
   color: #64748B;
-  margin-top: 2px;
+  margin-top: 1px;
 }
 
 .ky-mhw-panel__header-badges {
@@ -5358,28 +5358,28 @@ body.ky-argo-body-theme {
 .ky-mhw-summary-bar {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 10px;
+  gap: 8px;
   background: #F8FAFC;
   border: 1px solid #E2E8F0;
-  border-radius: 10px;
-  padding: 10px 14px;
-  margin-bottom: 14px;
+  border-radius: 8px;
+  padding: 6px 10px;
+  margin-bottom: 6px;
 }
 
 .ky-mhw-summary-item {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 
 .ky-mhw-summary-label {
-  font-size: 11px;
+  font-size: 10px;
   color: #64748B;
   font-weight: 500;
 }
 
 .ky-mhw-summary-val {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   color: #1E293B;
   font-variant-numeric: tabular-nums;
@@ -5388,9 +5388,9 @@ body.ky-argo-body-theme {
 /* Chart Canvas Wrapper */
 .ky-mhw-chart-container {
   position: relative;
-  height: 250px;
+  height: 165px;
   width: 100%;
-  margin-bottom: 10px;
+  margin-bottom: 4px;
 }
 
 /* Legend Row */
@@ -5398,10 +5398,10 @@ body.ky-argo-body-theme {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 16px;
-  font-size: 11px;
+  gap: 12px;
+  font-size: 10.5px;
   color: #475569;
-  margin-bottom: 14px;
+  margin-bottom: 6px;
   flex-wrap: wrap;
 }
 
@@ -5441,21 +5441,21 @@ body.ky-argo-body-theme {
 .ky-mhw-methodology-card {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
+  gap: 10px;
   background: #F8FAFC;
   border: 1px solid #E2E8F0;
   border-left: 3.5px solid #2563EB;
-  border-radius: 10px;
-  padding: 12px 14px;
-  margin-top: auto;
-  font-size: 12px;
-  line-height: 1.5;
+  border-radius: 8px;
+  padding: 6px 10px;
+  margin-top: 6px;
+  font-size: 11px;
+  line-height: 1.35;
   color: #334155;
 }
 
 .ky-mhw-methodology-icon {
   flex-shrink: 0;
-  margin-top: 2px;
+  margin-top: 1px;
 }
 
 .ky-mhw-methodology-text {
@@ -5846,43 +5846,43 @@ body.ky-argo-body-theme {
 
 /* Depth Inspector View (Right Column) */
 .ky-mhw-depth-view {
-  margin-top: 10px;
+  margin-top: 6px;
 }
 
 .ky-mhw-depth-card {
   background: #FFFFFF;
   border: 1px solid #E2E8F0;
-  border-radius: 12px;
-  padding: 18px;
+  border-radius: 10px;
+  padding: 10px 12px;
 }
 
 .ky-mhw-depth-header {
-  margin-bottom: 14px;
+  margin-bottom: 6px;
 }
 
 .ky-mhw-depth-title {
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 700;
   color: #1E293B;
 }
 
 .ky-mhw-depth-sub {
-  font-size: 12px;
+  font-size: 11px;
   color: #64748B;
-  margin-top: 2px;
+  margin-top: 1px;
 }
 
 .ky-mhw-depth-status-box {
   background: #F8FAFC;
   border: 1px solid #E2E8F0;
-  border-radius: 8px;
-  padding: 18px 14px;
+  border-radius: 6px;
+  padding: 8px 10px;
   text-align: center;
-  margin-bottom: 14px;
+  margin-bottom: 6px;
 }
 
 .ky-mhw-depth-label-small {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -5890,10 +5890,10 @@ body.ky-argo-body-theme {
 }
 
 .ky-mhw-depth-result-val {
-  font-size: 22px;
+  font-size: 17px;
   font-weight: 700;
   color: #1E293B;
-  margin: 6px 0 2px 0;
+  margin: 2px 0 1px 0;
 }
 
 .ky-mhw-depth-result-val--deep {
@@ -5909,26 +5909,26 @@ body.ky-argo-body-theme {
 }
 
 .ky-mhw-depth-tooltip-hint {
-  font-size: 11.5px;
+  font-size: 11px;
   color: #64748B;
   font-style: italic;
-  margin-top: 4px;
+  margin-top: 2px;
   display: inline-block;
-  padding: 2px 8px;
+  padding: 2px 6px;
   background: #F1F5F9;
   border-radius: 4px;
 }
 
 .ky-mhw-depth-note {
-  font-size: 11.5px;
+  font-size: 11px;
   color: #64748B;
-  margin-top: 6px;
+  margin-top: 3px;
 }
 
 .ky-mhw-depth-meta-row {
   display: flex;
-  gap: 10px;
-  margin-bottom: 14px;
+  gap: 6px;
+  margin-bottom: 6px;
 }
 
 .ky-mhw-depth-meta-item {
@@ -5936,19 +5936,19 @@ body.ky-argo-body-theme {
   background: #F8FAFC;
   border: 1px solid #E2E8F0;
   border-radius: 6px;
-  padding: 8px 10px;
+  padding: 4px 8px;
 }
 
 .ky-mhw-depth-meta-label {
   display: block;
-  font-size: 10.5px;
+  font-size: 9.5px;
   color: #64748B;
   font-weight: 500;
-  margin-bottom: 2px;
+  margin-bottom: 1px;
 }
 
 .ky-mhw-depth-meta-val {
-  font-size: 12px;
+  font-size: 11px;
   color: #1E293B;
   font-weight: 600;
 }

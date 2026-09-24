@@ -247,29 +247,22 @@ async function runTests() {
   assert(!js.includes('data.band_anomaly_50_100m.toFixed'), 'Raw band_anomaly_50_100m is NOT displayed as a formatted number');
 
   // ==========================================================================
-  // SECTION 5: Frontend DOM Verification (Layer Toggle, Banner, Legend)
+  // SECTION 5: Frontend DOM Verification (Permanent Depth Layer & Removed Banner)
   // ==========================================================================
   console.log('\nSECTION 5: Frontend DOM Verification');
 
-  // Bulletin banner & validation badge
-  assert(html.includes('id="depth-bulletin-banner"'), 'Depth bulletin banner container present');
-  assert(html.includes('id="depth-bulletin-as-text"'), 'Arabian Sea bulletin text container present');
-  assert(html.includes('id="depth-bulletin-bob-text"'), 'Bay of Bengal bulletin text container present');
-  assert(html.includes('id="depth-validation-badge"'), 'Validation badge container present');
-  assert(html.includes('Checked against 895 Argo float profiles (2023): 80% correct (simple guess: 60%).'), 'HTML contains validation badge string');
+  // Verify removed bulletin banner & surface layer toggle
+  assert(!html.includes('id="depth-bulletin-banner"'), 'Depth bulletin banner container cleanly removed');
+  assert(!html.includes('id="btn-layer-surface"'), 'btn-layer-surface toggle button cleanly removed');
+  assert(!html.includes('Checked against 895 Argo float profiles (2023): 80% correct (simple guess: 60%).'), 'Banner validation badge text removed');
 
-  // Demo date buttons
-  assert(html.includes('data-date="2023-10-15"'), 'Demo button for 2023-10-15 present');
-  assert(html.includes('data-date="2023-07-15"'), 'Demo button for 2023-07-15 present');
+  // Permanent Depth Layer
+  assert(js.includes("currentLayer = 'depth'"), 'currentLayer defaults to depth layer permanently');
 
-  // Layer switcher
-  assert(html.includes('id="btn-layer-surface"'), 'btn-layer-surface toggle button present');
-  assert(html.includes('id="btn-layer-depth"'), 'btn-layer-depth toggle button present');
-  assert(html.includes('data-layer="surface"'), 'Surface layer data attribute present');
-  assert(html.includes('data-layer="depth"'), 'Depth layer data attribute present');
-
-  // Depth Legend
+  // Depth Legend (Permanently visible)
   assert(html.includes('id="depth-legend"'), 'Depth legend container present');
+  assert(!html.includes('id="depth-legend" style="display:none;"'), 'Depth legend is permanently visible (not hidden)');
+  assert(html.includes('HEATWAVE DEPTH EXTENT'), 'Depth legend title present');
   assert(html.includes('#dfe6ee'), 'Depth legend contains #dfe6ee (No heatwave)');
   assert(html.includes('#f6b26b'), 'Depth legend contains #f6b26b (Surface only)');
   assert(html.includes('#cc0000'), 'Depth legend contains #cc0000 (Reaches 50–100 m)');
@@ -284,8 +277,6 @@ async function runTests() {
   // CSS Styles
   const cssPath = path.join(__dirname, 'style.css');
   const css = fs.readFileSync(cssPath, 'utf8');
-  assert(css.includes('.ky-mhw-layer-toggle'), '.ky-mhw-layer-toggle CSS class defined');
-  assert(css.includes('.ky-depth-bulletin-banner'), '.ky-depth-bulletin-banner CSS class defined');
   assert(css.includes('.ky-mhw-depth-card'), '.ky-mhw-depth-card CSS class defined');
 
   console.log('\n============================================================');
