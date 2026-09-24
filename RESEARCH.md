@@ -3236,14 +3236,12 @@ Both call sites updated. Fallback (catch) path passes `null, null` for MLD and f
 - Location is already unambiguously indicated by the interactive map pin and selected nearshore box highlight.
 
 ### 3. Scalar Table Rows Cleanup
-- Removed MLD and Thermal Front Strength rows from 
-enderTable().
+- Removed MLD and Thermal Front Strength rows from enderTable().
 - Single summary row retained at the top of the table: Distance from coast (km), with .ky-tvd-table-row--coast-distance styling.
 - Existing 4 top stat cards (Thermocline Depth, Upwelling Index, PFZ Index, Chlorophyll Proxy) retained without modification.
 
 ### 4. Box Coloring Root Cause & Fix
-- **Cause**: 
-enderNearshoreBoxes() checked .pfz_score: when score >= 0.70, it applied orange-red #F97316 fill and #EA580C border; when score < 0.40, it applied darker red #B91C1C.
+- **Cause**: enderNearshoreBoxes() checked .pfz_score: when score >= 0.70, it applied orange-red #F97316 fill and #EA580C border; when score < 0.40, it applied darker red #B91C1C.
 - **Fix**: Removed all score-based border/fill overrides. All selectable nearshore boxes now render with a single, uniform red border (#DC2626, 2.5px width) and fill (#DC2626, 0.18 opacity). The active selected box is highlighted with bright red fill (#EF4444) and white border (#FFFFFF, 4.0px).
 
 ### 5. Operational Note Banner Removal
