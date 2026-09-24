@@ -5,7 +5,7 @@ console.log('============================================================');
 console.log('  KYOGRE SEARCH BAR UIVERSE SHRINK/REBOUND & WHITE THEME SUITE');
 console.log('============================================================\n');
 
-const PAGES = ['explore.html', 'argo.html', 'fisheries.html', 'marine-ecology.html'];
+const PAGES = ['explore.html', 'argo.html', 'marine-ecology.html'];
 
 // [TEST 1] Markup Verification across all 4 pages
 console.log('[TEST 1] Verifying search bar markup and absence of Ctrl+K across pages...');

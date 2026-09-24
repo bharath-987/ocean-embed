@@ -8,7 +8,9 @@
 // 1. STATE & CONSTANTS
 // ============================================================================
 
-const API_BASE = (typeof BACKEND_URL !== 'undefined') ? BACKEND_URL : 'http://localhost:8000';
+const API_BASE = (typeof window !== 'undefined' && window.API_BASE_URL)
+  ? window.API_BASE_URL
+  : ((typeof BACKEND_URL !== 'undefined') ? BACKEND_URL : 'http://localhost:8000');
 
 const BOUNDS = {
   minLat: 5.0,

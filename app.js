@@ -3499,11 +3499,9 @@ function handleBackendFailure(msg, errorType = 'model') {
     msg.toLowerCase().includes('data gap')
   ));
 
-  const defaultBanner = isData
-    ? (msg || 'Data unavailable for this location or date.')
-    : (isLocalBackend()
-        ? 'Live model unavailable. Make sure Python backend is running on port 8000.'
-        : 'Model Unavailable. Inference service could not be reached.');
+  const defaultBanner = isLocalBackend()
+    ? (isData ? (msg || 'Data unavailable for this location or date.') : 'Live model unavailable. Make sure Python backend is running on port 8000.')
+    : (isData ? (msg || 'Data unavailable for this location or date.') : 'Model Unavailable. Inference service could not be reached.');
   const bannerText = msg || defaultBanner;
   showRegionNotice(bannerText, isData ? 'warning' : 'error');
 

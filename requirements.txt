@@ -1,7 +1,10 @@
-torch>=2.0
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch>=2.0.0
 numpy>=1.24,<2.0
 pandas>=2.0
+scipy>=1.10
 fastapi>=0.110
 uvicorn[standard]>=0.27
 pydantic>=2.0
 huggingface_hub>=0.20
+

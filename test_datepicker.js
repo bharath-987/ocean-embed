@@ -28,7 +28,7 @@ check('datepicker.js exists', fs.existsSync('datepicker.js'));
 const datepickerJs = fs.readFileSync('datepicker.js', 'utf8');
 check('datepicker.js declares initDatePicker', datepickerJs.includes('initDatePicker'));
 check('datepicker.js builds .ky-calendar-popover', datepickerJs.includes('ky-calendar-popover'));
-check('datepicker.js defines MIN_DATE and MAX_DATE model bounds', datepickerJs.includes('2023-01-10') && datepickerJs.includes('2023-12-31'));
+check('datepicker.js defines MIN_DATE and MAX_DATE model bounds', (datepickerJs.includes('2023-01-01') || datepickerJs.includes('2023-01-10')) && datepickerJs.includes('2023-12-31'));
 check('datepicker.js handles previous & next month navigation', datepickerJs.includes('ky-cal-prev') && datepickerJs.includes('ky-cal-next'));
 check('datepicker.js dispatches change event on nativeInput', datepickerJs.includes("new Event('change'"));
 

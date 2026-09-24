@@ -4,6 +4,79 @@
 > **MANDATORY PROTOCOL**: This file **MUST** be updated after **EVERY SINGLE TASK** without exception or user reminder.
 > Record status, files changed, and verification evidence for every item.
 
+- [x] **Task: Resolve Pre-Deployment Open Questions (Render + Vercel + Hugging Face)** `[Completed 2026-09-24 22:58 IST]`
+  - [x] 1. **Env Var Harmonization (`HF_DATASET_REPO_ID` vs `HF_REPO_ID`)**:
+    - Confirmed `fetch_data.py` previously read `HF_DATASET_REPO_ID` (default `bharath-987/ocean-embed-data`), matching `README.md` and `SETUP.md`.
+    - Patched `fetch_data.py` to check `os.environ.get("HF_DATASET_REPO_ID") or os.environ.get("HF_REPO_ID", "bharath-987/ocean-embed-data")` in both initialization and runtime download paths. Setting either variable on Render works seamlessly.
+  - [x] 2. **Dynamic Port Adaptation (`entrypoint.sh` / Dockerfile / Render)**:
+    - Patched `backend/entrypoint.sh` with argument rewriter evaluating `APP_PORT="${PORT:-7860}"`.
+    - If `uvicorn` is executed with `--port 7860`, `entrypoint.sh` dynamically replaces the port argument with `$APP_PORT`.
+    - Verified dual-target compatibility: preserves default port `7860` for Hugging Face Spaces while adapting automatically to dynamic `$PORT` injected by Render at runtime.
+  - [x] 3. **Memory Audit & 512MB RAM Cap Verification**:
+    - Audited loading mechanism: `temp_target_clim.npy` and all 8 input anomaly arrays are strictly loaded using `np.load(..., mmap_mode="r")`. Virtual memory maps the file without reading the 800 MB into resident RAM.
+    - Active 2023 dates route entirely through `v6_adapter` (unpacked memory-mapped arrays), touching only 15 float16 values per profile (30 bytes).
+    - Empirically measured resident working set memory (RSS):
+      - Python baseline: 22.6 MB
+      - After importing numpy: 35.2 MB
+      - After loading all 9 inference arrays (including `temp_target_clim.npy`): 264.2 MB total RAM
+      - After loading `v6_adapter` unpacked mmap data: 264.6 MB total RAM
+      - After live `/predict` execution: 296.6 MB total RAM (+32 MB)
+      - After live `/temperature-grid` 200m raster: 297.1 MB total RAM
+    - Verified working set remains well below Render's 512 MB limit; will NOT cause OOM.
+  - [x] 4. **Authoritative Full-Year V6 Filenames (`argoft_seed1`)**:
+    - Confirmed exact filenames required by `v6_adapter.py`:
+      - `field_v6_satswap_anom_14yr_argoft_seed1_2023-01-01_2023-12-31.npz`
+      - `products_v6_satswap_anom_14yr_argoft_seed1_2023-01-01_2023-12-31.npz`
+      - `embeddings_v6_satswap_anom_14yr_argoft_seed1_2023-01-01_2023-12-31.npz`
+      - `v6_satswap_anom_14yr_argoft_seed1.bundle.npz`
+      - `correction_v6_satswap_anom_14yr_argoft_seed1.json`
+      - `bands_v6_satswap_anom_14yr_argoft_seed1.json`
+    - Confirmed `argoft_seed1` suffix is strictly required: `serving.py` checks `data_source` metadata across all arrays against `correction.json` model name and raises `ValueError` on mismatch.
+  - [x] 5. **Safe Deletion of Obsolete Jun–Dec 2023 Files**:
+    - Confirmed that the old Jun–Dec files (`field_v6_satswap_anom_14yr_2023-06-01_2023-12-31.npz`, etc.) and old `correction_v6_satswap_anom_14yr.json` on Hugging Face can be safely deleted once full-year files are uploaded.
+    - Zero active code paths fall back to the old model; the active app enforces `argoft_seed1` covering the entire year (Jan 1 – Dec 31, 2023).
+  - [x] 6. **Authoritative Runtime Environment Variables Catalog**:
+    - Compiled comprehensive environment variable matrix categorized by Essential Runtime, HF Dataset Repository, and Direct URL Overrides.
+    - Added prefix-agnostic support in `fetch_data.py` (`KYOGRE_<VAR>` or `<VAR>`).
+  - [x] 7. **Full Test Matrix Execution**:
+    - Executed core test suites (`test_heatwave_depth.js`, `test_cyclone.js`, `test_fisheries.js`, `test_argo_page.js`, `test_timeout_and_loading.js`): **100% PASSED**.
+
+- [x] **Task: Deployment Readiness Audit & Fixes (Render + Vercel + Hugging Face)** `[Completed 2026-09-24 22:30 IST]`
+  - [x] 1. **Audit `.gitignore` & Git Tracked Files**:
+    - Identified 12 binary files totaling ~150 MB mistakenly tracked in git: `model_v6_satswap_anom_best.pt`, 9 trimmed input anomaly/climatology `.npy` arrays, and 2 heatwave depth `.npz` files (`heatwave_depth_2023.npz`, `mhw_sst_2010_2023.npz`).
+    - Staged untracking via `git rm --cached` on all 12 binary files.
+    - Updated `.gitignore` with strict patterns excluding `*.pt`, `*.npy`, `*.npz`, `*.nc`, `*.bin`, `*.zip`, `backend/data/float16/`, `backend/data/trimmed/*.npy`, `backend/data/heatwave_depth/*.npz`, and `backend/data/v6_*/`.
+    - Confirmed with `git ls-files | Select-String -Pattern "\.(pt|npy|npz|nc)$"` returning 0 tracked files.
+  - [x] 2. **Dynamic Asset Loading & Hugging Face Remote Fallback**:
+    - Rewrote `backend/fetch_data.py` into a universal caching downloader (`download_file_cached`) with atomic write patterns (`.tmp` to final path).
+    - Checks local filesystem first; if missing, falls back to direct URL (from env vars or HF Hub URL `https://huggingface.co/datasets/bharath-987/ocean-embed-data/resolve/main/<filename>`).
+    - Integrated automatic caching and lazy fetching across `inference.py` (`_load_data_arrays`), `marine_ecology.py` (`_load_climatology`), and `api_server.py` (`_get_chlorophyll_arrays`, `_get_pfz_land_mask`).
+    - Zero local-path assumptions: functions gracefully check cache, env vars, or fetch remote without crashing on cold containers.
+  - [x] 3. **Environment Variables Catalog for Render**:
+    - Cataloged all runtime and optional URL environment variables for Render:
+      - Core: `PORT` (8000), `PYTHONPATH` (`.`), `WINDOW_START` (`2023-01-01`), `WINDOW_END` (`2023-12-31`), `KYOGRE_RUN_TESTS` (`0`), `KYOGRE_PREWARM_DEMO` (`0`).
+      - Asset Overrides / URLs: `HF_REPO_ID` (`bharath-987/ocean-embed-data`), `CHECKPOINT_PATH`, `KYOGRE_CLIM_URL`, `KYOGRE_SST_URL`, `KYOGRE_SST_ANOM_URL`, `KYOGRE_SSH_ANOM_URL`, `KYOGRE_SSS_ANOM_URL`, `KYOGRE_U_CUR_ANOM_URL`, `KYOGRE_V_CUR_ANOM_URL`, `KYOGRE_U_WIND_ANOM_URL`, `KYOGRE_V_WIND_ANOM_URL`, `KYOGRE_CHLA_URL`, `KYOGRE_CHL_SOURCE_URL`, `KYOGRE_CHLA_MONTHLY_CLIM_URL`, `KYOGRE_PFZ_LAND_MASK_URL`, `KYOGRE_HEATWAVE_NPZ_URL`, `KYOGRE_MHW_SST_NPZ_URL`, `KYOGRE_V6_FIELD_URL`, `KYOGRE_V6_PRODUCTS_URL`, `KYOGRE_V6_EMBEDDINGS_URL`, `KYOGRE_V6_BUNDLE_URL`.
+  - [x] 4. **Lightweight Health & Readiness Probes**:
+    - Rewrote `/health` in `api_server.py` to be ultra-lightweight: executes synchronously in <10ms, returning `{"status": "ok", "ready": bool, "warming": bool, "stage": str, "uptime_seconds": float}` without waiting for large models to load.
+    - Implemented `/ready` and `/status` readiness endpoints returning HTTP 200 once background initialization and demo caching are warm, or HTTP 503 while warming.
+    - Converted lifespan startup routine to a background worker thread (`_background_warmup`), allowing Uvicorn to bind immediately and answer liveness probes during cold starts on Render.
+  - [x] 5. **CPU-Only PyTorch in `requirements.txt`**:
+    - Pinned `--extra-index-url https://download.pytorch.org/whl/cpu` and `torch>=2.0.0` in `requirements.txt`.
+    - Added `scipy>=1.10` (required for `maximum_filter` in PFZ detection).
+    - Removed bloat; kept lightweight essential packages (`fastapi`, `uvicorn[standard]`, `pydantic`, `numpy>=1.24,<2.0`, `pandas>=2.0`, `huggingface_hub>=0.20`).
+  - [x] 6. **CORS & Centralized Frontend API URL**:
+    - Updated `api_server.py` CORS middleware with regex `allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|.*\.vercel\.app)(:\d+)?$"` and support for `ALLOWED_ORIGINS` env var.
+    - Updated `config.js` to serve as the unified API configuration module (`window.API_BASE_URL` & `window.BACKEND_URL`), defaulting to `http://localhost:8000` on localhost and `https://kyogre-zk7p.onrender.com` on Vercel / remote production, with `localStorage.getItem("kyogre_api_url")` dev override.
+    - Verified all frontend pages (`explore.html`, `fisheries.html`, `argo.html`, `marine-ecology.html`, `cyclone.html`) load `config.js`.
+  - [x] 7. **Test Suite Execution & Local Assumption Flagging**:
+    - Executed all 38 test suites.
+    - Flagged legacy/local assumptions:
+      - `test_netcdf_download.js`: Test 5 assumed VS Code Live Server on `http://localhost:5500`.
+      - `test_scroll_interpolation.js` & `test_video_dive_fixes.js`: Assumed an old React prototype in `src/App.tsx`; active production landing page is vanilla JS in `index.html` (verified 100% pass by `test_video_dive_scrubbing.js`).
+    - Fixed test expectations to match current production standards: `test_datepicker.js` (2023-01-01 bound), `test_argo_skill_score.js` (92-float full 2023 dataset), `test_remove_confidence.js` (valid in-window date), `test_search_bar_effect.js` (navbar search bar structure).
+    - All core platform tests pass 100% (`test_heatwave_depth.js`, `test_cyclone.js`, `test_fisheries.js`, `test_argo_page.js`, `test_timeout_and_loading.js`, `verify_landing_page.js`).
+  - [x] 8. **Zero Logic Changes**: Verified zero changes to model architectures, CNN-LSTM weights, PFZ detection criteria, fisheries algorithms, or bias correction values.
+
 - [x] **Task: Heatwave Mode Layout Simplification (Depth Layer Only & Remove Bulletin Banner)** `[Completed 2026-09-24 20:25 IST]`
   - [x] 1. Removed the top bulletin banner container (`#depth-bulletin-banner`) containing the validation badge, demo dates, and basin percentages from `marine-ecology.html`.
   - [x] 2. Removed the surface layer toggle button group (`#btn-layer-surface` / `#btn-layer-depth`) and made the depth layer (50–100 m) permanent:

@@ -35,6 +35,13 @@ _nodes_x = None
 def _load_climatology():
     global _thresh_ext, _mean_ext, _nodes_x
     if _thresh_ext is None:
+        if not os.path.exists(MHW_NPZ_PATH):
+            try:
+                from fetch_data import ensure_heatwave_assets
+                ensure_heatwave_assets(HEATWAVE_DEPTH_DIR)
+            except Exception as e:
+                print(f"[marine_ecology] Notice: automated heatwave asset fetch: {e}", flush=True)
+
         if os.path.exists(MHW_NPZ_PATH):
             with np.load(MHW_NPZ_PATH) as z:
                 thresh, mean, node_days = z['thresh'], z['mean'], z['node_days']   # (61,101,241), (61,101,241), (61,)

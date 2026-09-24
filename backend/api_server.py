@@ -52,6 +52,10 @@ REPRESENTATIVE_LON = 88.0
 # ---------------------------------------------------------------------------
 # EXTERNAL DATASETS: SATELLITE CHLOROPHYLL-A & SOURCE DISCLOSURE
 # ---------------------------------------------------------------------------
+_server_start_time = time.time()
+_is_ready = False
+_warmup_stage = "starting"
+
 _chla_arr = None
 _chl_source_arr = None
 
@@ -63,12 +67,24 @@ def _get_chlorophyll_arrays():
         p_chl = os.path.join(inf.DATA_DIR, "chla.npy")
         if not os.path.exists(p_chl):
             p_chl = os.path.join(inf.DATA_DIR, "float16", "chla.npy")
+        if not os.path.exists(p_chl):
+            try:
+                from fetch_data import ensure_fisheries_assets
+                ensure_fisheries_assets(inf.DATA_DIR)
+            except Exception as e:
+                print(f"[API] Notice: automated chlorophyll fetch: {e}", flush=True)
+            if os.path.exists(os.path.join(inf.DATA_DIR, "chla.npy")):
+                p_chl = os.path.join(inf.DATA_DIR, "chla.npy")
+            elif os.path.exists(os.path.join(inf.DATA_DIR, "float16", "chla.npy")):
+                p_chl = os.path.join(inf.DATA_DIR, "float16", "chla.npy")
+
         if os.path.exists(p_chl):
             try:
                 _chla_arr = inf.np.load(p_chl, mmap_mode="r")
             except Exception as e:
                 print(f"[API] Error loading {p_chl}: {e}", flush=True)
                 _chla_arr = None
+
     if _chl_source_arr is None:
         p_src = os.path.join(inf.DATA_DIR, "chl_source.npy")
         if not os.path.exists(p_src):
@@ -101,57 +117,75 @@ def _get_ekman_array():
     return _ekman_arr
 
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 1. Verify dataset readiness before server accepts requests
-    if inf.USE_FULL_FLOAT16_DATA or inf.USE_FLOAT16_DATA:
-        from fetch_data import ensure_data_ready
-        ensure_data_ready(inf.DATA_DIR)
+    global _is_ready, _warmup_stage
+    _warmup_stage = "initializing"
 
-    # 2. Pre-warming inference cache for demo dates at server startup (if enabled)
-    if inf.is_inference_cache_enabled():
-        import gc
-        print("=" * 65, flush=True)
-        print("  OceanEmbed — Pre-warming inference cache for SIH demo dates...", flush=True)
-        print("=" * 65, flush=True)
-        for date_str in DEMO_PREWARM_DATES:
-            t0 = time.perf_counter()
-            v6_adapter.predict_temperature_profile(REPRESENTATIVE_LAT, REPRESENTATIVE_LON, date_str)
-            v6_adapter.temperature_map(date_str, 0)
-            t_temp = time.perf_counter()
-            compute_pfz_grid(date_str)
-            t_pfz = time.perf_counter()
-            elapsed_ms = int((t_pfz - t0) * 1000)
-            pfz_ms = int((t_pfz - t_temp) * 1000)
-            gc.collect()
-            print(f"Pre-warming cache for demo date {date_str}... done ({elapsed_ms}ms, PFZ grid: {pfz_ms}ms)", flush=True)
-        gc.collect()
-        print("=" * 65, flush=True)
-        print("  Inference & PFZ cache ready! All demo dates pre-warmed (<1ms response).", flush=True)
-        print("=" * 65, flush=True)
-    else:
-        print("=" * 65, flush=True)
-        print("  Inference cache & pre-warming DISABLED (ENABLE_INFERENCE_CACHE=false).", flush=True)
-        print("  All requests will execute live full-model inference.", flush=True)
-        print("=" * 65, flush=True)
+    def _startup_worker():
+        global _is_ready, _warmup_stage
+        try:
+            _warmup_stage = "verifying_assets"
+            from fetch_data import ensure_all_deployment_assets
+            ensure_all_deployment_assets()
 
-    # 3. Initialize Marine Heatwave (MHW) climatology
-    try:
-        _load_climatology()
-        print("  Marine Heatwave (MHW) 14-year baseline loaded.", flush=True)
-    except Exception as e:
-        print(f"  !! Marine Heatwave baseline NOT loaded -- heatwave mode will return errors: {e}", flush=True)
-    print("=" * 65, flush=True)
+            # Pre-warming inference cache for demo dates at server startup (if enabled)
+            if inf.is_inference_cache_enabled():
+                _warmup_stage = "prewarming_cache"
+                import gc
+                print("=" * 65, flush=True)
+                print("  OceanEmbed — Pre-warming inference cache for SIH demo dates...", flush=True)
+                print("=" * 65, flush=True)
+                for date_str in DEMO_PREWARM_DATES:
+                    t0 = time.perf_counter()
+                    v6_adapter.predict_temperature_profile(REPRESENTATIVE_LAT, REPRESENTATIVE_LON, date_str)
+                    v6_adapter.temperature_map(date_str, 0)
+                    t_temp = time.perf_counter()
+                    compute_pfz_grid(date_str)
+                    t_pfz = time.perf_counter()
+                    elapsed_ms = int((t_pfz - t0) * 1000)
+                    pfz_ms = int((t_pfz - t_temp) * 1000)
+                    gc.collect()
+                    print(f"Pre-warming cache for demo date {date_str}... done ({elapsed_ms}ms, PFZ grid: {pfz_ms}ms)", flush=True)
+                gc.collect()
+                print("=" * 65, flush=True)
+                print("  Inference & PFZ cache ready! All demo dates pre-warmed (<1ms response).", flush=True)
+                print("=" * 65, flush=True)
+
+            # Initialize Marine Heatwave climatology
+            _warmup_stage = "loading_climatology"
+            try:
+                _load_climatology()
+                print("  Marine Heatwave (MHW) 14-year baseline loaded.", flush=True)
+            except Exception as e:
+                print(f"  !! Marine Heatwave baseline NOT loaded: {e}", flush=True)
+
+            _warmup_stage = "ready"
+            _is_ready = True
+            print("=" * 65, flush=True)
+            print("  OceanEmbed — Server is WARM and READY for inference.", flush=True)
+            print("=" * 65, flush=True)
+        except Exception as exc:
+            _warmup_stage = f"error: {exc}"
+            print(f"  !! Startup error: {exc}", flush=True)
+
+    t = threading.Thread(target=_startup_worker, daemon=True)
+    t.start()
     yield
 
 
 app = FastAPI(title="OceanEmbed API", version="1.0.0", lifespan=lifespan)
 
+allowed_origins_env = os.environ.get("ALLOWED_ORIGINS")
+if allowed_origins_env:
+    cors_origins = [o.strip() for o in allowed_origins_env.split(",") if o.strip()]
+else:
+    cors_origins = ["*"]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=cors_origins,
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|.*\.vercel\.app)(:\d+)?$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -442,6 +476,12 @@ def _get_pfz_land_mask():
     global _pfz_land_mask
     if _pfz_land_mask is None:
         mask_path = os.path.join(os.path.dirname(__file__), "data", "pfz_land_mask.npy")
+        if not os.path.exists(mask_path):
+            try:
+                from fetch_data import ensure_pfz_land_mask
+                ensure_pfz_land_mask(os.path.dirname(mask_path))
+            except Exception as e:
+                print(f"[API] Notice: automated pfz_land_mask download: {e}", flush=True)
         if os.path.exists(mask_path):
             _pfz_land_mask = inf.np.load(mask_path)
     return _pfz_land_mask
@@ -821,10 +861,41 @@ def model_result_to_frontend(result: dict, latitude: float, longitude: float, da
 def health():
     return {
         "status": "ok",
-        "device": str(inf.device),
-        "trimmed": inf.USE_TRIMMED_DATA,
-        "full_float16": inf.USE_FULL_FLOAT16_DATA,
-        "inference_cache": inf.is_inference_cache_enabled(),
+        "ready": _is_ready,
+        "warming": not _is_ready,
+        "stage": _warmup_stage,
+        "device": str(getattr(inf, "device", "cpu")),
+        "trimmed": getattr(inf, "USE_TRIMMED_DATA", False),
+        "inference_cache": inf.is_inference_cache_enabled() if hasattr(inf, "is_inference_cache_enabled") else True,
+        "uptime_seconds": round(time.time() - _server_start_time, 1),
+    }
+
+
+@app.get("/ready")
+@app.get("/status")
+def readiness():
+    if not _is_ready:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "status": "warming",
+                "ready": False,
+                "stage": _warmup_stage,
+                "message": "Backend data is downloading or model is warming up.",
+                "uptime_seconds": round(time.time() - _server_start_time, 1),
+            }
+        )
+    return {
+        "status": "ready",
+        "ready": True,
+        "warming": False,
+        "model": getattr(v6_adapter, "MODEL_NAME", "model_v6_satswap_anom_14yr_argoft_seed1"),
+        "window": {
+            "start": getattr(v6_adapter, "WINDOW_START", "2023-01-01"),
+            "end": getattr(v6_adapter, "WINDOW_END", "2023-12-31"),
+        },
+        "prewarmed_dates": DEMO_PREWARM_DATES,
+        "uptime_seconds": round(time.time() - _server_start_time, 1),
     }
 
 

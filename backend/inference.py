@@ -104,7 +104,7 @@ if USE_FULL_FLOAT16_DATA or USE_FLOAT16_DATA:
     from fetch_data import ensure_data_ready
     ensure_data_ready(DATA_DIR)
 
-CHECKPOINT_PATH = os.path.join(BASE_DIR, "model_v6_satswap_anom_best.pt")
+CHECKPOINT_PATH = os.environ.get("CHECKPOINT_PATH", os.path.join(BASE_DIR, "model_v6_satswap_anom_best.pt"))
 
 MIN_LON, MAX_LON = 45, 105             # region: North Indian Ocean
 MIN_LAT, MAX_LAT = 5, 30
@@ -242,31 +242,64 @@ class OceanEmbedModel(nn.Module):
 
 
 # ---------------------------------------------------------------------------
-# 3. LOAD MODEL + DATA (once, at import time)
+# 3. LOAD MODEL + DATA (once, with fallback to remote downloader)
 # ---------------------------------------------------------------------------
-_model = OceanEmbedModel(in_channels=IN_CHANNELS, embedding_channels=32, hidden_size=64, num_depths=15).to(device)
-_model.load_state_dict(torch.load(CHECKPOINT_PATH, map_location=device))
-_model.eval()
+_model = None
+if not os.path.exists(CHECKPOINT_PATH):
+    try:
+        from fetch_data import ensure_checkpoint
+        ensure_checkpoint(os.path.dirname(CHECKPOINT_PATH))
+    except Exception as e:
+        print(f"[inference] Notice: Checkpoint not found and download skipped: {e}", flush=True)
+
+if os.path.exists(CHECKPOINT_PATH):
+    try:
+        _model = OceanEmbedModel(in_channels=IN_CHANNELS, embedding_channels=32, hidden_size=64, num_depths=15).to(device)
+        _model.load_state_dict(torch.load(CHECKPOINT_PATH, map_location=device))
+        _model.eval()
+    except Exception as e:
+        print(f"[inference] Error loading model from {CHECKPOINT_PATH}: {e}", flush=True)
+        _model = None
 
 _target_lats = np.arange(MIN_LAT, MAX_LAT + 0.25, 0.25)
 _target_lons = np.arange(MIN_LON, MAX_LON + 0.25, 0.25)
 
 # Load satellite surface anomaly arrays and SST via memory-mapping (mmap_mode='r')
-# This avoids loading multi-megabyte arrays into physical RAM at startup, keeping memory minimal.
-_sst_arr = np.load(f"{DATA_DIR}/sst.npy", mmap_mode="r")
-_sst_anom = np.load(f"{DATA_DIR}/sst_anom.npy", mmap_mode="r")
-_sss_anom = np.load(f"{DATA_DIR}/sss_anom.npy", mmap_mode="r")
-_ssh_anom = np.load(f"{DATA_DIR}/ssh_anom.npy", mmap_mode="r")
-_u_cur_anom = np.load(f"{DATA_DIR}/u_cur_anom.npy", mmap_mode="r")
-_v_cur_anom = np.load(f"{DATA_DIR}/v_cur_anom.npy", mmap_mode="r")
-_u_wind_anom = np.load(f"{DATA_DIR}/u_wind_anom.npy", mmap_mode="r")
-_v_wind_anom = np.load(f"{DATA_DIR}/v_wind_anom.npy", mmap_mode="r")
-_temp_target_clim = np.load(f"{DATA_DIR}/temp_target_clim.npy", mmap_mode="r")
+_sst_arr = None
+_sst_anom = None
+_sss_anom = None
+_ssh_anom = None
+_u_cur_anom = None
+_v_cur_anom = None
+_u_wind_anom = None
+_v_wind_anom = None
+_temp_target_clim = None
+_valid_depth_mask = None
 
-# 3D Valid Depth Mask (15, 101, 241) derived from climatology bathymetry:
-# Cells with temperature > 1.0°C are valid ocean depths above the local seafloor.
-# Depths at or beyond the seafloor have 0.0°C in _temp_target_clim and are masked as invalid (NaN).
-_valid_depth_mask = np.array(_temp_target_clim[0] > 1.0, dtype=bool)
+def _load_data_arrays():
+    global _sst_arr, _sst_anom, _sss_anom, _ssh_anom, _u_cur_anom, _v_cur_anom, _u_wind_anom, _v_wind_anom, _temp_target_clim, _valid_depth_mask
+    if _sst_arr is not None:
+        return
+    if not os.path.exists(f"{DATA_DIR}/sst.npy"):
+        try:
+            from fetch_data import ensure_data_ready
+            ensure_data_ready(DATA_DIR)
+        except Exception as e:
+            print(f"[inference] Notice: DATA_DIR arrays missing: {e}", flush=True)
+    if os.path.exists(f"{DATA_DIR}/sst.npy"):
+        _sst_arr = np.load(f"{DATA_DIR}/sst.npy", mmap_mode="r")
+        _sst_anom = np.load(f"{DATA_DIR}/sst_anom.npy", mmap_mode="r")
+        _sss_anom = np.load(f"{DATA_DIR}/sss_anom.npy", mmap_mode="r")
+        _ssh_anom = np.load(f"{DATA_DIR}/ssh_anom.npy", mmap_mode="r")
+        _u_cur_anom = np.load(f"{DATA_DIR}/u_cur_anom.npy", mmap_mode="r")
+        _v_cur_anom = np.load(f"{DATA_DIR}/v_cur_anom.npy", mmap_mode="r")
+        _u_wind_anom = np.load(f"{DATA_DIR}/u_wind_anom.npy", mmap_mode="r")
+        _v_wind_anom = np.load(f"{DATA_DIR}/v_wind_anom.npy", mmap_mode="r")
+        _temp_target_clim = np.load(f"{DATA_DIR}/temp_target_clim.npy", mmap_mode="r")
+        _valid_depth_mask = np.array(_temp_target_clim[0] > 1.0, dtype=bool)
+
+# Attempt immediate load if files exist locally
+_load_data_arrays()
  
 from collections import OrderedDict
 _prediction_cache: OrderedDict[str, np.ndarray] = OrderedDict()
