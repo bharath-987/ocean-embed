@@ -19,7 +19,7 @@
     - **Data Inspection**: Inspected all 10 items in `heatwave_depth` (`heatwave_depth_2023.npz`, `heatwave_depth_daily_shares_2023.csv`, `thresh.npy`, `mean.npy`, `node_days.npy`, `count.npy`, `lat.npy`, `lon.npy`, `mask.npy`, `meta.json`). Reported shapes, dtypes, and explained `count.npy` (`int16`, shape `(61, 101, 241)`) representing historical pooled sample count for threshold estimation.
     - **Backend API Endpoints (`backend/api_server.py`)**:
       - `GET /heatwave-depth?date=YYYY-MM-DD`: Serves 101×241 raster grid of depth penetration classes (`-1` = No Data, `0` = No Heatwave, `1` = Surface Only, `2` = Reaches 50–100 m) with structured legend color codes.
-      - `GET /heatwave-depth/point?lat=&lon=&date=`: Returns point class, label, depth penetration, and strict tooltip (`"model estimate, tends to understate"`). Raw `band_anomaly_50_100m` temperature value strictly suppressed per privacy/scientific integrity rule.
+      - `GET /heatwave-depth/point?lat=&lon=&date=`: Returns point class, label, depth penetration, and strict tooltip (`"Model call: right 80% of the time against Argo floats (2023)"`). Raw `band_anomaly_50_100m` temperature value strictly suppressed per privacy/scientific integrity rule.
       - `GET /heatwave-depth/summary?date=YYYY-MM-DD`: Serves basin-level shares and exact formatted bulletin lines for Arabian Sea and Bay of Bengal (separated at 77.5°E), plus validation badge.
       - Enforced 400 Bad Request rejection for any date outside 2023 across all 3 endpoints.
     - **Frontend Implementation (`marine-ecology.html`, `marine-ecology.js`, `style.css`)**:
@@ -28,7 +28,7 @@
       - **Bulletin Banner**: Formatted string `"<Basin>: <heatwave_share>% of the basin in a heatwave; <deep_share_of_heatwave>% of that reaches 50–100 m."` for Arabian Sea and Bay of Bengal.
       - **Validation Badge**: Exact string `"Checked against 895 Argo float profiles (2023): 80% correct (simple guess: 60%)."`
       - **Demo Date Buttons**: `2023-10-15` (Deep Arabian Sea, 57.1% deep reach) and `2023-07-15` (Bay of Bengal, surface only).
-      - **Strict Wording Rules**: Depth layer strictly shows "surface only" / "reaches 50–100 m" with zero severity words (`Moderate`, `Strong`, etc.) at depth. Tooltip strictly reads `"model estimate, tends to understate"`. Daily flag notice explicitly declared.
+      - **Strict Wording Rules**: Depth layer strictly shows "surface only" / "reaches 50–100 m" with zero severity words (`Moderate`, `Strong`, etc.) at depth. Tooltip strictly reads `"Model call: right 80% of the time against Argo floats (2023)"`. Daily flag notice explicitly declared.
   - [x] **Verification & Test Suite**:
     - Created `test_heatwave_depth.js`: **79/79 assertions PASSED (100%)**.
     - Ran `test_marine_ecology.js`: **192/192 assertions PASSED (100%)**.
