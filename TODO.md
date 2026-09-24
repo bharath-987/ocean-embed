@@ -4,6 +4,18 @@
 > **MANDATORY PROTOCOL**: This file **MUST** be updated after **EVERY SINGLE TASK** without exception or user reminder.
 > Record status, files changed, and verification evidence for every item.
 
+- [x] **Task: Push Code to `main`, `master`, and `ui-sample` Branches** `[Completed 2026-09-25 01:00 IST]`
+  - [x] 1. Executed mandatory pre-commit verification matrix:
+    - Zero syntax or linter errors across all files.
+    - Verified live API endpoints on port 8000: `/predict`, `/temperature-grid`, and all 6 parameter grids (`sst`, `ssh`, `sss`, `sla`, `current`, `wind`).
+    - Verified all core test suites passing 100% (`test_heatwave_depth.js`, `test_cyclone.js`, `test_fisheries.js`, `test_argo_page.js`, `test_timeout_and_loading.js`).
+  - [x] 2. Staged untracking of 12 binary files (`.pt`, `.npy`, `.npz`) from git and staged deployment readiness code changes.
+  - [x] 3. Committed to `master`: `cb9e7ac` (*feat(deploy): deployment readiness audit and fixes for Render, Vercel, and Hugging Face*).
+  - [x] 4. Pushed `master` to `origin/master`.
+  - [x] 5. Merged `master` into `ui-sample` and pushed to `origin/ui-sample`.
+  - [x] 6. Merged `master` into `main` and pushed to `origin/main`.
+  - [x] 7. Confirmed all three remote branches (`origin/master`, `origin/main`, `origin/ui-sample`) and local working tree are 100% synchronized at `cb9e7ac`.
+
 - [x] **Task: Resolve Pre-Deployment Open Questions (Render + Vercel + Hugging Face)** `[Completed 2026-09-24 22:58 IST]`
   - [x] 1. **Env Var Harmonization (`HF_DATASET_REPO_ID` vs `HF_REPO_ID`)**:
     - Confirmed `fetch_data.py` previously read `HF_DATASET_REPO_ID` (default `bharath-987/ocean-embed-data`), matching `README.md` and `SETUP.md`.
