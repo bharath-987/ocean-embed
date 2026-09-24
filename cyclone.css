@@ -475,6 +475,17 @@
   color: #64748B;
 }
 
+.ky-cyclone-table-note {
+  font-size: 0.78rem;
+  color: #475569;
+  background: #F8FAFC;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid #E2E8F0;
+  line-height: 1.45;
+  margin-top: 10px;
+}
+
 .ky-cyclone-table-empty {
   padding: 32px;
   text-align: center;

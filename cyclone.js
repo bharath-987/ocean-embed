@@ -521,9 +521,9 @@
             yAxisID: 'yTchp',
             spanGaps: false
           },
-          // Lower Confidence Band (fills up to Upper Band)
+          // Lower Error Band (fills up to Upper Band)
           {
-            label: '90% Confidence Band (±17.85 kJ/cm²)',
+            label: '90% error band (held 88% vs Argo, 2023)',
             data: lowerBand,
             borderColor: 'transparent',
             backgroundColor: 'rgba(37, 99, 235, 0.12)',
@@ -604,7 +604,7 @@
             borderWidth: 1,
             padding: 10,
             cornerRadius: 8,
-            filter: (item) => item.dataset.label !== 'Upper 90% Band' && item.dataset.label !== '90% Confidence Band (±17.85 kJ/cm²)',
+            filter: (item) => item.dataset.label !== 'Upper 90% Band' && item.dataset.label !== '90% error band (held 88% vs Argo, 2023)',
             callbacks: {
               title: (items) => {
                 const idx = items[0].dataIndex;
@@ -688,16 +688,20 @@
       subEl.textContent = `${pairs.length} Argo profiling float(s) sampled within 200 km before and after passage`;
     }
 
+    const tableNote = document.getElementById('argo-table-note');
+
     if (!pairs.length) {
       if (tabsContainer) tabsContainer.innerHTML = '';
       if (metaBar) metaBar.style.display = 'none';
       if (tableBody) tableBody.innerHTML = '';
       if (emptyState) emptyState.style.display = 'flex';
+      if (tableNote) tableNote.style.display = 'none';
       return;
     }
 
     if (emptyState) emptyState.style.display = 'none';
     if (metaBar) metaBar.style.display = 'flex';
+    if (tableNote) tableNote.style.display = 'block';
 
     if (activeFloatIndex >= pairs.length) {
       activeFloatIndex = 0;
@@ -828,7 +832,7 @@
     }
     if (argoSubEl) {
       const preCount = storm.argo ? storm.argo.near_pre || 0 : 0;
-      argoSubEl.textContent = `${preCount} floats within 200 km`;
+      argoSubEl.textContent = `${preCount} Argo profiles within 200 km (7 days before)`;
     }
   }
 

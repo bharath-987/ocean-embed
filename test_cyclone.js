@@ -60,7 +60,31 @@ async function runTests() {
   // 1c. "wake" must not appear in cyclone.html or cyclone.js
   assert(!htmlContent.toLowerCase().includes('wake'), 'Experimental wake must not appear in cyclone.html');
   assert(!jsContent.toLowerCase().includes('wake'), 'Experimental wake must not appear in cyclone.js');
-  console.log('  ✓ Experimental wake data confirmed completely absent from cyclone.html & cyclone.js.\n');
+  console.log('  ✓ Experimental wake data confirmed completely absent from cyclone.html & cyclone.js.');
+
+  // 1d. Scientific terminology & wording fixes
+  // 1. Header badge: 2023 Storm Replay
+  assert(htmlContent.includes('2023 Storm Replay'), 'cyclone.html header must state "2023 Storm Replay"');
+  assert(!htmlContent.includes('Historical Reanalysis'), 'cyclone.html must NOT state "Historical Reanalysis" (GLORYS is reanalysis, ours is satellite reconstruction)');
+  
+  // 2. Map legend honest heat availability
+  const expectedLegend = 'Higher values = more heat available to a storm. Ocean heat alone does not decide rapid intensification; the atmosphere matters too.';
+  assert(htmlContent.includes(expectedLegend), 'Map legend must explain heat availability without overclaiming');
+  assert(!htmlContent.includes('fuels rapid intensification'), 'Old legend threshold claim must be removed');
+
+  // 3. Argo table title & note
+  assert(htmlContent.includes('Cooling after the storm: Argo floats vs model'), 'Argo card title must be "Cooling after the storm: Argo floats vs model"');
+  const expectedTableNote = "Our model reconstructs the ocean before a storm well. It underestimates the fast cooling right after a storm (typically 25–50% of the real drop). That's a known limitation; the fuel values above are the validated part.";
+  assert(htmlContent.includes(expectedTableNote), 'Argo table note must caveat post-storm cooling limitation');
+
+  // 4. Error band label
+  assert(jsContent.includes('90% error band (held 88% vs Argo, 2023)'), 'cyclone.js must label error band honestly');
+  assert(!jsContent.includes('90% Confidence Band'), 'cyclone.js must NOT use statistical "Confidence Band"');
+
+  // 5. Argo card sub-text
+  assert(jsContent.includes('${preCount} Argo profiles within 200 km (7 days before)'), 'Argo sub-text must specify profiles within 200 km 7 days before');
+  assert(!jsContent.includes('${preCount} floats within 200 km'), 'Old float count sub-text must be replaced');
+  console.log('  ✓ All 5 scientific terminology and honest wording fixes confirmed present.\n');
 
   // -------------------------------------------------------------
   // TEST 2: Backend Catalog API (/cyclones)

@@ -4,6 +4,36 @@
 > **MANDATORY PROTOCOL**: This file **MUST** be updated after **EVERY SINGLE TASK** without exception or user reminder.
 > Record status, files changed, and verification evidence for every item.
 
+- [x] **Task: Push Code to `ui-sample` and `master` Branches** `[Completed 2026-09-24 18:38 IST]`
+  - [x] 1. Executed Mandatory Pre-Commit Testing Checklist:
+    - Syntax verification: all JS and Python files compiled cleanly with 0 errors.
+    - Live FastAPI endpoints tested on port 8000: `/predict`, `/temperature-grid`, and all 6 `/parameter-grid` parameters.
+    - Full automated regression test suites executed and 100% passing: `test_cyclone.js` (7 suites), `test_cyclone_layout.js` (5 checks), `verify_landing_page.js` (41 checks), `test_pre_demo_fixes.js` (7 checks), `test_coastal_bathymetry_and_errors.js` (4 checks), `test_fisheries.js` (21 suites), `test_argo_page.js` (148 checks), `test_heatwave_depth.js` (79 checks).
+  - [x] 2. Staged and committed changes on `ui-sample`.
+  - [x] 3. Pushed `ui-sample` to `origin/ui-sample`.
+  - [x] 4. Merged `ui-sample` into `master` and pushed `master` to `origin/master`.
+  - [x] 5. Verified working tree clean and local/remote branches synchronized.
+
+- [x] **Task: Cyclone Mode Scientific & Terminology Wording Fixes** `[Completed 2026-09-24 18:28 IST]`
+  - [x] **1. Header Badge (`cyclone.html`)**: Replaced `"Historical Reanalysis"` with `"2023 Storm Replay"`. Subtitle preserved as `"Reconstructed Data · 2023 Season"` (GLORYS is the reanalysis; Kyogre is satellite reconstruction).
+  - [x] **2. Map Legend (`cyclone.html`)**: Replaced `>=50 / >=80 kJ/cm²` threshold sentence with honest wording: `"Higher values = more heat available to a storm. Ocean heat alone does not decide rapid intensification; the atmosphere matters too."`
+  - [x] **3. Argo Truth Check Table (`cyclone.html`, `cyclone.css`, `cyclone.js`)**:
+    - Renamed section title to `"Cooling after the storm: Argo floats vs model"`.
+    - Added dedicated table note under table wrap with exact wording: `"Our model reconstructs the ocean before a storm well. It underestimates the fast cooling right after a storm (typically 25–50% of the real drop). That's a known limitation; the fuel values above are the validated part."`
+    - Added `.ky-cyclone-table-note` styling in `cyclone.css` matching dashboard footnote aesthetic.
+    - Updated `cyclone.js` `renderArgoTruthCheck` to toggle note visibility dynamically with paired floats.
+  - [x] **4. Error Band Label (`cyclone.js`)**:
+    - Updated dataset label from `"90% Confidence Band (±17.85 kJ/cm²)"` to `"90% error band (held 88% vs Argo, 2023)"`.
+    - Updated tooltip filter on line 607 to match exact error band label.
+  - [x] **5. Argo Card Sub-Text (`cyclone.js`)**:
+    - Updated `argoSubEl` text from `${preCount} floats within 200 km` to `${preCount} Argo profiles within 200 km (7 days before)` (accurately representing profile count rather than platform count).
+  - [x] **6. Automated Verification & Regression Suite**:
+    - Updated `test_cyclone.js` with Test 1d explicitly asserting all 5 wording changes and strict absence of old terminology.
+    - `test_cyclone.js`: **100% PASSED** (all 7 suites).
+    - `test_cyclone_layout.js`: **100% PASSED** (all 5 checks).
+    - Simulated Biparjoy (18 Argo profiles, 4 pairs) and Mocha (2 Argo profiles, 2 pairs) rendering with 100% verification.
+    - Ran full regression: `test_fisheries.js` (21/21 suites), `test_argo_page.js` (148/148 checks), `test_heatwave_depth.js` (79/79 checks) all passing.
+
 - [x] **Task: Nearshore Boxes Collision Verification, Heatwave Mode Bug Fixes & Heatwave Depth Check Feature** `[Completed 2026-09-24 17:50 IST]`
   - [x] **Task 1: Nearshore Boxes Collision Audit & Confirmation**:
     - Queried live `/nearshore-boxes` endpoint directly on port 8000.

@@ -35,7 +35,7 @@
       <div class="ky-header__right">
         <div class="ky-live-indicator">
           <div class="ky-live-text">
-            <div class="ky-live-title">Historical Reanalysis</div>
+            <div class="ky-live-title">2023 Storm Replay</div>
             <div class="ky-live-sub">Reconstructed Data · 2023 Season</div>
           </div>
         </div>
@@ -250,7 +250,7 @@
                   <span>100</span>
                   <span>125+</span>
                 </div>
-                <p class="ky-map-legend__sub">Values &ge;50 kJ/cm² support tropical cyclone intensification; &ge;80 kJ/cm² fuels rapid intensification.</p>
+                <p class="ky-map-legend__sub">Higher values = more heat available to a storm. Ocean heat alone does not decide rapid intensification; the atmosphere matters too.</p>
               </div>
             </div>
           </div>
@@ -285,7 +285,7 @@
           <div class="ky-card-header">
             <div>
               <div class="ky-truth-badge">In-Situ Truth Check</div>
-              <h3 class="ky-card-title">Argo Float Subsurface Observations vs Kyogre Model vs GLORYS</h3>
+              <h3 class="ky-card-title">Cooling after the storm: Argo floats vs model</h3>
               <span class="ky-card-sub" id="argo-section-sub">Profiling floats within 200 km of storm track sampling before and after passage</span>
             </div>
 
@@ -331,6 +331,11 @@
                 <!-- Populated dynamically -->
               </tbody>
             </table>
+          </div>
+
+          <!-- Argo Table Note -->
+          <div class="ky-cyclone-table-note" id="argo-table-note">
+            <span>Our model reconstructs the ocean before a storm well. It underestimates the fast cooling right after a storm (typically 25–50% of the real drop). That's a known limitation; the fuel values above are the validated part.</span>
           </div>
 
           <div class="ky-cyclone-table-empty" id="argo-empty-state" style="display:none;">
