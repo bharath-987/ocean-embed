@@ -4,6 +4,21 @@
 > **MANDATORY PROTOCOL**: This file **MUST** be updated after **EVERY SINGLE TASK** without exception or user reminder.
 > Record status, files changed, and verification evidence for every item.
 
+- [x] **Task: Merge `heatwave-fixes` Branch into `master` & Verify** `[Completed 2026-09-24 19:07 IST]`
+  - [x] 1. Fetched `origin/heatwave-fixes` containing:
+    - Committed `.npz` data files in `backend/data/heatwave_depth/` (`heatwave_depth_2023.npz`, `mhw_sst_2010_2023.npz`).
+    - Removed hardcoded Windows personal path (`C:\Users\Asus\...`), replacing with repo-relative path and `KYOGRE_HEATWAVE_DIR` env fallback.
+    - Replaced silent 29.5°C fallback with `ClimatologyMissing` exception preventing fake heatwaves.
+    - Updated deep reach tooltip to `"Model call: right 80% of the time against Argo floats (2023)"`.
+  - [x] 2. Merged `origin/heatwave-fixes` into `master` cleanly with zero conflicts (`commit 7b86bf6`).
+  - [x] 3. Restarted FastAPI backend service on port 8000 to reload updated modules and data files.
+  - [x] 4. Ran automated test suite `test_heatwave_depth.js`: **79/79 assertions PASSED (100%)**.
+  - [x] 5. Ran platform tests: `test_cyclone.js` (100%), `test_cyclone_layout.js` (100%), `test_marine_ecology.js` (192/192 assertions, 100%).
+  - [x] 6. Verified both demo dates live via API:
+    - `2023-10-15`: Arabian Sea 65.6% heatwave (57.1% deep reach), Point (15°N, 65°E) reaches 50–100 m with tooltip `"Model call: right 80% of the time against Argo floats (2023)"`.
+    - `2023-07-15`: Bay of Bengal 23.9% heatwave (20.5% deep reach), Point (15°N, 85°E) no heatwave.
+  - [x] 7. Pushed `master` and `ui-sample` to remotes, keeping both branches synchronized.
+
 - [x] **Task: Push Code to `ui-sample` and `master` Branches** `[Completed 2026-09-24 18:38 IST]`
   - [x] 1. Executed Mandatory Pre-Commit Testing Checklist:
     - Syntax verification: all JS and Python files compiled cleanly with 0 errors.
